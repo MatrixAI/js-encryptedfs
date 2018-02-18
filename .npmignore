@@ -1,0 +1,5 @@
+.*
+/webpack.config.babel.js
+/shell.nix
+/doc
+/test

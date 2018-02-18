@@ -1,0 +1,27 @@
+{
+  "name": "react-demo",
+  "version": "0.0.1",
+  "scripts": {
+    "dos2unix": "dos2unix public/index.js",
+    "webpack": "webpack",
+    "build": "npm run webpack && npm run dos2unix",
+    "serve": "ws --log.format tiny --directory public --spa index.html"
+  },
+  "dependencies": {
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "react": "^16.2.0",
+    "react-dom": "^16.2.0",
+    "react-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-loader": "^7.1.2",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-flow": "^6.23.0",
+    "babel-preset-react": "^6.24.1",
+    "babel-register": "^6.26.0",
+    "local-web-server": "^2.4.0",
+    "webpack": "^3.11.0"
+  }
+}
