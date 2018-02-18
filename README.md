@@ -26,3 +26,7 @@ Now that we have a simple hello world ready, we want create some exxtra componen
 Turns out that react preset doesn't bring in object spread nor class properties. So we bring them in independently. Also flow is in explicitly anyway regardless of react bringing in flow because in the future react may not have flow, but I know I want flow here.
 
 Another repository may then incorporate react-native and electron components and bring these together.
+
+---
+
+One issue is that users of this will need dos2unix.

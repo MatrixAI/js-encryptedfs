@@ -4627,10 +4627,13 @@ class HelloMessage extends React.Component {
   }
 }
 
+HelloMessage.defaultProps = {
+  name: "Unknown Person"
+};
 const root = document.getElementById('root');
 
 if (root) {
-  _reactDom2.default.render(React.createElement(HelloMessage, { name: 'Roger' }), root);
+  _reactDom2.default.render(React.createElement(HelloMessage, null), root);
 } else {
   throw new Error('No Root Element');
 }

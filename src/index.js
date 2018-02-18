@@ -13,6 +13,9 @@ type State = {
 };
 
 class HelloMessage extends React.Component<Props, State> {
+  static defaultProps = {
+    name: "Unknown Person"
+  };
   state = {
     count: 0
   };
