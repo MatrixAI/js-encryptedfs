@@ -87,7 +87,7 @@ export default [
     output: {
       file: 'dist/index.browser.umd.js',
       format: 'umd',
-      name: 'virtualfs'
+      name: 'javascript-demo'
     },
     plugins: [
       babel({
