@@ -1,10 +1,15 @@
 {
   pkgs ? import ./pkgs.nix,
-  nodePath ? "nodejs-8_x"
+  nodeVersion ? "8_x"
 }:
   with pkgs;
   let
-    nodejs = lib.getAttrFromPath (lib.splitString "." nodePath) pkgs;
+    nodejs = lib.getAttrFromPath
+            (lib.splitString "." ("nodejs-" + nodeVersion))
+            pkgs;
+    nodePackages = lib.getAttrFromPath
+                   (lib.splitString "." ("nodePackages_" + nodeVersion))
+                   pkgs;
   in
     stdenv.mkDerivation {
       name = "javascript-demo";

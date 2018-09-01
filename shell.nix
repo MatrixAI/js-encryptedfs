@@ -1,14 +1,14 @@
 {
   pkgs ? import ./pkgs.nix,
-  nodePath ? "nodejs-8_x"
+  nodeVersion ? "8_x",
 }:
   with pkgs;
   let
-    drv = import ./default.nix { inherit pkgs nodePath; };
+    drv = import ./default.nix { inherit pkgs nodeVersion; };
   in
     drv.overrideAttrs (attrs: {
       src = null;
-      buildInputs = [ dos2unix flow ] ++ attrs.buildInputs;
+      buildInputs = [ dos2unix flow nodePackages_6_x.node2nix ] ++ attrs.buildInputs;
       shellHook = ''
         echo 'Entering ${attrs.name}'
         set -v
