@@ -1,5 +1,47 @@
-React Experiments
-======================
+# JavaScript Demo
+
+This is an example JavaScript project using Nix to setup a development environment.
+
+We're investigating the usage of `node2nix` for transforming a package.json into a package that we can use. The problem is whether we can still use the nix-shell and use npm normally from that point onwards.
+
+We use `rollup` to build libraries, but `webpack` for building applications. But that's not really necessary, since `rollup` can be used for libraries too. What if you have both library and application?
+
+
+```
+# this will automatically run in the background for this directory
+# we will set this up in the shell.nix
+flow server &
+flow stop
+```
+
+Run tests:
+
+```
+npm test
+```
+
+We want to add `node_modules/.bin` to our PATH as well.
+
+Now we have `babel-node`, which we can use as a simple REPL to run scripts, because it requires babel compilation first.
+
+---
+
+```
+# development is only needed for deving of shell.nix
+# but during production we need not it... but you still need it to run any kind of babel compilation
+# so you still need the develoment aspect of it to actually perform a build
+# you have to specify the version as well
+
+node2nix -8 --input ./package.json --output registry.nix --composition default.nix --node-env node-env.nix --development
+```
+
+If we give it a `node.nix` as composition, and use that in our own default.nix, do we also commit everything in the registry.nix? With regards to the development. We end up with 2 sources of truth, as this is basically building everything as a single thing. Every time you enter the shell, you have to run it again, which contacts the entire environment to build it again. It appears you'd want the `default.nix` to be generated, or built directly.
+
+Because the distribution is also just installed. The default.nix doesn't actually all the dependencies of development. Only when you need to run with it in nix-shell. But then you would need to generate 2 registries. Secondly because we are releasing 2 distributions, what does it mean anyway?
+
+
+
+---
 
 Front end experiments with react, styled components and d3 and webpack (instead of rollup since this is for applications), not libraries.
 

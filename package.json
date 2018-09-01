@@ -1,27 +1,55 @@
 {
-  "name": "react-demo",
+  "name": "javascript-demo",
   "version": "0.0.1",
-  "scripts": {
-    "dos2unix": "dos2unix public/index.js",
-    "webpack": "webpack",
-    "build": "npm run webpack && npm run dos2unix",
-    "serve": "ws --log.format tiny --directory public --spa index.html"
+  "author": "Roger Qiu",
+  "description": "JavaScript Demo Project",
+  "keywords": [
+    "nix",
+    "demo"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MatrixAI/JavaScript-Demo.git"
   },
-  "dependencies": {
-    "babel-plugin-transform-class-properties": "^6.24.1",
-    "babel-plugin-transform-object-rest-spread": "^6.26.0",
-    "react": "^16.2.0",
-    "react-dom": "^16.2.0",
-    "react-router": "^4.2.0"
+  "main": "dist/index.node.cjs.js",
+  "module": "dist/index.node.es.js",
+  "browser": "dist/index.browser.umd.js",
+  "scripts": {
+    "test": "ava -v",
+    "doc": "documentation build ./src/** -f html -o ./doc",
+    "rollup": "rollup --config",
+    "dos2unix": "dos2unix dist/*",
+    "build": "npm test && npm run doc && npm run rollup && npm run dos2unix"
+  },
+  "ava": {
+    "require": [
+      "@babel/register"
+    ]
+  },
+  "engines": {
+    "node": ">=6.4.0"
   },
   "devDependencies": {
-    "babel-cli": "^6.26.0",
-    "babel-loader": "^7.1.2",
-    "babel-preset-env": "^1.6.1",
-    "babel-preset-flow": "^6.23.0",
-    "babel-preset-react": "^6.24.1",
-    "babel-register": "^6.26.0",
-    "local-web-server": "^2.4.0",
-    "webpack": "^3.11.0"
+    "@babel/cli": "^7.0.0",
+    "@babel/core": "^7.0.0",
+    "@babel/node": "^7.0.0",
+    "@babel/plugin-proposal-class-properties": "^7.0.0",
+    "@babel/plugin-proposal-object-rest-spread": "^7.0.0",
+    "@babel/plugin-transform-runtime": "^7.0.0",
+    "@babel/preset-env": "^7.0.0",
+    "@babel/preset-flow": "^7.0.0",
+    "@babel/register": "^7.0.0",
+    "ava": "^0.25.0",
+    "documentation": "^8.1.2",
+    "rollup": "^0.65.0",
+    "rollup-plugin-babel": "^4.0.2",
+    "rollup-plugin-commonjs": "^9.1.6",
+    "rollup-plugin-node-builtins": "^2.1.2",
+    "rollup-plugin-node-globals": "^1.2.1",
+    "rollup-plugin-node-resolve": "^3.3.0"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.0.0"
   }
 }
