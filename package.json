@@ -49,5 +49,8 @@
   },
   "dependencies": {
     "@babel/runtime": "^7.0.0"
+  },
+  "bin": {
+    "javascript-demo": "dist/bin/javascript-demo"
   }
 }

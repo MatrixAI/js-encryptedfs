@@ -117,5 +117,43 @@ export default [
       globals(),
       builtins()
     ]
+  },
+  {
+    input: 'bin/javascript-demo.js',
+    output: {
+      file: 'dist/bin/javascript-demo',
+      format: 'cjs',
+      banner: '#!/usr/bin/env node'
+    },
+    external: (id) => {
+      return Object.keys(packageJson.dependencies)
+        .concat(Object.keys(packageJson.devDependencies))
+        .map((dep) => new RegExp('^' + dep))
+        .concat([
+            /^babel-runtime/
+        ])
+        .some((pattern) => pattern.test(id));
+    },
+    plugins: [
+      babel({
+        babelrc: false,
+        exclude: 'node_modules/**',
+        runtimeHelpers: true,
+        plugins: [
+          '@babel/plugin-transform-runtime',
+          '@babel/plugin-proposal-class-properties',
+          '@babel/plugin-proposal-object-rest-spread'
+        ],
+        presets: [
+          '@babel/preset-flow',
+          ['@babel/preset-env', {
+            modules: false,
+            targets: {
+              node: '8.7.0'
+            }
+          }]
+        ]
+      })
+    ]
   }
 ];
