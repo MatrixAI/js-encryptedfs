@@ -15,6 +15,8 @@
 
         export PATH="$(npm bin):$PATH"
 
+        flow server 2>/dev/null &
+
         set +v
       '';
     })
