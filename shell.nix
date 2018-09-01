@@ -13,7 +13,7 @@
         echo 'Entering ${attrs.name}'
         set -v
 
-        export PATH="$(npm bin):$PATH"
+        export PATH="$(pwd)/dist/bin:$(npm bin):$PATH"
 
         flow server 2>/dev/null &
 

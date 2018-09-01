@@ -19,7 +19,8 @@
     "test": "ava -v",
     "rollup": "rollup --config",
     "dos2unix": "dos2unix dist/*",
-    "build": "npm test && npm run rollup && npm run dos2unix"
+    "chmod": "chmod u+x dist/bin/*",
+    "build": "npm test && npm run rollup && npm run dos2unix && npm run chmod"
   },
   "ava": {
     "require": [
