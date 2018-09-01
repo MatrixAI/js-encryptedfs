@@ -9,7 +9,7 @@ const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 
 export default [
   {
-    input: 'src/index.js',
+    input: 'lib/index.js',
     output: {
       file: 'dist/index.node.es.js',
       format: 'es'
@@ -46,7 +46,7 @@ export default [
     ]
   },
   {
-    input: 'src/index.js',
+    input: 'lib/index.js',
     output: {
       file: 'dist/index.node.cjs.js',
       format: 'cjs'
@@ -83,7 +83,7 @@ export default [
     ]
   },
   {
-    input: 'src/index.js',
+    input: 'lib/index.js',
     output: {
       file: 'dist/index.browser.umd.js',
       format: 'umd',
