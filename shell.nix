@@ -8,7 +8,7 @@
   in
     drv.overrideAttrs (attrs: {
       src = null;
-      buildInputs = [ flow ] ++ attrs.buildInputs;
+      buildInputs = [ dos2unix flow ] ++ attrs.buildInputs;
       shellHook = ''
         echo 'Entering ${attrs.name}'
         set -v
