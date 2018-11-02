@@ -8,7 +8,9 @@
   in
     drv.overrideAttrs (attrs: {
       src = null;
-      buildInputs = [ dos2unix flow nodePackages_6_x.node2nix ] ++ attrs.buildInputs;
+      buildInputs = [ nodePackages_6_x.node2nix ] ++
+                    attrs.buildInputs ++
+                    attrs.checkInputs;
       shellHook = ''
         echo 'Entering ${attrs.name}'
         set -v

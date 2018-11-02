@@ -25,5 +25,6 @@
         );
         src = lib.cleanSource attrs.src;
       };
-      buildInputs = [ nodejs ];
+      buildInputs = [ nodejs dos2unix ];
+      checkInputs = [ flow ];
     }
