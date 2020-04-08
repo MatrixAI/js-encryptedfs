@@ -1,7 +1,8 @@
-import * as fs from 'fs';
+import fs from 'fs';
 import * as process from 'process';
 import Cryptor from './Cryptor';
-import VFS from 'virtualfs';
+import * as VFS from 'virtualfs';
+import { spawn, Worker, ModuleThread } from 'threads'
 
 // TODO: conform to coding style of vfs - no blank lines, space are method definition
 // TODO: are callback mandatory?
@@ -14,6 +15,15 @@ import VFS from 'virtualfs';
  * One way to implement this is through inheriting the FileDeescriptors class.
  * Extend the class by adding another attribute for the
  */
+
+interface EncryptedFSParameters {
+	password: string
+	upperDir?: Object
+	lowerDir?: Object
+	initVectorSize?: number
+	blockSize?: number
+	useWebWorkers?: boolean
+}
 
 export default class EncryptedFS {
 	// TODO: need to have per file cryptor instance
@@ -37,6 +47,25 @@ export default class EncryptedFS {
 		this._blockSize = blockSize;
 		this._chunkSize = this._blockSize + this._initVectorSize;
 	}
+	_initVectorSize: number;
+	_blockSize: number;
+	_chunkSize: number;
+	_useWebWorkers: boolean;
+	constructor({
+		password,
+		upperDir=VFS,
+		lowerDir=fs,
+		initVectorSize=16,
+		blockSize=4096, 
+		useWebWorkers=false}: EncryptedFSParameters) {
+			this._cryptor = new Cryptor({pass:password, useWebWorkers:useWebWorkers});
+			this._upperDir = upperDir;
+			this._lowerDir = lowerDir;
+			this._initVectorSize = initVectorSize;
+			this._blockSize = blockSize;
+			this._chunkSize = this._blockSize + this._initVectorSize;
+			this._useWebWorkers = useWebWorkers;
+		}
 
 	/*
 	// other functions can use this method to encrypt whilst marshalling data to block boundaires
@@ -93,13 +122,90 @@ export default class EncryptedFS {
 
 
 		let chunkCtr = 0;
-		const plaintextBlocks = [];
+		const plaintextBlocks: Buffer[] = [];
 		for (const chunkNum=startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
 			const chunkOffset = this._chunkNumToOffset(chunkNum + chunkCtr);
 
 			let chunkBuf = Buffer.alloc(this._chunkSize);
 
 			fs.readSync(fd, chunkBuf, 0, this._chunkSize, chunkOffset);
+
+			// extract the iv from beginning of chunk
+			const initVector = chunkBuf.slice(0, this._initVectorSize);
+
+			// extract remaining data which is the cipher text
+			const chunkData = chunkBuf.slice(this._initVectorSize);
+
+			const ptBlock = this._cryptor.decryptSync(chunkData, new Promise( (resolve, reject) => {
+				resolve(iv);
+			}));
+			const ptBlock = this._cryptor.decryptSync(chunkData, initVector);
+
+			plaintextBlocks.push(ptBlock);
+		}
+
+		const decryptedReadBuffer = Buffer.concat(plaintextBlocks, numChunksToRead * this._blockSize);
+
+		// offset into the decryptedReadBuffer to read from
+		const startBlockOffset = position & (this._blockSize - 1);
+
+		decryptedReadBuffer.copy(buffer, offset, startBlockOffset, length);
+		/*
+
+		// TODO: we never use buffer from param
+		// read entire chunk 'position' belongs to
+		let chunkBuf = Buffer.alloc(this._chunkSize);
+		// remember every chunk_i is associated with block_i, for integer i
+		// i.e. startChunkNum and chunkNum can be used interchangably
+		const startChunkOffset = startChunkNum * this._chunkSize;
+		fs.readSync(fd, chunkBuf, 0, this._chunkSize, startChunkOffset);
+
+		// extract iv
+		const iv = chunkBuf.slice(0, this._ivSize);
+		const blockBuf = chunkBuf.slice(this._ivSize, chunkBuf.length);
+
+		const ptBlock = this._cryptor.decryptSync(blockBuf, iv);
+
+		// TODO: is this the most efficient way? Can we make do without the copy?
+		ptBlock.copy(buffer, offset, position, length);
+		*/
+
+		/* TODO: this is not an accurate measure of bytesRead.
+		 : find out in what cases bytesRead will be less than read
+		 : one case is when you read more than the file contains
+		 : in this case we may need a special eof marker or some meta
+		 : data about the plain text
+		 */
+		return length;
+	}
+
+	// TODO: validation of the params?
+	// TODO: what to do if buffer is less than 4k? truncate?
+	// TODO: what happens if length is larger than buffer?
+	// So if the file contains a 100 bytes, and you read 4k, then you will read those 100 into
+	// the buffer at the specified offset. But after those 100 bytes, what ever was in the buffer will remain
+	async read(fd: number, buffer: Buffer, offset: number, length: number, position: number, callback: { (): void; (err: NodeJS.ErrnoException, bytesRead: number, buffer: Buffer): void; }) {
+		// TODO: actually use offset, length and position
+
+		// length is specified for plaintext file, but we will be reading from encrypted file
+		// hence the inclusion of 'chunks' in variable name
+		const numChunksToRead = Math.ceil(length / this._blockSize);
+
+		// 1. find out block number the read offset it at
+		// 2. blocknum == chunknum so read entire chunk and get iv
+		// 3. decrypt chunk with attaned iv.
+		//
+		// TODO: maybe actually better to call is a chunk
+		const startChunkNum = this._offsetToBlockNum(position);
+
+		let chunkCtr = 0;
+		const plaintextBlocks: Buffer[] = [];
+		for (const chunkNum=startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
+			const chunkOffset = this._chunkNumToOffset(chunkNum + chunkCtr);
+
+			let chunkBuf = Buffer.alloc(this._chunkSize);
+
+			fs.read(fd, chunkBuf, 0, this._chunkSize, chunkOffset, callback);
 
 			// extract the iv from beginning of chunk
 			const initVector = chunkBuf.slice(0, this._initVectorSize);
@@ -144,8 +250,8 @@ export default class EncryptedFS {
 		 : in this case we may need a special eof marker or some meta
 		 : data about the plain text
 		 */
-		return length;
 	}
+
 
 	readdirSync(path: fs.PathLike, options?: { encoding: BufferEncoding; withFileTypes?: false; } | "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex"): string[] {
 		return fs.readdirSync(path, options)
@@ -185,7 +291,7 @@ export default class EncryptedFS {
 		//
 		// 	Cases 3 and 4 are not possible when overlaying the last segment
 		//
-		// TODO: throw err if buff lenght  > block size
+		// TODO: throw err if buff length  > block size
 
 
 		const writeOffset = position & (this._blockSize-1); // byte offset from where to start writing new data in the block
@@ -213,30 +319,16 @@ export default class EncryptedFS {
 
 		return newBlock;
 	}
+	_makeBlockGenerator(buffer: Buffer) {
+		const blockIterator = function* bufferIterable(_buffer: Buffer, _blockSize: number) {
+			let currOffset = 0;
+			while (currOffset < _buffer.length) {
+				yield _buffer.slice(currOffset, currOffset + _blockSize);
+				currOffset += _blockSize;
+			}
+		}
 
-
-	_makeBlockIterable(buffer: Buffer) {
-		// buffer[Symbol.iterator] = () => {
-		// 	let iterationCount = 0;
-		// 	let currOffset = 0;
-		// 	return {
-		// 		next: () => {
-		// 			let result;
-		// 			if (currOffset < buffer.length) {
-		// 				result = {
-		// 					// still functions if less than 'blocksize' amount remaining in buffer
-		// 					value: buffer.slice(currOffset, currOffset + this._blockSize),
-		// 					done: false
-		// 				}
-		// 				currOffset += this._blockSize;
-		// 				iterationCount++;
-		// 				return result;
-		// 			}
-		// 			return { value: iterationCount, done: true }
-		// 		}
-		// 	}
-		// }
-		return buffer;
+		return blockIterator(buffer, this._blockSize);
 	}
 
 	_posOutOfBounds(fd: number, position: number) {
@@ -250,7 +342,7 @@ export default class EncryptedFS {
 	}
 
 	// TODO: actaully use offset.
-	writeSync(fd: number, buffer: Buffer, offset: number = null, length: number = null, position: number = null) {
+	writeSync(fd: number, buffer: Buffer, offset: number = 0, length: number = 1, position: number = 0) {
 		// TODO: what will happen when we write a new file smaller than block size?
 		// case 1 writing a new file
 		// case 2 writing to an exisiting file with position  0
@@ -265,7 +357,102 @@ export default class EncryptedFS {
 		const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
 
-		let startBlock;
+		let startBlock: Uint8Array;
+		let middleBlocks = Buffer.allocUnsafe(0);
+		let endBlock = Buffer.allocUnsafe(0);
+		//if (this._hasContentSync(fd)) {
+			// only the first and last block needs to be overlayed
+			// they needs to be process separately first
+		const startBlockOverlaySize = this._blockSize - boundaryOffset;
+		// TODO: this should not be using the offsets, that pertains to the file, not this buffer.
+		const startBlockOverlay = buffer.slice(0, startBlockOverlaySize);
+		// TODO: does this need offset to funciton properly?
+		startBlock = this._overlaySegment(fd, startBlockOverlay, position);
+		// only bother if there is a last chunk
+		let endBlockBufferOffset: number;
+		if (numBlocksToWrite >= 2) {
+			// where the end block on file, begins in the buffer
+			endBlockBufferOffset = startBlockOverlaySize + (numBlocksToWrite-2) * this._blockSize;
+			// TODO: length maybe undefined
+			const endBlockOverlay = buffer.slice(endBlockBufferOffset)
+
+			const endBlockOffset = this._blockNumToOffset(endBlockNum);
+			endBlock = this._overlaySegment(fd, endBlockOverlay, endBlockOffset)
+		}
+			/*
+		} else {
+			// there is no content in the file, so we don't overlay
+			startBlock = buffer.slice(offset, offset + Math.min(length, this._blockSize));
+			// zero pad the block if the entire write buffer does not fill up a block
+			// TODO: confirm that concat is safe to zero pad: will it always pad with zeros?
+			// TODO: This, zero pads after the new data, sometimes we'd need to zero pad before the new data.
+			if (startBlock.length < this._blockSize) {
+				startBlock = Buffer.concat([startBlock], this._blockSize);
+			}
+
+			// always a last block when writing at least 2 blocks
+			if (numBlocksToWrite >= 2) {
+				lastBlock = buffer.slice(endBlockOffset);
+			}
+			*/
+	//	}
+
+
+		// slice out middle blocks if they actually exist
+		if (numBlocksToWrite >= 3) {
+			// from start of second block to the end of the second last block
+			// TODO: plus overlay amount -> startBlockOffset + ovelayamount,
+			middleBlocks = buffer.slice(startBlockOverlaySize , endBlockBufferOffset);
+		}
+
+
+		// TODO: assert newBlocks is a multiple of blocksize
+		const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock]);
+
+		const blockIter = this._makeBlockGenerator(newBlocks);
+
+		// TODO: specify resultant buffer size in Buffer.concat for performance throughout source
+		const encryptedChunks = []
+
+		for (let block of blockIter) {
+			// gen iv
+			const iv = this._cryptor.genRandomInitVectorSync();
+
+			// encrypt block
+			// TODO: so process.nextTick() can allow sync fn's to be run async'ly
+			// TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
+			const ctBlock = this._cryptor.encryptSync(block.toString(), iv);
+
+			// convert into chunk
+			// TODO: can this be done by reference instead of .concat createing a new buffer?
+			const chunk = Buffer.concat([iv, ctBlock], this._chunkSize);
+			// add to buffer array
+			encryptedChunks.push(chunk)
+			// fs.write to disk
+		}
+
+		// concat buffer array
+		const encryptedWriteBuffer = Buffer.concat(encryptedChunks, numBlocksToWrite * this._chunkSize);
+
+		// position to write to in the file in lower directory
+		const lowerWritePos = this._chunkNumToOffset(startBlockNum);
+		// TODO: flush?
+		fs.writeSync(fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
+		let dummy = Buffer.alloc(4112);
+		fs.readSync(fd, dummy, 0, dummy.length, lowerWritePos);
+	}
+
+	// TODO: actaully use offset.
+	async write(fd: number, buffer: Buffer, offset: number = null, length: number = null, position: number = null) {
+
+		const boundaryOffset = position & (this._blockSize-1); // how far from a block boundary our write is
+		const numBlocksToWrite = Math.ceil((length + boundaryOffset)/ this._blockSize);
+
+
+		const startBlockNum = this._offsetToBlockNum(position)
+		const endBlockNum = startBlockNum + numBlocksToWrite - 1;
+
+		let startBlock: Uint8Array;
 		let middleBlocks = Buffer.allocUnsafe(0);
 		let endBlock = Buffer.allocUnsafe(0);
 		//if (this._hasContentSync(fd)) {
@@ -277,7 +464,7 @@ export default class EncryptedFS {
 			// TODO: does this need offset to funciton properly?
 			startBlock = this._overlaySegment(fd, startBlockOverlay, position);
 			// only bother if there is a last chunk
-			let endBlockBufferOffset;
+			let endBlockBufferOffset: number;
 			if (numBlocksToWrite >= 2) {
 				// where the end block on file, begins in the buffer
 				endBlockBufferOffset = startBlockOverlaySize + (numBlocksToWrite-2) * this._blockSize;
@@ -317,18 +504,20 @@ export default class EncryptedFS {
 		// TODO: assert newBlocks is a multiple of blocksize
 		const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock]);
 
-		const blockIter = this._makeBlockIterable(newBlocks);
+		const blockIter = this._makeBlockGenerator(newBlocks);
 
 		// TODO: specify resultant buffer size in Buffer.concat for performance throughout source
 		const encryptedChunks = []
+
 		for (let block of blockIter) {
 			// gen iv
-			const iv = this._cryptor.genRandomIVSync();
+			const iv = this._cryptor.genRandomInitVectorSync();
 
 			// encrypt block
 			// TODO: so process.nextTick() can allow sync fn's to be run async'ly
 			// TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
-			const ctBlock = this._cryptor.encryptSync(block.toString(), iv);
+			const ctBlock: Buffer = this._cryptor.encryptSync(block, iv);
+
 			// convert into chunk
 			// TODO: can this be done by reference instead of .concat createing a new buffer?
 			const chunk = Buffer.concat([iv, ctBlock], this._chunkSize);
@@ -357,48 +546,37 @@ export default class EncryptedFS {
 	}
 
 
-	open(...args: Array<any>): void {
-
-		let argSplit = this._separateCallback(args);
-		let callback = argSplit.cb;
-		let methodArgs = argSplit.args;
-
-		this._callAsync(
-			this.openSync.bind(this),
-			methodArgs,
-			callback
-		);
-		return;
+	async open(path: string, flags: string = 'w+', callback: (err: NodeJS.ErrnoException, fd: number) => void) {
+		return fs.open(path, flags, callback);
 	}
 
 
-	// ========= HELPER FUNCTIONS =============
-	_callAsync(syncFn: Function, args: Array<any>, cb: Function) {
-		process.nextTick(() => {
-			try {
-				let result = syncFn(...args);
-				cb(null, result);
+	// // ========= HELPER FUNCTIONS =============
+	// _callAsync(syncFn: Function, args: Array<any>, cb: Function) {
+	// 	process.nextTick(() => {
+	// 		try {
+	// 			let result = syncFn(...args);
+	// 			cb(null, result);
 
-			} catch (e) {
-				cb(e, null);
-			}
-		});
-	}
+	// 		} catch (e) {
+	// 			cb(e, null);
+	// 		}
+	// 	});
+	// }
 
-	_separateCallback(args: Array<any>) {
-		// it is js convection that the last parameter
-		// will be the callback
+	// _separateCallback(args: Array<any>) {
+	// 	// it is js convection that the last parameter
+	// 	// will be the callback
+	// 	// pop 'mandatory' callback
+	// 	// TODO: should we be checking that cb is a function?
+	// 	let cb = args.pop();
 
-		// pop 'mandatory' callback
-		// TODO: should we be checking that cb is a function?
-		let cb = args.pop();
+	// 	return {
+	// 		cb: cb,
+	// 		args: args
+	// 	};
 
-		return {
-			cb: cb,
-			args: args
-		};
-
-	}
+	// }
 }
 
 

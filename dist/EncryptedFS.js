@@ -1,27 +1,27 @@
-import * as fs from 'fs';
-import * as process from 'process';
-import Cryptor from './Cryptor';
-import VFS from 'virtualfs';
-// TODO: conform to coding style of vfs - no blank lines, space are method definition
-// TODO: are callback mandatory?
-/* TODO: we need to maintain seperate permission for the lower directory vs the upper director
- * For example: if you open a file as write-only, how will you merge the block on the ct file?
- * First you need to read, overlay, then write. But we can read, since the file is write-only.
- * So the lower dir file always needs to be read-write, the upper dir file permission will be
- * whatever the user specified.
- *
- * One way to implement this is through inheriting the FileDeescriptors class.
- * Extend the class by adding another attribute for the
- */
-export default class EncryptedFS {
-    constructor(password, upperDir = VFS, lowerDir = fs, // TODO: how create new instance of fs class?
-    ivSize = 16, blockSize = 4096) {
-        this._cryptor = new Cryptor(password);
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = __importDefault(require("fs"));
+const process = __importStar(require("process"));
+const Cryptor_1 = __importDefault(require("./Cryptor"));
+const VFS = __importStar(require("virtualfs"));
+class EncryptedFS {
+    constructor({ password, upperDir = VFS, lowerDir = fs_1.default, initVectorSize = 16, blockSize = 4096, useWebWorkers = false }) {
+        this._cryptor = new Cryptor_1.default({ pass: password, useWebWorkers: useWebWorkers });
         this._upperDir = upperDir;
         this._lowerDir = lowerDir;
-        this._ivSize = ivSize;
+        this._initVectorSize = initVectorSize;
         this._blockSize = blockSize;
-        this._chunkSize = this._blockSize + this._ivSize;
+        this._chunkSize = this._blockSize + this._initVectorSize;
     }
     /*
     // other functions can use this method to encrypt whilst marshalling data to block boundaires
@@ -71,12 +71,12 @@ export default class EncryptedFS {
         for (const chunkNum = startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
             const chunkOffset = this._chunkNumToOffset(chunkNum + chunkCtr);
             let chunkBuf = Buffer.alloc(this._chunkSize);
-            fs.readSync(fd, chunkBuf, 0, this._chunkSize, chunkOffset);
+            fs_1.default.readSync(fd, chunkBuf, 0, this._chunkSize, chunkOffset);
             // extract the iv from beginning of chunk
-            const iv = chunkBuf.slice(0, this._ivSize);
+            const initVector = chunkBuf.slice(0, this._initVectorSize);
             // extract remaining data which is the cipher text
-            const chunkData = chunkBuf.slice(this._ivSize);
-            const ptBlock = this._cryptor.decryptSync(chunkData, iv);
+            const chunkData = chunkBuf.slice(this._initVectorSize);
+            const ptBlock = this._cryptor.decryptSync(chunkData, initVector);
             plaintextBlocks.push(ptBlock);
         }
         const decryptedReadBuffer = Buffer.concat(plaintextBlocks, numChunksToRead * this._blockSize);
@@ -111,7 +111,7 @@ export default class EncryptedFS {
         return length;
     }
     readdirSync(path, options) {
-        return fs.readdirSync(path, options);
+        return fs_1.default.readdirSync(path, options);
     }
     // TODO: does there need to be a an async version of this for async api methods?
     _readBlock(fd, position) {
@@ -141,7 +141,7 @@ export default class EncryptedFS {
         //
         // 	Cases 3 and 4 are not possible when overlaying the last segment
         //
-        // TODO: throw err if buff lenght  > block size
+        // TODO: throw err if buff length  > block size
         const writeOffset = position & (this._blockSize - 1); // byte offset from where to start writing new data in the block
         // read entire block, position belongs to
         const origBlock = this._readBlock(fd, position);
@@ -160,35 +160,35 @@ export default class EncryptedFS {
         return newBlock;
     }
     _makeBlockIterable(buffer) {
-        // buffer[Symbol.iterator] = () => {
-        // 	let iterationCount = 0;
-        // 	let currOffset = 0;
-        // 	return {
-        // 		next: () => {
-        // 			let result;
-        // 			if (currOffset < buffer.length) {
-        // 				result = {
-        // 					// still functions if less than 'blocksize' amount remaining in buffer
-        // 					value: buffer.slice(currOffset, currOffset + this._blockSize),
-        // 					done: false
-        // 				}
-        // 				currOffset += this._blockSize;
-        // 				iterationCount++;
-        // 				return result;
-        // 			}
-        // 			return { value: iterationCount, done: true }
-        // 		}
-        // 	}
-        // }
+        buffer[Symbol.iterator] = function* () {
+            let iterationCount = 0;
+            let currOffset = 0;
+            return {
+                next: () => {
+                    let result;
+                    if (currOffset < buffer.length) {
+                        result = {
+                            // still functions if less than 'blocksize' amount remaining in buffer
+                            value: buffer.slice(currOffset, currOffset + this._blockSize),
+                            done: false
+                        };
+                        currOffset += this._blockSize;
+                        iterationCount++;
+                        return result;
+                    }
+                    return { value: iterationCount, done: true };
+                }
+            };
+        };
         return buffer;
     }
     _posOutOfBounds(fd, position) {
         // TODO: confirm that '>=' is correct here
-        const _outOfBounds = (position >= fs.fstatSync(fd).size);
+        const _outOfBounds = (position >= fs_1.default.fstatSync(fd).size);
         return _outOfBounds;
     }
     _hasContentSync(fd) {
-        const _hasContent = (fs.fstatSync(fd).size !== 0);
+        const _hasContent = (fs_1.default.fstatSync(fd).size !== 0);
         return _hasContent;
     }
     // TODO: actaully use offset.
@@ -252,12 +252,14 @@ export default class EncryptedFS {
         // TODO: specify resultant buffer size in Buffer.concat for performance throughout source
         const encryptedChunks = [];
         for (let block of blockIter) {
+            console.log('heyyyy');
+            console.log(block);
             // gen iv
             const iv = this._cryptor.genRandomIVSync();
             // encrypt block
             // TODO: so process.nextTick() can allow sync fn's to be run async'ly
             // TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
-            const ctBlock = this._cryptor.encryptSync(block, iv);
+            const ctBlock = this._cryptor.encryptSync(block.toString(), iv);
             // convert into chunk
             // TODO: can this be done by reference instead of .concat createing a new buffer?
             const chunk = Buffer.concat([iv, ctBlock], this._chunkSize);
@@ -270,14 +272,14 @@ export default class EncryptedFS {
         // position to write to in the file in lower directory
         const lowerWritePos = this._chunkNumToOffset(startBlockNum);
         // TODO: flush?
-        fs.writeSync(fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
+        fs_1.default.writeSync(fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
         let dummy = Buffer.alloc(4112);
-        fs.readSync(fd, dummy, 0, dummy.length, lowerWritePos);
+        fs_1.default.readSync(fd, dummy, 0, dummy.length, lowerWritePos);
     }
     // TODO: actually implement flags
     // TODO: w+ should truncate, r+ should not
     openSync(path, flags = 'w+', mode = 0o666) {
-        return fs.openSync(path, flags, mode);
+        return fs_1.default.openSync(path, flags, mode);
     }
     open(...args) {
         let argSplit = this._separateCallback(args);
@@ -310,6 +312,7 @@ export default class EncryptedFS {
         };
     }
 }
+exports.default = EncryptedFS;
 /*
  * Primitive Documentation:
  *

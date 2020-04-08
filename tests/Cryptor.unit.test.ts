@@ -7,14 +7,25 @@ describe('Cryptor class', () => {
 	// Define initialization vector for all tests
 	const iv = crypto.randomBytes(16);
 
+	test('Threads.js test', async () => {
+		let cryptor = new Cryptor({pass:'secret password', initVector:iv});
+		let plaintext = 'very important secret';
+		const x = cryptor.encrypt(plaintext)
+		await x.then((s) => {
+			console.log('whaaat');
+			console.log(s);
+		})
+		
+	}, 50000)
+
 	describe('Syncronous tests', () => {
 		test('Cryptor - initialisation', () => {
-			let cryptor = new Cryptor('secret password');
+			let cryptor = new Cryptor({pass:'secret password'});
 			expect(cryptor).toBeInstanceOf(Cryptor);
 		});
 		test('Cryptor - encrypt sync', t => {
-			let cryptor = new Cryptor('secret password', iv);
-			let cryptor2 = new Cryptor('secret password', iv);
+			let cryptor = new Cryptor({pass:'secret password', initVector:iv});
+			let cryptor2 = new Cryptor({pass:'secret password', initVector:iv});
 			let plaintext = 'very important secret';
 
 			let cipherText = cryptor.encryptSync(plaintext);
@@ -28,7 +39,7 @@ describe('Cryptor class', () => {
 			expect(cipherText).toStrictEqual(cipherText2);
 		});
 		test('Cryptor - decrypt sync', t => {
-			let crytor = new Cryptor('secret password', iv);
+			let crytor = new Cryptor({pass:'secret password', initVector:iv});
 			let plaintext = 'very important secret';
 
 			let cipherText = crytor.encryptSync(plaintext);
@@ -40,8 +51,8 @@ describe('Cryptor class', () => {
 
 	describe('Asyncronous tests', () => {
 		test('Cryptor - encrypt async', () => {
-			let cryptorSync = new Cryptor('secret password', iv);
-			let cryptor = new Cryptor('secret password', iv);
+			let cryptorSync = new Cryptor({pass:'secret password', initVector:iv});
+			let cryptor = new Cryptor({pass:'secret password', initVector:iv});
 
 			let plaintext = 'very important secret';
 
@@ -61,7 +72,7 @@ describe('Cryptor class', () => {
 		});
 
 		test('Cryptor - decrypt async', () => {
-			let cryptor = new Cryptor('secret password', iv);
+			let cryptor = new Cryptor({pass:'secret password', initVector:iv});
 			let plaintext = 'very important secret';
 
 			let cipherText = cryptor.encryptSync(plaintext);
