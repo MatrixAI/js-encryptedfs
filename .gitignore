@@ -75,3 +75,6 @@ typings/
 
 # Serverless directories
 .serverless
+
+# Idea config files
+.idea/*
