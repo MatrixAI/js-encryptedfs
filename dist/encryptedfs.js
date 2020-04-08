@@ -1,13 +1,13 @@
 (function webpackUniversalModuleDefinition(root, factory) {
 	if(typeof exports === 'object' && typeof module === 'object')
-		module.exports = factory(require("virtualfs"));
+		module.exports = factory(require("threads"), require("virtualfs"));
 	else if(typeof define === 'function' && define.amd)
-		define(["virtualfs"], factory);
+		define(["threads", "virtualfs"], factory);
 	else if(typeof exports === 'object')
-		exports["encryptedfs"] = factory(require("virtualfs"));
+		exports["encryptedfs"] = factory(require("threads"), require("virtualfs"));
 	else
-		root["encryptedfs"] = factory(root["virtualfs"]);
-})(window, function(__WEBPACK_EXTERNAL_MODULE_virtualfs__) {
+		root["encryptedfs"] = factory(root["threads"], root["virtualfs"]);
+})(window, function(__WEBPACK_EXTERNAL_MODULE_threads__, __WEBPACK_EXTERNAL_MODULE_virtualfs__) {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
 /******/ 	var installedModules = {};
@@ -23768,27 +23768,42 @@ module.exports = function(module) {
 /*!************************!*\
   !*** ./src/Cryptor.ts ***!
   \************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return Cryptor; });
-/* harmony import */ var crypto__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! crypto */ "./node_modules/crypto-browserify/index.js");
-/* harmony import */ var crypto__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(crypto__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! process */ "./node_modules/process/browser.js");
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(process__WEBPACK_IMPORTED_MODULE_1__);
 
-
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const crypto = __importStar(__webpack_require__(/*! crypto */ "./node_modules/crypto-browserify/index.js"));
+const process = __importStar(__webpack_require__(/*! process */ "./node_modules/process/browser.js"));
+const threads_1 = __webpack_require__(/*! threads */ "threads");
 // TODO: function docs
 class Cryptor {
-    constructor(pass, initVector = null, algo = 'id-aes256-GCM') {
-        this._algo = algo;
-        this._initVector = initVector ? initVector : this.genRandomIVSync();
+    constructor(pass, initVector = crypto.randomBytes(16), algorithm = 'aes-256-gcm', useWebWorkers = false) {
+        this._algorithm = algorithm;
+        this._initVector = initVector;
         // TODO: generate salt ?
         this._key = this._pbkdfSync(pass);
-        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](algo, this._key, this._initVector);
-        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](algo, this._key, this._initVector);
+        this._cipher = crypto.createCipheriv(algorithm, this._key, this._initVector);
+        this._decipher = crypto.createDecipheriv(algorithm, this._key, this._initVector);
+        // Async via Process or Web workers
+        this._useWebWorkers = useWebWorkers;
     }
     encryptSync(plainBuf, initVector = null) {
         if (initVector && (initVector !== this._initVector)) {
@@ -23797,14 +23812,42 @@ class Cryptor {
         return this._cipher.update(plainBuf);
     }
     // TODO: needs iv param
-    encrypt(...args) {
-        console.log(this._key.toString('hex'));
-        console.log(this._initVector.toString('hex'));
-        let argSplit = this._separateCallback(args);
-        let cb = argSplit.cb;
-        let methodArgs = argSplit.args;
-        this._callAsync(this.encryptSync.bind(this), methodArgs, cb);
-        return;
+    encrypt(plainBuf, initVector = null) {
+        return __awaiter(this, void 0, void 0, function* () {
+            console.log(this._key.toString('hex'));
+            console.log(this._initVector.toString('hex'));
+            // let argSplit = this._separateCallback(args)
+            // let cb = argSplit.cb;
+            // let methodArgs = argSplit.args;
+            // const _cryptorAsync = await spawn<CryptorAsyncT>(new Worker('./CryptorAsync'))
+            // const cipherText = await _cryptorAsync.encrypt(plainBuf, initVector)
+            // console.log(`The encrypted cipherText is ${cipherText}`)
+            // await Thread.terminate(_cryptorAsync)
+            // if (this._useWebWorkers) {
+            // 	this._callAsyncWebWorker(
+            // 		this.encryptSync.bind(this),
+            // 		methodArgs,
+            // 		cb
+            // 	);
+            // } else {
+            // 	this._callAsyncProcessTick(
+            // 		this.encryptSync.bind(this),
+            // 		methodArgs,
+            // 		cb
+            // 	);
+            // }
+            const asyncRunner = yield threads_1.spawn(new threads_1.Worker("./CryptorAsync"));
+            // await asyncRunner.increment().catch(console.error)
+            console.log(this._cipher.update(plainBuf));
+            // let _cipher: crypto.Cipher = crypto.createCipheriv(this._algorithm, new Uint8Array(this._key), this._initVector);
+            // console.log(_cipher);
+            // return _cipher.update(plainBuf)
+            asyncRunner.updateCipher(this._algorithm, this._key, this._initVector, plainBuf).then((buffer) => {
+                console.log(buffer);
+            });
+            // return asyncRunner.updateCipher(this._algorithm, this._key, this._initVector, plainBuf);
+            return;
+        });
     }
     decryptSync(cipherBuf, initVector = null) {
         if (initVector && (initVector !== this._initVector)) {
@@ -23817,27 +23860,27 @@ class Cryptor {
         let argSplit = this._separateCallback(args);
         let cb = argSplit.cb;
         let methodArgs = argSplit.args;
-        this._callAsync(this.decryptSync.bind(this), methodArgs, cb);
+        this._callAsyncProcessTick(this.decryptSync.bind(this), methodArgs, cb);
         return;
-    }
-    _resetCipher(initVector) {
-        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](this._algo, this._key, initVector);
-        return;
-    }
-    _resetDecipher(initVector) {
-        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](this._algo, this._key, initVector);
-        return;
-    }
-    genRandomIVSync() {
-        return crypto__WEBPACK_IMPORTED_MODULE_0__["randomBytes"](16);
     }
     //encyrpt ()
     // nextrick(encryptrSync
     // if ^^ fails set err else set jults and do callback(err, result)
     // TODO: should all of these be public methods?
     // ========= HELPER FUNCTIONS =============
-    _callAsync(syncFn, args, cb) {
-        process__WEBPACK_IMPORTED_MODULE_1__["nextTick"](() => {
+    _resetCipher(initVector) {
+        this._cipher = crypto.createCipheriv(this._algorithm, this._key, initVector);
+        return;
+    }
+    _resetDecipher(initVector) {
+        this._decipher = crypto.createDecipheriv(this._algorithm, this._key, initVector);
+        return;
+    }
+    genRandomIVSync() {
+        return crypto.randomBytes(16);
+    }
+    _callAsyncProcessTick(syncFn, args, cb) {
+        process.nextTick(() => {
             try {
                 let result = syncFn(...args);
                 cb(null, result);
@@ -23847,6 +23890,36 @@ class Cryptor {
             }
         });
     }
+    // _callAsyncWebWorker(syncFn: { toString: () => any; }, args: Array<any>, cb: Function) {
+    // 	if (!window.Worker) throw Promise.reject(
+    // 	  new ReferenceError(`WebWorkers aren't available.`)
+    // 	);
+    // 	const fnWorker = `
+    // 	self.onmessage = function(message) {
+    // 	  (${syncFn.toString()})
+    // 		.apply(null, message.data)
+    // 		.then(result => self.postMessage(result));
+    // 	}`;
+    // 	return new Promise((resolve, reject) => {
+    // 	  try {
+    // 		const blob = new Blob([fnWorker], { type: 'text/javascript' });
+    // 		const blobUrl = window.URL.createObjectURL(blob);
+    // 		const worker = new Worker(blobUrl);
+    // 		window.URL.revokeObjectURL(blobUrl);
+    // 		worker.onmessage = result => {
+    // 		  resolve(result.data);
+    // 		  worker.terminate();
+    // 		};
+    // 		worker.onerror = error => {
+    // 		  reject(error);
+    // 		  worker.terminate();
+    // 		};
+    // 		worker.postMessage(args);
+    // 	  } catch (error) {
+    // 		reject(error);
+    // 	  }
+    // 	});
+    // }
     _separateCallback(args) {
         // it is js convection that the last parameter
         // will be the callback
@@ -23859,15 +23932,16 @@ class Cryptor {
         };
     }
     _pbkdfSync(pass, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000) {
-        return crypto__WEBPACK_IMPORTED_MODULE_0__["pbkdf2Sync"](pass, salt, numIterations, keyLen, algo);
+        return crypto.pbkdf2Sync(pass, salt, numIterations, keyLen, algo);
     }
     _pbkdf(pass, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000, callback) {
         let err = null;
-        crypto__WEBPACK_IMPORTED_MODULE_0__["pbkdf2"](pass, salt, numIterations, keyLen, algo, (err, key) => {
+        crypto.pbkdf2(pass, salt, numIterations, keyLen, algo, (err, key) => {
             callback(err, key);
         });
     }
 }
+exports.default = Cryptor;
 
 
 /***/ }),
@@ -23876,23 +23950,26 @@ class Cryptor {
 /*!****************************!*\
   !*** ./src/EncryptedFS.ts ***!
   \****************************/
-/*! exports provided: default */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
-__webpack_require__.r(__webpack_exports__);
-/* WEBPACK VAR INJECTION */(function(Buffer) {/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "default", function() { return EncryptedFS; });
-/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! fs */ "./node_modules/node-libs-browser/mock/empty.js");
-/* harmony import */ var fs__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(fs__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! process */ "./node_modules/process/browser.js");
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(process__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _Cryptor__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./Cryptor */ "./src/Cryptor.ts");
-/* harmony import */ var virtualfs__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! virtualfs */ "virtualfs");
-/* harmony import */ var virtualfs__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(virtualfs__WEBPACK_IMPORTED_MODULE_3__);
-
-
-
-
+/* WEBPACK VAR INJECTION */(function(Buffer) {
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs_1 = __importDefault(__webpack_require__(/*! fs */ "./node_modules/node-libs-browser/mock/empty.js"));
+const process = __importStar(__webpack_require__(/*! process */ "./node_modules/process/browser.js"));
+const Cryptor_1 = __importDefault(__webpack_require__(/*! ./Cryptor */ "./src/Cryptor.ts"));
+const VFS = __importStar(__webpack_require__(/*! virtualfs */ "virtualfs"));
 // TODO: conform to coding style of vfs - no blank lines, space are method definition
 // TODO: are callback mandatory?
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
@@ -23905,9 +23982,10 @@ __webpack_require__.r(__webpack_exports__);
  * Extend the class by adding another attribute for the
  */
 class EncryptedFS {
-    constructor(password, upperDir = virtualfs__WEBPACK_IMPORTED_MODULE_3___default.a, lowerDir = fs__WEBPACK_IMPORTED_MODULE_0__, // TODO: how create new instance of fs class?
+    constructor(password, upperDir = VFS, lowerDir = fs_1.default, // TODO: how create new instance of fs class?
     initVectorSize = 16, blockSize = 4096) {
-        this._cryptor = new _Cryptor__WEBPACK_IMPORTED_MODULE_2__["default"](password);
+        console.log(fs_1.default);
+        this._cryptor = new Cryptor_1.default(password);
         this._upperDir = upperDir;
         this._lowerDir = lowerDir;
         this._initVectorSize = initVectorSize;
@@ -23962,7 +24040,7 @@ class EncryptedFS {
         for (const chunkNum = startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
             const chunkOffset = this._chunkNumToOffset(chunkNum + chunkCtr);
             let chunkBuf = Buffer.alloc(this._chunkSize);
-            fs__WEBPACK_IMPORTED_MODULE_0__["readSync"](fd, chunkBuf, 0, this._chunkSize, chunkOffset);
+            fs_1.default.readSync(fd, chunkBuf, 0, this._chunkSize, chunkOffset);
             // extract the iv from beginning of chunk
             const initVector = chunkBuf.slice(0, this._initVectorSize);
             // extract remaining data which is the cipher text
@@ -24002,7 +24080,7 @@ class EncryptedFS {
         return length;
     }
     readdirSync(path, options) {
-        return fs__WEBPACK_IMPORTED_MODULE_0__["readdirSync"](path, options);
+        return fs_1.default.readdirSync(path, options);
     }
     // TODO: does there need to be a an async version of this for async api methods?
     _readBlock(fd, position) {
@@ -24032,7 +24110,7 @@ class EncryptedFS {
         //
         // 	Cases 3 and 4 are not possible when overlaying the last segment
         //
-        // TODO: throw err if buff lenght  > block size
+        // TODO: throw err if buff length  > block size
         const writeOffset = position & (this._blockSize - 1); // byte offset from where to start writing new data in the block
         // read entire block, position belongs to
         const origBlock = this._readBlock(fd, position);
@@ -24075,11 +24153,11 @@ class EncryptedFS {
     }
     _posOutOfBounds(fd, position) {
         // TODO: confirm that '>=' is correct here
-        const _outOfBounds = (position >= fs__WEBPACK_IMPORTED_MODULE_0__["fstatSync"](fd).size);
+        const _outOfBounds = (position >= fs_1.default.fstatSync(fd).size);
         return _outOfBounds;
     }
     _hasContentSync(fd) {
-        const _hasContent = (fs__WEBPACK_IMPORTED_MODULE_0__["fstatSync"](fd).size !== 0);
+        const _hasContent = (fs_1.default.fstatSync(fd).size !== 0);
         return _hasContent;
     }
     // TODO: actaully use offset.
@@ -24161,14 +24239,14 @@ class EncryptedFS {
         // position to write to in the file in lower directory
         const lowerWritePos = this._chunkNumToOffset(startBlockNum);
         // TODO: flush?
-        fs__WEBPACK_IMPORTED_MODULE_0__["writeSync"](fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
+        fs_1.default.writeSync(fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
         let dummy = Buffer.alloc(4112);
-        fs__WEBPACK_IMPORTED_MODULE_0__["readSync"](fd, dummy, 0, dummy.length, lowerWritePos);
+        fs_1.default.readSync(fd, dummy, 0, dummy.length, lowerWritePos);
     }
     // TODO: actually implement flags
     // TODO: w+ should truncate, r+ should not
     openSync(path, flags = 'w+', mode = 0o666) {
-        return fs__WEBPACK_IMPORTED_MODULE_0__["openSync"](path, flags, mode);
+        return fs_1.default.openSync(path, flags, mode);
     }
     open(...args) {
         let argSplit = this._separateCallback(args);
@@ -24179,7 +24257,7 @@ class EncryptedFS {
     }
     // ========= HELPER FUNCTIONS =============
     _callAsync(syncFn, args, cb) {
-        process__WEBPACK_IMPORTED_MODULE_1__["nextTick"](() => {
+        process.nextTick(() => {
             try {
                 let result = syncFn(...args);
                 cb(null, result);
@@ -24201,6 +24279,7 @@ class EncryptedFS {
         };
     }
 }
+exports.default = EncryptedFS;
 /*
  * Primitive Documentation:
  *
@@ -24233,28 +24312,26 @@ class EncryptedFS {
 /*!**********************!*\
   !*** ./src/index.ts ***!
   \**********************/
-/*! exports provided: EncryptedFS, Buffer, nextTick */
-/***/ (function(module, __webpack_exports__, __webpack_require__) {
+/*! no static exports found */
+/***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _EncryptedFS__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./EncryptedFS */ "./src/EncryptedFS.ts");
 /* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "EncryptedFS", function() { return _EncryptedFS__WEBPACK_IMPORTED_MODULE_0__["default"]; });
 
-/* harmony import */ var buffer__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! buffer */ "./node_modules/buffer/index.js");
-/* harmony import */ var buffer__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(buffer__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "Buffer", function() { return buffer__WEBPACK_IMPORTED_MODULE_1__["Buffer"]; });
-
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! process */ "./node_modules/process/browser.js");
-/* harmony import */ var process__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(process__WEBPACK_IMPORTED_MODULE_2__);
-/* harmony reexport (safe) */ __webpack_require__.d(__webpack_exports__, "nextTick", function() { return process__WEBPACK_IMPORTED_MODULE_2__["nextTick"]; });
-
-
+Object.defineProperty(exports, "__esModule", { value: true });
+var EncryptedFS_1 = __webpack_require__(/*! ./EncryptedFS */ "./src/EncryptedFS.ts");
+exports.EncryptedFS = EncryptedFS_1.default;
+var Cryptor_1 = __webpack_require__(/*! ./Cryptor */ "./src/Cryptor.ts");
+exports.Cryptor = Cryptor_1.default;
 // polyfills to be exported
 // $FlowFixMe: Buffer exists
-
+var buffer_1 = __webpack_require__(/*! buffer */ "./node_modules/buffer/index.js");
+exports.Buffer = buffer_1.Buffer;
 // $FlowFixMe: nextTick exists
-
+var process_1 = __webpack_require__(/*! process */ "./node_modules/process/browser.js");
+exports.nextTick = process_1.nextTick;
 
 
 /***/ }),
@@ -24300,6 +24377,17 @@ __webpack_require__.r(__webpack_exports__);
 /***/ (function(module, exports) {
 
 /* (ignored) */
+
+/***/ }),
+
+/***/ "threads":
+/*!**************************!*\
+  !*** external "threads" ***!
+  \**************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+module.exports = __WEBPACK_EXTERNAL_MODULE_threads__;
 
 /***/ }),
 

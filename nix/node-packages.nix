@@ -22,6 +22,15 @@ let
         sha512 = "oKaRp6mzXedJ1Npo86PKhWfDelI6HxxJo+it9nAcBB0HLVvYVp+5i6yj6DT5hfFgo+TS5T57MRWtw8zhwdTs3g==";
       };
     };
+    "callsites-3.1.0" = {
+      name = "callsites";
+      packageName = "callsites";
+      version = "3.1.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/callsites/-/callsites-3.1.0.tgz";
+        sha512 = "P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==";
+      };
+    };
     "core-js-2.6.11" = {
       name = "core-js";
       packageName = "core-js";
@@ -40,6 +49,15 @@ let
         sha1 = "b5fd54220aa2bc5ab57aab7140c940754503c1a7";
       };
     };
+    "debug-4.1.1" = {
+      name = "debug";
+      packageName = "debug";
+      version = "4.1.1";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/debug/-/debug-4.1.1.tgz";
+        sha512 = "pYAIzeRo8J6KPEaJ0VWOh5Pzkbw/RetuzehGM7QRRX5he4fPHx2rdKMB256ehJCkX+XRQm16eZLqLNS8RSZXZw==";
+      };
+    };
     "dom-walk-0.1.2" = {
       name = "dom-walk";
       packageName = "dom-walk";
@@ -56,6 +74,15 @@ let
       src = fetchurl {
         url = "https://registry.npmjs.org/errno/-/errno-0.1.7.tgz";
         sha512 = "MfrRBDWzIWifgq6tJj60gkAwtLNb6sQPlcFrSOflcP1aFmmruKQ2wRnze/8V6kgyz7H3FF8Npzv78mZ7XLLflg==";
+      };
+    };
+    "esm-3.2.25" = {
+      name = "esm";
+      packageName = "esm";
+      version = "3.2.25";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/esm/-/esm-3.2.25.tgz";
+        sha512 = "U1suiZ2oDVWv4zPO56S0NcR5QriEahGtdN2OR6FiOG4WJvcjBVFB0qI4+eKoWFH483PKGuLuu6V8Z4T5g63UVA==";
       };
     };
     "get-random-values-1.2.0" = {
@@ -85,6 +112,15 @@ let
         sha1 = "633c2c83e3da42a502f52466022480f4208261de";
       };
     };
+    "is-observable-1.1.0" = {
+      name = "is-observable";
+      packageName = "is-observable";
+      version = "1.1.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/is-observable/-/is-observable-1.1.0.tgz";
+        sha512 = "NqCa4Sa2d+u7BWc6CukaObG3Fh+CU9bvixbpcXYhy2VvYS7vVGIdAgnIS5Ks3A/cqk4rebLJ9s8zBstT2aKnIA==";
+      };
+    };
     "isarray-1.0.0" = {
       name = "isarray";
       packageName = "isarray";
@@ -101,6 +137,24 @@ let
       src = fetchurl {
         url = "https://registry.npmjs.org/min-document/-/min-document-2.19.0.tgz";
         sha1 = "7bd282e3f5842ed295bb748cdd9f1ffa2c824685";
+      };
+    };
+    "ms-2.1.2" = {
+      name = "ms";
+      packageName = "ms";
+      version = "2.1.2";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/ms/-/ms-2.1.2.tgz";
+        sha512 = "sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==";
+      };
+    };
+    "observable-fns-0.5.1" = {
+      name = "observable-fns";
+      packageName = "observable-fns";
+      version = "0.5.1";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/observable-fns/-/observable-fns-0.5.1.tgz";
+        sha512 = "wf7g4Jpo1Wt2KIqZKLGeiuLOEMqpaOZ5gJn7DmSdqXgTdxRwSdBhWegQQpPteQ2gZvzCKqNNpwb853wcpA0j7A==";
       };
     };
     "permaproxy-0.0.2" = {
@@ -202,6 +256,33 @@ let
         sha512 = "n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==";
       };
     };
+    "symbol-observable-1.2.0" = {
+      name = "symbol-observable";
+      packageName = "symbol-observable";
+      version = "1.2.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/symbol-observable/-/symbol-observable-1.2.0.tgz";
+        sha512 = "e900nM8RRtGhlV36KGEU9k65K3mPb1WV70OdjfxlG2EAuM1noi/E/BaW/uMhL7bPEssK8QV57vN3esixjUvcXQ==";
+      };
+    };
+    "threads-1.4.0" = {
+      name = "threads";
+      packageName = "threads";
+      version = "1.4.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/threads/-/threads-1.4.0.tgz";
+        sha512 = "vaKhZODDnciJn4Bjmkd1GbJ2dlzFbzxwcQNM1IZV1bsCXmlJpirSAKsYG7MT7MHgO+qQxTaIn6CMstmlYnGNWw==";
+      };
+    };
+    "tiny-worker-2.3.0" = {
+      name = "tiny-worker";
+      packageName = "tiny-worker";
+      version = "2.3.0";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/tiny-worker/-/tiny-worker-2.3.0.tgz";
+        sha512 = "pJ70wq5EAqTAEl9IkGzA+fN0836rycEuz2Cn6yeZ6FRzlVS5IDOkFHpIoEsksPRQV34GDqXm65+OlnZqUSyK2g==";
+      };
+    };
     "util-deprecate-1.0.2" = {
       name = "util-deprecate";
       packageName = "util-deprecate";
@@ -229,15 +310,19 @@ let
     dependencies = [
       sources."babel-runtime-6.26.0"
       sources."bitset-5.1.1"
+      sources."callsites-3.1.0"
       sources."core-js-2.6.11"
       sources."core-util-is-1.0.2"
       sources."dom-walk-0.1.2"
       sources."errno-0.1.7"
+      sources."esm-3.2.25"
       sources."get-random-values-1.2.0"
       sources."global-4.4.0"
       sources."inherits-2.0.3"
+      sources."is-observable-1.1.0"
       sources."isarray-1.0.0"
       sources."min-document-2.19.0"
+      sources."observable-fns-0.5.1"
       sources."permaproxy-0.0.2"
       sources."process-0.11.10"
       sources."process-nextick-args-2.0.0"
@@ -247,6 +332,14 @@ let
       sources."safe-buffer-5.1.1"
       sources."secure-random-bytes-1.0.1"
       sources."secure-random-octet-1.0.3"
+      sources."symbol-observable-1.2.0"
+      (sources."threads-1.4.0" // {
+        dependencies = [
+          sources."debug-4.1.1"
+          sources."ms-2.1.2"
+        ];
+      })
+      sources."tiny-worker-2.3.0"
       sources."util-deprecate-1.0.2"
       (sources."virtualfs-2.2.0" // {
         dependencies = [

@@ -49,6 +49,12 @@ export default class Cryptor {
         this._decipher = crypto.createDecipheriv(this._algo, this._key, iv);
         return;
     }
+    _resetDecipher(initVector) {
+        return __awaiter(this, void 0, void 0, function* () {
+            this._decipher = yield this._cryptorWorker._createDecipheriv(this._algorithm, this._key, initVector);
+            return;
+        });
+    }
     genRandomIVSync() {
         return crypto.randomBytes(16);
     }
@@ -68,6 +74,36 @@ export default class Cryptor {
             }
         });
     }
+    // _callAsyncWebWorker(syncFn: { toString: () => any; }, args: Array<any>, cb: Function) {
+    // 	if (!window.Worker) throw Promise.reject(
+    // 	  new ReferenceError(`WebWorkers aren't available.`)
+    // 	);
+    // 	const fnWorker = `
+    // 	self.onmessage = function(message) {
+    // 	  (${syncFn.toString()})
+    // 		.apply(null, message.data)
+    // 		.then(result => self.postMessage(result));
+    // 	}`;
+    // 	return new Promise((resolve, reject) => {
+    // 	  try {
+    // 		const blob = new Blob([fnWorker], { type: 'text/javascript' });
+    // 		const blobUrl = window.URL.createObjectURL(blob);
+    // 		const worker = new Worker(blobUrl);
+    // 		window.URL.revokeObjectURL(blobUrl);
+    // 		worker.onmessage = result => {
+    // 		  resolve(result.data);
+    // 		  worker.terminate();
+    // 		};
+    // 		worker.onerror = error => {
+    // 		  reject(error);
+    // 		  worker.terminate();
+    // 		};
+    // 		worker.postMessage(args);
+    // 	  } catch (error) {
+    // 		reject(error);
+    // 	  }
+    // 	});
+    // }
     _separateCallback(args) {
         // it is js convection that the last parameter
         // will be the callback
@@ -89,4 +125,5 @@ export default class Cryptor {
         });
     }
 }
+exports.default = Cryptor;
 //# sourceMappingURL=Cryptor.js.map

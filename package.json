@@ -24,7 +24,11 @@
   "jest": {
     "verbose": true
   },
+  "engines": {
+    "node": ">=8.7.0"
+  },
   "dependencies": {
+    "threads": "1.4.0",
     "virtualfs": "^2.2.0"
   },
   "devDependencies": {
