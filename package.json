@@ -20,7 +20,7 @@
     "build": "webpack --mode='production'",
     "test": "jest",
     "dos2unix": "dos2unix dist/*",
-    "chmod": "chmod u+x dist/bin/*",
+    "chmod": "chmod u+x dist/bin/*"
   },
   "jest": {
     "verbose": true
@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "immutable": "^4.0.0-rc.12",
-    "query-string": "^6.5.0",
+    "query-string": "^6.5.0"
   },
   "devDependencies": {
     "@types/jest": "^24.0.15",
