@@ -8,8 +8,12 @@ import crypto from 'crypto';
 class Cryptor {
 
 	_initialised: boolean;
+  private _iv: Promise<unknown>;
+  private _key: unknown;
+  private _cipher: Cipher;
+  private _decipher: Decipher;
 	constructor(
-	) : void {
+	) {
 		this._initialised = false;
 	}
 
@@ -61,7 +65,7 @@ class Cryptor {
 				}
 			});
 		});
-	} 
+	}
 
 	// TODO: should we be returning a promise on something that is sync?
 	_genCipher(key, iv, algo='id-aes256-GCM') {
@@ -73,7 +77,7 @@ class Cryptor {
 	}
 
 	async encrypt(plaintext, iv=null) {
-		if (iv) 
+		if (iv)
 			await this._updateState(iv);
 		return new Promise( (resolve, reject) => {
 			resolve(
@@ -108,7 +112,7 @@ class Cryptor {
 	}
 
 	async decrypt(ciphertext, iv=null) {
-		if (iv) 
+		if (iv)
 			// TODO: why do we have to put 'this' when using await?
 			await this._updateState(iv);
 		return new Promise( (resolve, reject) => {
@@ -156,7 +160,7 @@ class Cryptor {
 	_allyKeyRing: kbpgp.keyring.KeyRing;
 	constructor(
 		// TODO: Will there always be public key sharing? Can there be passphrase (symetric)
-		publicKeyPath,	
+		publicKeyPath,
 		// TODO: any changes required to use subkeys instead?
 		privateKeyPath,
 		privPassphrase
@@ -173,13 +177,13 @@ class Cryptor {
 		// TODO: can you get the array of key form the keyring?
 		this._allyKeys = [];
 		this._secretKey = null;
-		
 
-	// TODO: encryptBuffer 
+
+	// TODO: encryptBuffer
 	// ASSUME: CHECK: Keynode always knows the correct decryption key ahead of time? i.e. it's own
 	decrypt(cipherText, callback, keyfetch = this._allyKeyRing) {
 		var params = {
-			keyfetch: keyfetch, 
+			keyfetch: keyfetch,
 			armored: cipherText
 		}
 
@@ -189,12 +193,12 @@ class Cryptor {
 		});
 	}
 
-	
+
 	addAllyKey(key: str, callback) {
 		var params = {
 			armored: key
 		};
-		
+
 		kbpgp.KeyManager.import_from_armored_pgp(params, (err, keyMgr) => {
 			if (err) throw err;
 			this._allyKeyRing.add_key_manager(keyMgr);
@@ -211,7 +215,7 @@ class Cryptor {
 			// TODO: this should eventually be some symettric key
 			msg: this._publicKey,
 			encrypt_for: this._allyKeys
-		};	
+		};
 
 		kbpgp.box(params, (err, cipherText, cipherBuffer) => {
 			if (err) throw err;
@@ -242,7 +246,7 @@ class Cryptor {
 //console.log(cipher);
 export default Cryptor;
 
-//cryptor.decrypt(cryptor._keyMgr, 
+//cryptor.decrypt(cryptor._keyMgr,
 //var pubkey = fs.readFileSync('./lib/efs_pub.asc', 'utf-8');
 //var privkey = fs.readFileSync('./lib/efs_priv.asc', 'utf-8');
 //var passphrase = 'efs';

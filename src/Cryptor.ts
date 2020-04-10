@@ -3,9 +3,14 @@ import crypto from 'crypto';
 import process from 'process';
 
 // TODO: flow type annotations
-// TODO: funciton docs
+// TODO: function docs
 
 export default class Cryptor {
+  private _algo: string;
+  private readonly _iv: Buffer;
+  private _key: Buffer;
+  private _cipher: Cipher;
+  private _decipher: Decipher;
 	constructor(pass, iv=this.genRandomIVSync(), algo='id-aes256-GCM') {
 		this._algo = algo;
 		this._iv = iv;
