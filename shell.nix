@@ -22,6 +22,9 @@ in
 
       export PATH="$(pwd)/dist/bin:$(npm bin):$PATH"
 
+      # setting up non-js dev dependencies
+      npm install awesome-typescript-loader source-map-loader
+
       # setting up for nix-build
       npm install --package-lock-only
       node2nix \
