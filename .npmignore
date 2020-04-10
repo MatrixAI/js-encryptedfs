@@ -2,7 +2,6 @@
 /pkgs.nix
 /default.nix
 /shell.nix
-/rollup.config.js
 /doc
 /src
 /test
