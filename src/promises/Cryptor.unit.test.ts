@@ -1,22 +1,21 @@
-import Cryptor from '../../lib/promises/Cryptor.js';
-import test from 'ava';
-import crypto from 'crypto';
+import Cryptor from 'Cryptor.js';
+import * as jest from 'ts-jest';
+import * as crypto from 'crypto';
 
 const iv = crypto.randomBytes(16);
 // TODO: better way to share data b/w test?
 var ciphertext;
 // test init behavior
 test('Cryptor - initialisation', t => {
-	let cry = new Cryptor;
-	cry.init('secret password');
-	return cry.init('secret password').then( result => {
+	let cry = new Cryptor('secret password');
+	return ( result => {
 		t.true(cry instanceof Cryptor);
 		t.true(cry.isInitialised());
 	});
 });
 
 test('Cryptor - not initialisation', t => {
-	let cry = new Cryptor;
+	let cry = new Cryptor();
 
 	t.true(cry instanceof Cryptor);
 	t.false(cry.isInitialised());

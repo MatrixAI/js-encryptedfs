@@ -1,6 +1,6 @@
 import EncryptedFS from '../lib/EncryptedFS.js';
-import fs from 'fs';
-import test from 'ava';
+import * as fs from 'fs';
+import * as test from 'jest';
 
 test.beforeEach(async t => {
 	t.context.efs = new EncryptedFS;
@@ -17,5 +17,3 @@ test('readdir', t => {
 	let actual = t.context.efs.readdirSync('./')
 	t.deepEqual(actual, expected);
 });
-
-
