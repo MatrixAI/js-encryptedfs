@@ -1,8 +1,8 @@
 //@flow
 /** @module EncryptedFS */
 
-import fs from 'fs';
-import process from 'process';
+import * as fs from 'fs';
+import * as process from 'process';
 import Cryptor from './Cryptor.js';
 import VFS from 'virtualfs';
 
@@ -429,5 +429,3 @@ export default class EncryptedFS {
  * Segment:
  * 	Some amount of data equal or smaller than a block
  */
-
-

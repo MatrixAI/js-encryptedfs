@@ -1,6 +1,6 @@
-import fs from 'fs';
-import crypto from 'crypto';
-import process from 'process';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import * as process from 'process';
 
 // TODO: flow type annotations
 // TODO: function docs
@@ -9,11 +9,11 @@ export default class Cryptor {
   private _algo: string;
   private readonly _iv: Buffer;
   private _key: Buffer;
-  private _cipher: Cipher;
-  private _decipher: Decipher;
-	constructor(pass, iv=this.genRandomIVSync(), algo='id-aes256-GCM') {
+  private _cipher: crypto.Cipher;
+  private _decipher: crypto.Decipher;
+	constructor(pass, iv: Buffer = null, algo: string = 'id-aes256-GCM') {
 		this._algo = algo;
-		this._iv = iv;
+    this._iv = iv ? iv : this.genRandomIVSync();
 		// TODO: generate salt ?
 		this._key = this._pbkdfSync(pass);
 		this._cipher = crypto.createCipheriv(algo, this._key, this._iv);
@@ -130,4 +130,3 @@ export default class Cryptor {
 
 	// TODO: should there be an input param for variable length iv?
 }
-
