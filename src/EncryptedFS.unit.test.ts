@@ -1,20 +1,20 @@
-import EFS from 'EncryptedFS';
+import EncryptedFS from './EncryptedFS';
 import * as jest from 'ts-jest';
 import * as crypto from 'crypto';
 
 describe('Cryptor class', () => {
-  test('the data is peanut butter', done => {
-    function callback(data) {
-      try {
-        expect(data).toBe('peanut butter');
-        done();
-      } catch (error) {
-        done(error);
-      }
-    }
+//   test('the data is peanut butter', done => {
+//     function callback(data) {
+//       try {
+//         expect(data).toBe('peanut butter');
+//         done();
+//       } catch (error) {
+//         done(error);
+//       }
+//     }
 
-    fetchData(callback);
-  });
+//     fetchData(callback);
+//   });
 
   test('initialisation', t => {
   	function callback(data) {
@@ -27,59 +27,55 @@ describe('Cryptor class', () => {
 
 
   test('open - sync', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	let fd = efs.openSync('test/efs_test.txt');
   	console.log(typeof fd);
 
   	// TODO: are there better tests than this?
-  	t.true((fd).constructor === Number);
+  	expect((fd).constructor).toBeInstanceOf(Number);
   });
 
 
-  test.cb('open - async', t => {
-  	let efs = new EFS('very password');
-
-  	let fd = efs.open('test/efs_test.txt', (err, fd) => {
-  		t.true(err === null);
-  		t.true((fd).constructor === Number);
-  		t.end();
-  	});
-
-  });
+  test('open - async', () => {
+	let efs = new EncryptedFS('very password');
+	
+	expect.assertions(2);
+	let fd = efs.open('test/efs_test.txt', (err, fd) => {
+		expect(err).toStrictEqual(null);
+		expect((fd).constructor).toBeInstanceOf(Number);
+	});
+});
 
   // TODO: find a way to unit test this method
-  test('write - sync', t => {
-  	t.pass();
-  	let efs = new EFS('very password');
+  test('write - sync', () => {
+  	let efs = new EncryptedFS('very password');
 
   	let fd = efs.openSync('test/test.txt');
 
-  	const writeBuf = Buffer("Super confidential information");
+  	const writeBuf = new Buffer("Super confidential information");
 
   	efs.writeSync(fd, writeBuf);
   });
 
   // TODO: find a way to unit test this method
   test('read - sync', t => {
-  	t.pass();
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	let fd = efs.openSync('test/test.txt');
 
   	const dummyBuffer = Buffer.alloc(10);
 
   	const pt = efs.readSync(fd, dummyBuffer, 0, 1, 0);
-
   });
 
 
   test('write then read - single block', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	let fd = efs.openSync('test/test.txt');
 
-  	const writeBuffer = Buffer("Super confidential information");
+  	const writeBuffer = new Buffer("Super confidential information");
 
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
@@ -87,11 +83,11 @@ describe('Cryptor class', () => {
 
   	efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0);
 
-  	t.deepEqual(writeBuffer, readBuffer);
+  	expect(writeBuffer).toStrictEqual(readBuffer);
   });
 
   test('write then read - multiple blocks', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	let fd = efs.openSync('test/test.txt');
 
@@ -105,7 +101,7 @@ describe('Cryptor class', () => {
 
   	efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0);
 
-  	t.deepEqual(writeBuffer, readBuffer);
+  	expect(writeBuffer).toStrictEqual(readBuffer);
   });
 
 
@@ -114,7 +110,7 @@ describe('Cryptor class', () => {
   /* the start and end blocks are handled differently to the middle blocks
    * hence they all need their own tests to verify functionality */
   test('write non-zero position - middle of start block', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	const blockSize = 4096;
 
@@ -126,7 +122,7 @@ describe('Cryptor class', () => {
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
-  	const middleData = Buffer('Malcom in the');
+  	const middleData = new Buffer('Malcom in the');
   	efs.writeSync(fd, middleData, 0, middleData.length, writePos);
 
   	// re-read the blocks
@@ -137,12 +133,12 @@ describe('Cryptor class', () => {
   	const expected = writeBuffer;
 
 
-  	t.true(readBuffer.equals(writeBuffer));
+  	expect(readBuffer).toEqual(writeBuffer);
   	//t.deepEqual(expected.slice(0, blockSize), readBuffer.slice(0, blockSize));
   });
 
   test('write non-zero position - middle of middle block', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	const blockSize = 4096;
 
@@ -154,7 +150,7 @@ describe('Cryptor class', () => {
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
-  	const middleData = Buffer('Malcom in the');
+  	const middleData = new Buffer('Malcom in the');
   	efs.writeSync(fd, middleData, 0, middleData.length, writePos);
 
   	// re-read the blocks
@@ -165,12 +161,12 @@ describe('Cryptor class', () => {
   	const expected = writeBuffer;
 
 
-  	t.true(readBuffer.equals(writeBuffer));
+  	expect(readBuffer).toEqual(writeBuffer);
   	//t.deepEqual(expected.slice(0, blockSize), readBuffer.slice(0, blockSize));
   });
 
   test('write non-zero position - middle of end block', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	const blockSize = 4096;
 
@@ -193,12 +189,12 @@ describe('Cryptor class', () => {
   	const expected = writeBuffer;
 
 
-  	t.true(readBuffer.equals(writeBuffer));
+  	expect(readBuffer).toEqual(writeBuffer);
   	//t.deepEqual(expected.slice(0, blockSize), readBuffer.slice(0, blockSize));
   });
 
   test('write segment spanning across two block', t => {
-  	let efs = new EFS('very password');
+  	let efs = new EncryptedFS('very password');
 
   	const blockSize = 4096;
 
@@ -220,7 +216,7 @@ describe('Cryptor class', () => {
   	const expected = writeBuffer;
 
 
-  	t.true(readBuffer.equals(writeBuffer));
+  	expect(readBuffer).toEqual(writeBuffer);
   });
 
 });

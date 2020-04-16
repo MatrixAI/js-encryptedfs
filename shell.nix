@@ -22,9 +22,6 @@ in
 
       export PATH="$(pwd)/dist/bin:$(npm bin):$PATH"
 
-      # Install jest cli globally
-      npm install -g jest-cli
-
       # setting up for nix-build
       npm install --package-lock-only
       node2nix \

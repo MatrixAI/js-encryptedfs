@@ -8,9 +8,9 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const styledComponentsTransformer = createStyledComponentsTransformer();
 
 module.exports = {
-  entry: './src/index.tsx',
+  entry: './src/EncryptedFS.ts',
   output: {
-    filename: 'encryptedfs.js',
+    filename: 'bundle.ts',
     path: path.resolve(__dirname, 'dist')
   },
   devtool: "source-map",
@@ -25,6 +25,9 @@ module.exports = {
   resolve: {
     extensions: [".ts", ".tsx", ".js"],
     plugins: [new TsconfigPathsPlugin()]
+  },
+  node: {
+    fs: 'empty'
   },
   module: {
     rules: [

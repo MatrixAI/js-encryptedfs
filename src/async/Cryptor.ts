@@ -1,5 +1,5 @@
-import {default as fs} from 'fs';
-import crypto from 'crypto';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 // TODO: Cryptor is highly coupled to kbpgp, consider applying inversion of control, e.g Cryptor ABC/interface and have KBPGP_Cryptor strategy
 // TODO: logic guard for all methods check if cryptor is initialised
@@ -8,28 +8,27 @@ import crypto from 'crypto';
 class Cryptor {
 
 	_initialised: boolean;
-  private _iv: Promise<unknown>;
-  private _key: unknown;
-  private _cipher: Cipher;
-  private _decipher: Decipher;
-	constructor(
-	) {
+  private _iv: Promise<Buffer>;
+  private _key: any;
+  private _cipher: crypto.Cipher;
+  private _decipher: crypto.Decipher;
+	constructor(pass: crypto.BinaryLike) {
 		this._initialised = false;
+		this.init(pass);
 	}
 
-	init(password) {
-		return new Promise( (resolve)  => {
+	init(password: crypto.BinaryLike) {
+		return new Promise<Cryptor>( (resolve)  => {
 			this._iv = this.genRandomIV();
-			this._iv.then((initVec) => {
-				this._iv = initVec;
+			this._iv.then(() => {
 				return this.pbkdf(password);
-			}).then((key) => {
+			}).then((key: any) => {
 				this._key = key;
 				return this._genCipher(this._key, this._iv);
-			}).then((cipher) => {
+			}).then((cipher: crypto.Cipher) => {
 				this._cipher = cipher;
 				return this._genDecipher(this._key, this._iv);
-			}).then((decipher) => {
+			}).then((decipher: crypto.Decipher) => {
 				this._decipher = decipher;
 				this._initialised = true;
 				resolve();
@@ -41,21 +40,20 @@ class Cryptor {
 		return this._initialised;
 	}
 
-	_updateState(iv) {
+	_updateState(iv: Promise<Buffer>) {
 		this._iv = iv;
 		return new Promise((resolve, reject) => {
-			this._genCipher(this._key, this._iv).then((cipher) => {
+			this._genCipher(this._key, this._iv).then((cipher: crypto.Cipher) => {
 				this._cipher = cipher;
 				return this._genDecipher(this._key, this._iv);
-			}).then((decipher) => {
+			}).then((decipher: crypto.Decipher) => {
 				this._decipher = decipher;
 				resolve();
 			});
 		});
-
 	}
 
-	pbkdf(pass, salt='', algo='sha256', keyLen=32, numIterations=10000) {
+	pbkdf(pass: crypto.BinaryLike, salt='', algo='sha256', keyLen=32, numIterations=10000) {
 		return new Promise( (resolve, reject) => {
 			crypto.pbkdf2(pass, salt, numIterations, keyLen, algo, (err, key) => {
 				if (err) {
@@ -68,11 +66,13 @@ class Cryptor {
 	}
 
 	// TODO: should we be returning a promise on something that is sync?
-	_genCipher(key, iv, algo='id-aes256-GCM') {
+	_genCipher(key: crypto.CipherKey, iv: Promise<Buffer>, algo='id-aes256-GCM') {
 		return new Promise( (resolve, reject) => {
-			var symCipher = crypto.createCipheriv(algo, key, iv);
+			iv.then((_iv) => {
+				var symCipher = crypto.createCipheriv(algo, key, _iv);
+				resolve(symCipher);
+			})
 
-			resolve(symCipher);
 		});
 	}
 
@@ -84,6 +84,12 @@ class Cryptor {
 				this._cipher.update(plaintext)
 			);
 		});
+	}
+	encryptSync(block, iv: Buffer): Buffer {
+		this._updateState(new Promise( (resolve, reject) => {
+			resolve(iv);
+		}));
+		return this._cipher.update(block)
 	}
 
 	// stage and commit useful for streaming data
@@ -103,7 +109,7 @@ class Cryptor {
 		});
 	}
 
-	_genDecipher(key, iv, algo='id-aes256-GCM') {
+	_genDecipher(key: crypto.CipherKey, iv: crypto.BinaryLike, algo='id-aes256-GCM') {
 		return new Promise( (resolve, reject) => {
 			var symDecipher = crypto.createDecipheriv(algo, key, iv);
 
@@ -111,7 +117,7 @@ class Cryptor {
 		});
 	}
 
-	async decrypt(ciphertext, iv=null) {
+	async decrypt(ciphertext, iv: Promise<Buffer> = null): Promise<any> {
 		if (iv)
 			// TODO: why do we have to put 'this' when using await?
 			await this._updateState(iv);
@@ -120,6 +126,13 @@ class Cryptor {
 				this._decipher.update(ciphertext)
 			);
 		});
+	}
+
+	async decryptSync(ciphertext, iv: Promise<Buffer> = null): Promise<any> {
+		this._updateState(new Promise( (resolve, reject) => {
+			resolve(iv);
+		}));
+		return this._decipher.update(ciphertext)
 	}
 
 	// stage and commit useful for streaming data
@@ -139,13 +152,17 @@ class Cryptor {
 		});
 	}
 
-	genRandomIV() {
+	genRandomIV(): Promise<Buffer> {
 		return new Promise((resolve, reject) => {
 			// TODO: magic number
 			var iv = crypto.randomBytes(16)
 
 			resolve(iv);
 		});
+	}
+	genRandomIVSync(): Buffer {
+		var iv = crypto.randomBytes(16)
+		return iv
 	}
 
 }
@@ -288,4 +305,3 @@ export default Cryptor;
 //kbpgp.box (params, function(err, result_string, result_buffer) {
 //  console.log(err, result_string, result_buffer);
 //});
-

@@ -1,4 +1,4 @@
-import Cryptor from 'Cryptor';
+import Cryptor from './Cryptor';
 import * as jest from 'ts-jest';
 import * as crypto from 'crypto';
 
@@ -39,7 +39,7 @@ describe('Cryptor class', () => {
 	})
 
 	describe('Asyncronous tests', () => {
-		test('Cryptor - encrypt async', async () => {
+		test('Cryptor - encrypt async', () => {
 			let cryptorSync = new Cryptor('secret password', iv);
 			let cryptor = new Cryptor('secret password', iv);
 
@@ -60,7 +60,7 @@ describe('Cryptor class', () => {
 			});
 		});
 
-		test('Cryptor - decrypt async', async () => {
+		test('Cryptor - decrypt async', () => {
 			let cryptor = new Cryptor('secret password', iv);
 			let plaintext = 'very important secret';
 

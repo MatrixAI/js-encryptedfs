@@ -107,7 +107,9 @@ export default class EncryptedFS {
 			// extract remaining data which is the cipher text
 			const chunkData = chunkBuf.slice(this._ivSize);
 
-			const ptBlock = this._cryptor.decryptSync(chunkData, iv);
+			const ptBlock = this._cryptor.decryptSync(chunkData, new Promise( (resolve, reject) => {
+				resolve(iv);
+			}));
 
 			plaintextBlocks.push(ptBlock);
 		}
@@ -145,10 +147,6 @@ export default class EncryptedFS {
 		 : data about the plain text
 		 */
 		return length;
-	}
-
-	readdirSync(path: fs.PathLike, options?: { encoding: BufferEncoding; withFileTypes?: false; } | "ascii" | "utf8" | "utf-8" | "utf16le" | "ucs2" | "ucs-2" | "base64" | "latin1" | "binary" | "hex"): string[] {
-		return fs.readdirSync(path, options)
 	}
 
 	// TODO: does there need to be a an async version of this for async api methods?
@@ -323,12 +321,12 @@ export default class EncryptedFS {
 		const encryptedChunks = []
 		for (let block of blockIter) {
 			// gen iv
-			const iv = this._cryptor.genRandomIVSync();
+			let iv = this._cryptor.genRandomIVSync();
 
 			// encrypt block
 			// TODO: so process.nextTick() can allow sync fn's to be run async'ly
 			// TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
-			const ctBlock = this._cryptor.encryptSync(block, iv);
+			const ctBlock: Buffer = this._cryptor.encryptSync(block, iv);
 			// convert into chunk
 			// TODO: can this be done by reference instead of .concat createing a new buffer?
 			const chunk = Buffer.concat([iv, ctBlock], this._chunkSize);

@@ -11,9 +11,9 @@ export default class Cryptor {
   private _key: Buffer;
   private _cipher: crypto.Cipher;
   private _decipher: crypto.Decipher;
-	constructor(pass, iv: Buffer = null, algo: string = 'id-aes256-GCM') {
+	constructor(pass: string, iv: Buffer = null, algo: string = 'id-aes256-GCM') {
 		this._algo = algo;
-    this._iv = iv ? iv : this.genRandomIVSync();
+    	this._iv = iv ? iv : this.genRandomIVSync();
 		// TODO: generate salt ?
 		this._key = this._pbkdfSync(pass);
 		this._cipher = crypto.createCipheriv(algo, this._key, this._iv);
