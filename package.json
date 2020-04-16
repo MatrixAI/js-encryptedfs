@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MatrixAI/js-encryptedfs.git"
+    "url": "git+https://github.com/MatrixAI/js-encryptedfs.git"
   },
   "main": "dist/index.node.cjs.js",
   "module": "dist/index.node.es.js",
@@ -49,5 +49,13 @@
   },
   "bin": {
     "javascript-demo": "dist/bin/javascript-demo"
+  },
+  "bugs": {
+    "url": "https://github.com/MatrixAI/js-encryptedfs/issues"
+  },
+  "homepage": "https://github.com/MatrixAI/js-encryptedfs#readme",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
   }
 }

@@ -10,7 +10,7 @@ const styledComponentsTransformer = createStyledComponentsTransformer();
 module.exports = {
   entry: './src/index.tsx',
   output: {
-    filename: 'bundle.js',
+    filename: 'encryptedfs.js',
     path: path.resolve(__dirname, 'dist')
   },
   devtool: "source-map",
