@@ -23782,33 +23782,33 @@ __webpack_require__.r(__webpack_exports__);
 
 // TODO: function docs
 class Cryptor {
-    constructor(pass, iv = null, algo = 'id-aes256-GCM') {
+    constructor(pass, initVector = null, algo = 'id-aes256-GCM') {
         this._algo = algo;
-        this._iv = iv ? iv : this.genRandomIVSync();
+        this._initVector = initVector ? initVector : this.genRandomIVSync();
         // TODO: generate salt ?
         this._key = this._pbkdfSync(pass);
-        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](algo, this._key, this._iv);
-        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](algo, this._key, this._iv);
+        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](algo, this._key, this._initVector);
+        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](algo, this._key, this._initVector);
     }
-    encryptSync(plainBuf, iv = null) {
-        if (iv && (iv !== this._iv)) {
-            this._resetCipher(iv);
+    encryptSync(plainBuf, initVector = null) {
+        if (initVector && (initVector !== this._initVector)) {
+            this._resetCipher(initVector);
         }
         return this._cipher.update(plainBuf);
     }
     // TODO: needs iv param
     encrypt(...args) {
         console.log(this._key.toString('hex'));
-        console.log(this._iv.toString('hex'));
+        console.log(this._initVector.toString('hex'));
         let argSplit = this._separateCallback(args);
         let cb = argSplit.cb;
         let methodArgs = argSplit.args;
         this._callAsync(this.encryptSync.bind(this), methodArgs, cb);
         return;
     }
-    decryptSync(cipherBuf, iv = null) {
-        if (iv && (iv !== this._iv)) {
-            this._resetDecipher(iv);
+    decryptSync(cipherBuf, initVector = null) {
+        if (initVector && (initVector !== this._initVector)) {
+            this._resetDecipher(initVector);
         }
         return this._decipher.update(cipherBuf);
     }
@@ -23820,12 +23820,12 @@ class Cryptor {
         this._callAsync(this.decryptSync.bind(this), methodArgs, cb);
         return;
     }
-    _resetCipher(iv) {
-        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](this._algo, this._key, iv);
+    _resetCipher(initVector) {
+        this._cipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createCipheriv"](this._algo, this._key, initVector);
         return;
     }
-    _resetDecipher(iv) {
-        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](this._algo, this._key, iv);
+    _resetDecipher(initVector) {
+        this._decipher = crypto__WEBPACK_IMPORTED_MODULE_0__["createDecipheriv"](this._algo, this._key, initVector);
         return;
     }
     genRandomIVSync() {
@@ -23906,13 +23906,13 @@ __webpack_require__.r(__webpack_exports__);
  */
 class EncryptedFS {
     constructor(password, upperDir = virtualfs__WEBPACK_IMPORTED_MODULE_3___default.a, lowerDir = fs__WEBPACK_IMPORTED_MODULE_0__, // TODO: how create new instance of fs class?
-    ivSize = 16, blockSize = 4096) {
+    initVectorSize = 16, blockSize = 4096) {
         this._cryptor = new _Cryptor__WEBPACK_IMPORTED_MODULE_2__["default"](password);
         this._upperDir = upperDir;
         this._lowerDir = lowerDir;
-        this._ivSize = ivSize;
+        this._initVectorSize = initVectorSize;
         this._blockSize = blockSize;
-        this._chunkSize = this._blockSize + this._ivSize;
+        this._chunkSize = this._blockSize + this._initVectorSize;
     }
     /*
     // other functions can use this method to encrypt whilst marshalling data to block boundaires
@@ -23964,10 +23964,10 @@ class EncryptedFS {
             let chunkBuf = Buffer.alloc(this._chunkSize);
             fs__WEBPACK_IMPORTED_MODULE_0__["readSync"](fd, chunkBuf, 0, this._chunkSize, chunkOffset);
             // extract the iv from beginning of chunk
-            const iv = chunkBuf.slice(0, this._ivSize);
+            const initVector = chunkBuf.slice(0, this._initVectorSize);
             // extract remaining data which is the cipher text
-            const chunkData = chunkBuf.slice(this._ivSize);
-            const ptBlock = this._cryptor.decryptSync(chunkData, iv);
+            const chunkData = chunkBuf.slice(this._initVectorSize);
+            const ptBlock = this._cryptor.decryptSync(chunkData, initVector);
             plaintextBlocks.push(ptBlock);
         }
         const decryptedReadBuffer = Buffer.concat(plaintextBlocks, numChunksToRead * this._blockSize);

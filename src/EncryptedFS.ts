@@ -20,22 +20,22 @@ export default class EncryptedFS {
 	_upperDir : Object;
 	_lowerDir: Object;
 	_cryptor: Cryptor;
-	_ivSize: number;
+	_initVectorSize: number;
 	_blockSize: number;
 	_chunkSize: number;
 	constructor(
 		password: string,
 		upperDir: Object = VFS,
 		lowerDir: Object = fs,	// TODO: how create new instance of fs class?
-		ivSize: number = 16,
+		initVectorSize: number = 16,
 		blockSize: number = 4096
 	) {
 		this._cryptor = new Cryptor(password);
 		this._upperDir = upperDir;
 		this._lowerDir = lowerDir;
-		this._ivSize = ivSize;
+		this._initVectorSize = initVectorSize;
 		this._blockSize = blockSize;
-		this._chunkSize = this._blockSize + this._ivSize;
+		this._chunkSize = this._blockSize + this._initVectorSize;
 	}
 
 	/*
@@ -102,12 +102,12 @@ export default class EncryptedFS {
 			fs.readSync(fd, chunkBuf, 0, this._chunkSize, chunkOffset);
 
 			// extract the iv from beginning of chunk
-			const iv = chunkBuf.slice(0, this._ivSize);
+			const initVector = chunkBuf.slice(0, this._initVectorSize);
 
 			// extract remaining data which is the cipher text
-			const chunkData = chunkBuf.slice(this._ivSize);
+			const chunkData = chunkBuf.slice(this._initVectorSize);
 
-			const ptBlock = this._cryptor.decryptSync(chunkData, iv);
+			const ptBlock = this._cryptor.decryptSync(chunkData, initVector);
 
 			plaintextBlocks.push(ptBlock);
 		}

@@ -6,23 +6,23 @@ import * as process from 'process';
 
 export default class Cryptor {
   private _algo: string;
-  private readonly _iv: Buffer;
+  private readonly _initVector: Buffer;
   private _key: Buffer;
   private _cipher: crypto.Cipher;
   private _decipher: crypto.Decipher;
-	constructor(pass: string, iv: Buffer = null, algo: string = 'id-aes256-GCM') {
+	constructor(pass: string, initVector: Buffer = null, algo: string = 'id-aes256-GCM') {
 		this._algo = algo;
-    	this._iv = iv ? iv : this.genRandomIVSync();
+    	this._initVector = initVector ? initVector : this.genRandomIVSync();
 		// TODO: generate salt ?
 		this._key = this._pbkdfSync(pass);
-		this._cipher = crypto.createCipheriv(algo, this._key, this._iv);
-		this._decipher = crypto.createDecipheriv(algo, this._key, this._iv);
+		this._cipher = crypto.createCipheriv(algo, this._key, this._initVector);
+		this._decipher = crypto.createDecipheriv(algo, this._key, this._initVector);
 	}
 
 
-	encryptSync(plainBuf: crypto.BinaryLike, iv=null) {
-		if (iv && (iv !== this._iv)) {
-			this._resetCipher(iv);
+	encryptSync(plainBuf: crypto.BinaryLike, initVector=null) {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetCipher(initVector);
 		}
 		return this._cipher.update(plainBuf);
 	}
@@ -30,7 +30,7 @@ export default class Cryptor {
 	// TODO: needs iv param
 	encrypt(...args: Array<any>) {
 		console.log(this._key.toString('hex'));
-		console.log(this._iv.toString('hex'));
+		console.log(this._initVector.toString('hex'));
 		let argSplit = this._separateCallback(args)
 		let cb = argSplit.cb;
 		let methodArgs = argSplit.args;
@@ -44,9 +44,9 @@ export default class Cryptor {
 		return;
 	}
 
-	decryptSync(cipherBuf, iv=null) {
-		if (iv && (iv !== this._iv)) {
-			this._resetDecipher(iv);
+	decryptSync(cipherBuf, initVector=null) {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetDecipher(initVector);
 		}
 
 		return this._decipher.update(cipherBuf);
@@ -66,14 +66,14 @@ export default class Cryptor {
 		return;
 	}
 
-	_resetCipher(iv) {
-		this._cipher = crypto.createCipheriv(this._algo, this._key, iv);
+	_resetCipher(initVector: crypto.BinaryLike) {
+		this._cipher = crypto.createCipheriv(this._algo, this._key, initVector);
 
 		return;
 	}
 
-	_resetDecipher(iv) {
-		this._decipher = crypto.createDecipheriv(this._algo, this._key, iv);
+	_resetDecipher(initVector: crypto.BinaryLike) {
+		this._decipher = crypto.createDecipheriv(this._algo, this._key, initVector);
 
 		return;
 	}
