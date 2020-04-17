@@ -8,10 +8,15 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const styledComponentsTransformer = createStyledComponentsTransformer();
 
 module.exports = {
-  entry: './src/EncryptedFS.ts',
+  entry: './src/index.ts',
   output: {
-    filename: 'bundle.ts',
-    path: path.resolve(__dirname, 'dist')
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'encryptedfs.js',
+    library: 'encryptedfs',
+    libraryTarget: 'umd',
+  },
+  externals: {
+    virtualfs: "virtualfs",
   },
   devtool: "source-map",
   devServer: {
@@ -46,19 +51,19 @@ module.exports = {
       'PORT'
     ]),
     new HtmlWebpackPlugin({
-      template: '!!ejs-compiled-loader!src/index.ejs',
-      inject: 'body',
-      xhtml: true,
-      filename: 'index.html',
-      templateParameters: {
-        title: 'TypeScript Demo',
-        configJs: `
-          window.config = {
-            HOST: '${process.env.HOST}',
-            PORT: '${process.env.PORT}'
-          };
-        `
-      }
+      // template: '!!ejs-compiled-loader!src/index.ejs',
+      // inject: 'body',
+      // xhtml: true,
+      // filename: 'index.html',
+      // templateParameters: {
+      //   title: 'TypeScript Demo',
+      //   configJs: `
+      //     window.config = {
+      //       HOST: '${process.env.HOST}',
+      //       PORT: '${process.env.PORT}'
+      //     };
+      //   `
+      // }
     })
   ],
   watchOptions: {

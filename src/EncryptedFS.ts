@@ -328,7 +328,7 @@ export default class EncryptedFS {
 			// encrypt block
 			// TODO: so process.nextTick() can allow sync fn's to be run async'ly
 			// TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
-			const ctBlock = this._cryptor.encryptSync(block, iv);
+			const ctBlock = this._cryptor.encryptSync(block.toString(), iv);
 			// convert into chunk
 			// TODO: can this be done by reference instead of .concat createing a new buffer?
 			const chunk = Buffer.concat([iv, ctBlock], this._chunkSize);
@@ -377,8 +377,6 @@ export default class EncryptedFS {
 		process.nextTick(() => {
 			try {
 				let result = syncFn(...args);
-
-
 				cb(null, result);
 
 			} catch (e) {

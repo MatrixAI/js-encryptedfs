@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as process from 'process';
 
-// TODO: flow type annotations
 // TODO: function docs
 
 export default class Cryptor {
@@ -21,7 +20,7 @@ export default class Cryptor {
 	}
 
 
-	encryptSync(plainBuf, iv=null) {
+	encryptSync(plainBuf: crypto.BinaryLike, iv=null) {
 		if (iv && (iv !== this._iv)) {
 			this._resetCipher(iv);
 		}
