@@ -48,9 +48,6 @@
     "webpack-cli": "^3.3.2",
     "webpack-dev-server": "^3.3.1"
   },
-  "bin": {
-    "javascript-demo": "dist/bin/javascript-demo"
-  },
   "bugs": {
     "url": "https://github.com/MatrixAI/js-encryptedfs/issues"
   },
