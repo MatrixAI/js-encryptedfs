@@ -1,4 +1,4 @@
-import Cryptor from './Cryptor';
+import Cryptor from '../../src/async/Cryptor';
 import * as jest from 'ts-jest';
 import * as crypto from 'crypto';
 

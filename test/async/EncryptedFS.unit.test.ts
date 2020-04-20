@@ -1,4 +1,4 @@
-import EncryptedFS from './EncryptedFS';
+import EncryptedFS from '../../src/async/EncryptedFS';
 import * as fs from 'fs';
 import * as jest from 'jest';
 

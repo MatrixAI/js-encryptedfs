@@ -1,8 +1,12 @@
-import EncryptedFS from './EncryptedFS';
+import EncryptedFS from '../src/EncryptedFS';
+import fs from 'fs';
 import * as jest from 'ts-jest';
 import * as crypto from 'crypto';
 
 describe('Cryptor class', () => {
+	// Make a temp directory with fs
+	const tempDir = fs.mkdtempSync('tmp')
+
 //   test('the data is peanut butter', done => {
 //     function callback(data) {
 //       try {
@@ -29,7 +33,7 @@ describe('Cryptor class', () => {
   test('open - sync', t => {
   	let efs = new EncryptedFS('very password');
 
-  	let fd = efs.openSync('test/efs_test.txt');
+  	let fd = efs.openSync(`${tempDir}/efs_test.txt`);
   	console.log(typeof fd);
 
   	// TODO: are there better tests than this?
@@ -41,7 +45,7 @@ describe('Cryptor class', () => {
 	let efs = new EncryptedFS('very password');
 	
 	expect.assertions(2);
-	let fd = efs.open('test/efs_test.txt', (err, fd) => {
+	let fd = efs.open(`${tempDir}/efs_test.txt`, (err, fd) => {
 		expect(err).toStrictEqual(null);
 		expect((fd).constructor).toBeInstanceOf(Number);
 	});
@@ -51,7 +55,7 @@ describe('Cryptor class', () => {
   test('write - sync', () => {
   	let efs = new EncryptedFS('very password');
 
-  	let fd = efs.openSync('test/test.txt');
+  	let fd = efs.openSync(`${tempDir}/test.txt`);
 
   	const writeBuf = new Buffer("Super confidential information");
 
@@ -62,7 +66,7 @@ describe('Cryptor class', () => {
   test('read - sync', t => {
   	let efs = new EncryptedFS('very password');
 
-  	let fd = efs.openSync('test/test.txt');
+  	let fd = efs.openSync(`${tempDir}/test.txt`);
 
   	const dummyBuffer = Buffer.alloc(10);
 
@@ -73,7 +77,7 @@ describe('Cryptor class', () => {
   test('write then read - single block', t => {
   	let efs = new EncryptedFS('very password');
 
-  	let fd = efs.openSync('test/test.txt');
+  	let fd = efs.openSync(`${tempDir}/test.txt`);
 
   	const writeBuffer = new Buffer("Super confidential information");
 
@@ -89,7 +93,7 @@ describe('Cryptor class', () => {
   test('write then read - multiple blocks', t => {
   	let efs = new EncryptedFS('very password');
 
-  	let fd = efs.openSync('test/test.txt');
+  	let fd = efs.openSync(`${tempDir}/test.txt`);
 
   	const blockSize = 4096;
 
@@ -118,7 +122,7 @@ describe('Cryptor class', () => {
   	// write a three block file
   	const writePos = 2000;
   	const writeBuffer = crypto.randomBytes(blockSize * 3);
-  	const fd = efs.openSync('test/test_middle.txt');
+  	const fd = efs.openSync(`${tempDir}/test_middle.txt`);
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
@@ -146,7 +150,7 @@ describe('Cryptor class', () => {
   	// write a three block file
   	const writePos = blockSize + 2000;
   	const writeBuffer = crypto.randomBytes(blockSize * 3);
-  	const fd = efs.openSync('test/test_middle.txt');
+  	const fd = efs.openSync(`${tempDir}/test_middle.txt`);
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
@@ -174,7 +178,7 @@ describe('Cryptor class', () => {
   	// write a three block file
   	const writePos = 2 * blockSize + 2000;
   	const writeBuffer = crypto.randomBytes(blockSize * 3);
-  	const fd = efs.openSync('test/test_middle.txt');
+  	const fd = efs.openSync(`${tempDir}/test_middle.txt`);
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
@@ -201,7 +205,7 @@ describe('Cryptor class', () => {
   	// write a three block file
   	const writePos = 4090;
   	const writeBuffer = crypto.randomBytes(blockSize * 3);
-  	const fd = efs.openSync('test/test_middle.txt');
+  	const fd = efs.openSync(`${tempDir}/test_middle.txt`);
   	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0);
 
   	// write data in the middle
