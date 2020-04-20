@@ -2,11 +2,9 @@
 /pkgs.nix
 /default.nix
 /shell.nix
-/package.nix
-/node-env.nix
-/node-packages.nix
+/nix
 /webpack.config.js
 /tsconfig.json
 /doc
 /src
-/test
+/tests

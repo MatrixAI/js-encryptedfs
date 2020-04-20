@@ -12,8 +12,8 @@
     "type": "git",
     "url": "git+https://github.com/MatrixAI/js-encryptedfs.git"
   },
-  "main": "dist/encryptedfs.js",
-  "module": "dist/encryptedfs.js",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
   "browser": "dist/index.browser.umd.js",
   "scripts": {
     "develop": "webpack --mode=development --watch & webpack-dev-server --mode=development & wait",
@@ -34,26 +34,19 @@
   },
   "devDependencies": {
     "@types/jest": "^24.0.15",
-    "ejs-compiled-loader": "^1.1.0",
-    "html-webpack-plugin": "^4.0.4",
     "jest": "^24.8.0",
     "ts-jest": "^24.0.2",
     "ts-loader": "^6.2.2",
     "ts-node": "^8.1.0",
     "tsconfig-paths-webpack-plugin": "^3.2.0",
     "typescript": "^3.8.3",
-    "typescript-plugin-styled-components": "^1.4.4",
     "virtualfs": "^2.2.0",
     "webpack": "^4.32.0",
     "webpack-cli": "^3.3.2",
-    "webpack-dev-server": "^3.3.1"
+    "webpack-node-externals": "^1.7.2"
   },
   "bugs": {
     "url": "https://github.com/MatrixAI/js-encryptedfs/issues"
   },
-  "homepage": "https://github.com/MatrixAI/js-encryptedfs#readme",
-  "directories": {
-    "lib": "lib",
-    "test": "test"
-  }
+  "homepage": "https://github.com/MatrixAI/js-encryptedfs#readme"
 }
