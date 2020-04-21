@@ -1,24 +1,28 @@
-import fs from 'fs';
-import crypto from 'crypto';
-import process from 'process';
+import * as fs from 'fs';
+import * as crypto from 'crypto';
+import * as process from 'process';
 
-// TODO: flow type annotations
-// TODO: funciton docs
+// TODO: function docs
 
 export default class Cryptor {
-	constructor(pass, iv=this.genRandomIVSync(), algo='id-aes256-GCM') : void {
+  private _algo: string;
+  private readonly _initVector: Buffer;
+  private _key: Buffer;
+  private _cipher: crypto.Cipher;
+  private _decipher: crypto.Decipher;
+	constructor(pass: string, initVector: Buffer = null, algo: string = 'id-aes256-GCM') {
 		this._algo = algo;
-		this._iv = iv;
-		// TODO: generate salt ? 
+    	this._initVector = initVector ? initVector : this.genRandomIVSync();
+		// TODO: generate salt ?
 		this._key = this._pbkdfSync(pass);
-		this._cipher = crypto.createCipheriv(algo, this._key, this._iv);
-		this._decipher = crypto.createDecipheriv(algo, this._key, this._iv);
+		this._cipher = crypto.createCipheriv(algo, this._key, this._initVector);
+		this._decipher = crypto.createDecipheriv(algo, this._key, this._initVector);
 	}
 
 
-	encryptSync(plainBuf, iv=null) {
-		if (iv && (iv !== this._iv)) {
-			this._resetCipher(iv);
+	encryptSync(plainBuf: crypto.BinaryLike, initVector=null) {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetCipher(initVector);
 		}
 		return this._cipher.update(plainBuf);
 	}
@@ -26,7 +30,7 @@ export default class Cryptor {
 	// TODO: needs iv param
 	encrypt(...args: Array<any>) {
 		console.log(this._key.toString('hex'));
-		console.log(this._iv.toString('hex'));
+		console.log(this._initVector.toString('hex'));
 		let argSplit = this._separateCallback(args)
 		let cb = argSplit.cb;
 		let methodArgs = argSplit.args;
@@ -40,9 +44,9 @@ export default class Cryptor {
 		return;
 	}
 
-	decryptSync(cipherBuf, iv=null) {
-		if (iv && (iv !== this._iv)) {
-			this._resetDecipher(iv);
+	decryptSync(cipherBuf, initVector=null) {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetDecipher(initVector);
 		}
 
 		return this._decipher.update(cipherBuf);
@@ -62,14 +66,14 @@ export default class Cryptor {
 		return;
 	}
 
-	_resetCipher(iv) {
-		this._cipher = crypto.createCipheriv(this._algo, this._key, iv);
+	_resetCipher(initVector: crypto.BinaryLike) {
+		this._cipher = crypto.createCipheriv(this._algo, this._key, initVector);
 
 		return;
 	}
 
-	_resetDecipher(iv) {
-		this._decipher = crypto.createDecipheriv(this._algo, this._key, iv);
+	_resetDecipher(initVector: crypto.BinaryLike) {
+		this._decipher = crypto.createDecipheriv(this._algo, this._key, initVector);
 
 		return;
 	}
@@ -95,13 +99,13 @@ export default class Cryptor {
 				cb(e, null);
 			}
 		});
-	}	
+	}
 
 	_separateCallback(args: Array<any>) {
 		// it is js convection that the last parameter
 		// will be the callback
-		
-		// pop 'mandatory' callback 
+
+		// pop 'mandatory' callback
 		// TODO: should we be checking that cb is a function?
 		let cb = args.pop();
 
@@ -125,4 +129,3 @@ export default class Cryptor {
 
 	// TODO: should there be an input param for variable length iv?
 }
-
