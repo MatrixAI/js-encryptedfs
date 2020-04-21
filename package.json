@@ -12,9 +12,8 @@
     "type": "git",
     "url": "git+https://github.com/MatrixAI/js-encryptedfs.git"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "browser": "dist/index.browser.umd.js",
+  "main": "dist/encryptedfs.js",
+  "module": "dist/encryptedfs.js",
   "scripts": {
     "develop": "webpack --mode=development --watch & webpack-dev-server --mode=development & wait",
     "build": "webpack --mode='production'",
