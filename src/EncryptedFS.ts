@@ -33,23 +33,6 @@ export default class EncryptedFS {
 	_initVectorSize: number;
 	_blockSize: number;
 	_chunkSize: number;
-	constructor(
-		password: string,
-		upperDir: Object = VFS,
-		lowerDir: Object = fs,	// TODO: how create new instance of fs class?
-		initVectorSize: number = 16,
-		blockSize: number = 4096
-	) {
-		this._cryptor = new Cryptor(password);
-		this._upperDir = upperDir;
-		this._lowerDir = lowerDir;
-		this._initVectorSize = initVectorSize;
-		this._blockSize = blockSize;
-		this._chunkSize = this._blockSize + this._initVectorSize;
-	}
-	_initVectorSize: number;
-	_blockSize: number;
-	_chunkSize: number;
 	_useWebWorkers: boolean;
 	constructor({
 		password,
@@ -136,9 +119,6 @@ export default class EncryptedFS {
 			// extract remaining data which is the cipher text
 			const chunkData = chunkBuf.slice(this._initVectorSize);
 
-			const ptBlock = this._cryptor.decryptSync(chunkData, new Promise( (resolve, reject) => {
-				resolve(iv);
-			}));
 			const ptBlock = this._cryptor.decryptSync(chunkData, initVector);
 
 			plaintextBlocks.push(ptBlock);
@@ -319,6 +299,7 @@ export default class EncryptedFS {
 
 		return newBlock;
 	}
+
 	_makeBlockGenerator(buffer: Buffer) {
 		const blockIterator = function* bufferIterable(_buffer: Buffer, _blockSize: number) {
 			let currOffset = 0;
@@ -452,6 +433,7 @@ export default class EncryptedFS {
 		const startBlockNum = this._offsetToBlockNum(position)
 		const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
+
 		let startBlock: Uint8Array;
 		let middleBlocks = Buffer.allocUnsafe(0);
 		let endBlock = Buffer.allocUnsafe(0);
@@ -516,7 +498,7 @@ export default class EncryptedFS {
 			// encrypt block
 			// TODO: so process.nextTick() can allow sync fn's to be run async'ly
 			// TODO: is this only the top level function or all sync fn's within the toplevel sync fn?
-			const ctBlock: Buffer = this._cryptor.encryptSync(block, iv);
+			const ctBlock = this._cryptor.encryptSync(block.toString(), iv);
 
 			// convert into chunk
 			// TODO: can this be done by reference instead of .concat createing a new buffer?
@@ -535,9 +517,7 @@ export default class EncryptedFS {
 		fs.writeSync(fd, encryptedWriteBuffer, 0, encryptedWriteBuffer.length, lowerWritePos);
 		let dummy = Buffer.alloc(4112);
 		fs.readSync(fd, dummy, 0, dummy.length, lowerWritePos);
-
 	}
-
 
 	// TODO: actually implement flags
 	// TODO: w+ should truncate, r+ should not
@@ -567,6 +547,7 @@ export default class EncryptedFS {
 	// _separateCallback(args: Array<any>) {
 	// 	// it is js convection that the last parameter
 	// 	// will be the callback
+
 	// 	// pop 'mandatory' callback
 	// 	// TODO: should we be checking that cb is a function?
 	// 	let cb = args.pop();

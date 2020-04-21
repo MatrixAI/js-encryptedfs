@@ -1,127 +1,140 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
 import * as process from 'process';
+import { spawn, Worker, ModuleThread } from 'threads'
+import { CryptorWorker } from './CryptorWorker';
 
 // TODO: function docs
 
+interface CryptorParameters {
+	pass: string
+	initVector?: Buffer
+	algorithm?: string
+	useWebWorkers?: boolean
+}
+
 export default class Cryptor {
-  private _algo: string;
-  private readonly _initVector: Buffer;
-  private _key: Buffer;
-  private _cipher: crypto.Cipher;
-  private _decipher: crypto.Decipher;
-	constructor(pass: string, initVector: Buffer = null, algo: string = 'id-aes256-GCM') {
-		this._algo = algo;
-    	this._initVector = initVector ? initVector : this.genRandomIVSync();
+	private _algorithm: string;
+	private readonly _initVector: Buffer;
+	private _key: Buffer;
+	private _cipher: crypto.Cipher;
+	private _decipher: crypto.Decipher;
+	private _useWebWorkers: boolean;
+	private _cryptorWorker?: ModuleThread<CryptorWorker>;
+	constructor({
+		pass,
+		initVector = crypto.randomBytes(16),
+		algorithm = 'aes-256-gcm',
+		useWebWorkers = false }: CryptorParameters) {
+		this._algorithm = algorithm;
+		this._initVector = initVector;
 		// TODO: generate salt ?
 		this._key = this._pbkdfSync(pass);
-		this._cipher = crypto.createCipheriv(algo, this._key, this._initVector);
-		this._decipher = crypto.createDecipheriv(algo, this._key, this._initVector);
+		this._cipher = crypto.createCipheriv(algorithm, this._key, this._initVector);
+		this._decipher = crypto.createDecipheriv(algorithm, this._key, this._initVector);
+		// Async via Process or Web workers
+		this._useWebWorkers = useWebWorkers;
+		if (this._useWebWorkers) {
+			spawn<CryptorWorker>(new Worker("./CryptorWorker")).then((worker) => {
+				this._cryptorWorker = worker
+				this._cryptorWorker.init(this._algorithm, this._key, this._initVector)
+			})
+		}
 	}
 
 
-	encryptSync(plainBuf: crypto.BinaryLike, initVector=null) {
+	encryptSync(plainBuf: crypto.BinaryLike, initVector?: Buffer): Buffer {
 		if (initVector && (initVector !== this._initVector)) {
-			this._resetCipher(initVector);
+			this._resetCipherSync(initVector!);
 		}
 		return this._cipher.update(plainBuf);
 	}
 
 	// TODO: needs iv param
-	encrypt(...args: Array<any>) {
-		console.log(this._key.toString('hex'));
-		console.log(this._initVector.toString('hex'));
-		let argSplit = this._separateCallback(args)
-		let cb = argSplit.cb;
-		let methodArgs = argSplit.args;
-
-
-		this._callAsync(
-			this.encryptSync.bind(this),
-			methodArgs,
-			cb
-		);
-		return;
+	async encrypt(plainBuf: crypto.BinaryLike, initVector?: Buffer) {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetCipher(initVector!);
+		}
+		if (this._useWebWorkers && this._cryptorWorker) {
+			return this._cryptorWorker.updateCipher(this._algorithm, this._key, this._initVector, plainBuf);
+		} else {
+			return this._cipher.update(plainBuf)
+		}
 	}
 
-	decryptSync(cipherBuf, initVector=null) {
+	decryptSync(cipherBuf: NodeJS.ArrayBufferView, initVector?: Buffer) {
 		if (initVector && (initVector !== this._initVector)) {
-			this._resetDecipher(initVector);
+			this._resetDecipherSync(initVector!);
 		}
 
 		return this._decipher.update(cipherBuf);
 	}
 
-	// TODO: needs iv param
-	decrypt(...args: Array<any>) {
-		let argSplit = this._separateCallback(args)
-		let cb = argSplit.cb;
-		let methodArgs = argSplit.args;
+	async decrypt(cipherBuf: NodeJS.ArrayBufferView, initVector?: Buffer): Promise<Buffer> {
+		if (initVector && (initVector !== this._initVector)) {
+			this._resetDecipher(initVector!);
+		}
 
-		this._callAsync(
-			this.decryptSync.bind(this),
-			methodArgs,
-			cb
-		);
-		return;
+		if (this._useWebWorkers && this._cryptorWorker) {
+			return await this._cryptorWorker.updateDecipher(this._algorithm, this._key, this._initVector, cipherBuf);
+		} else {
+			return this._decipher.update(cipherBuf)
+		}
 	}
 
-	_resetCipher(initVector: crypto.BinaryLike) {
-		this._cipher = crypto.createCipheriv(this._algo, this._key, initVector);
-
-		return;
+	decryptCommitSync(): Buffer {
+		return this._decipher.final()
 	}
 
-	_resetDecipher(initVector: crypto.BinaryLike) {
-		this._decipher = crypto.createDecipheriv(this._algo, this._key, initVector);
-
-		return;
+	async decryptCommit(): Promise<Buffer> {
+		return this._decipher.final()
 	}
-
-	genRandomIVSync() {
-		return crypto.randomBytes(16);
-	}
-	//encyrpt ()
-	// nextrick(encryptrSync
-	// if ^^ fails set err else set jults and do callback(err, result)
 
 	// TODO: should all of these be public methods?
 	// ========= HELPER FUNCTIONS =============
-	_callAsync(syncFn: Function, args: Array<any>, cb: Function) {
-		process.nextTick(() => {
-			try {
-				let result = syncFn(...args);
+	_resetCipherSync(initVector: crypto.BinaryLike) {
+		this._cipher = crypto.createCipheriv(this._algorithm, this._key, initVector);
 
-
-				cb(null, result);
-
-			} catch (e) {
-				cb(e, null);
-			}
-		});
+		return;
 	}
 
-	_separateCallback(args: Array<any>) {
-		// it is js convection that the last parameter
-		// will be the callback
-
-		// pop 'mandatory' callback
-		// TODO: should we be checking that cb is a function?
-		let cb = args.pop();
-
-		return {
-			cb: cb,
-			args: args
-		};
-
+	async _resetCipher(initVector: crypto.BinaryLike) {
+		if (this._useWebWorkers && this._cryptorWorker) {
+			return await this._cryptorWorker._resetCipher(this._algorithm, this._key, initVector);
+		} else {
+			this._cipher = crypto.createCipheriv(this._algorithm, this._key, this._initVector)
+		}
+		return;
 	}
 
-	_pbkdfSync(pass, salt='', algo='sha256', keyLen=32, numIterations=10000) {
+	_resetDecipherSync(initVector: crypto.BinaryLike) {
+		this._decipher = crypto.createDecipheriv(this._algorithm, this._key, initVector);
+
+		return;
+	}
+
+	async _resetDecipher(initVector: crypto.BinaryLike) {
+		if (this._useWebWorkers && this._cryptorWorker) {
+			return await this._cryptorWorker._resetCipher(this._algorithm, this._key, initVector);
+		} else {
+			this._decipher = crypto.createDecipheriv(this._algorithm, this._key, this._initVector)
+		}
+		return;
+	}
+
+	genRandomInitVectorSync() {
+		return crypto.randomBytes(16);
+	}
+
+	async genRandomInitVector(): Promise<Buffer> {
+		return crypto.randomBytes(16);
+	}
+
+	_pbkdfSync(pass: crypto.BinaryLike, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000): Buffer {
 		return crypto.pbkdf2Sync(pass, salt, numIterations, keyLen, algo);
 	}
 
-	_pbkdf(pass, salt='', algo='sha256', keyLen=32, numIterations=10000, callback) {
-		let err = null;
+	async _pbkdf(pass: crypto.BinaryLike, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000, callback: (err: Error | null, key: Buffer) => void) {
 		crypto.pbkdf2(pass, salt, numIterations, keyLen, algo, (err, key) => {
 			callback(err, key);
 		});
