@@ -7,14 +7,15 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "module": "CommonJS",
-    "target": "ES2016",
+    "target": "ES2018",
     "baseUrl": "./src",
     "paths": {
-      "@encryptedfs/*": ["*"]
-    },
-    "typeRoots": [
-        "./node_modules/@types"
-    ]
+      "@encryptedfs/*": [
+        "*"
+      ]
+    }
   },
-  "include": [ "./src/**/*" ]
+  "include": [
+    "./src/**/*"
+  ]
 }
