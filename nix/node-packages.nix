@@ -4,6 +4,15 @@
 
 let
   sources = {
+    "auto-bind-proxy-1.0.1" = {
+      name = "auto-bind-proxy";
+      packageName = "auto-bind-proxy";
+      version = "1.0.1";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/auto-bind-proxy/-/auto-bind-proxy-1.0.1.tgz";
+        sha1 = "4a74ab9afef91230cdae6bbbd324ebfc3eea6b1c";
+      };
+    };
     "base64-js-1.3.1" = {
       name = "base64-js";
       packageName = "base64-js";
@@ -191,6 +200,7 @@ let
     version = "0.0.1";
     src = ./..;
     dependencies = [
+      sources."auto-bind-proxy-1.0.1"
       sources."base64-js-1.3.1"
       sources."buffer-5.6.0"
       sources."callsites-3.1.0"

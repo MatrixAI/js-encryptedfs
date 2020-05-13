@@ -7,9 +7,7 @@ import { EncryptedFSError, errno } from './EncryptedFSError'
 import { optionsStream, ReadStream, WriteStream } from './Streams'
 import { promisify } from 'util'
 import { Buffer } from 'buffer/'
-
-// js imports
-const autoBind = require('auto-bind-proxy')
+import autoBind from 'auto-bind-proxy'
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
