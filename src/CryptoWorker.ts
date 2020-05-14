@@ -1,13 +1,12 @@
 import { expose } from "threads/worker"
-import * as crypto from 'crypto'
-import { Buffer } from 'buffer/'
+import { CryptoInterface, Cipher, Decipher } from "./util"
 
-let cipher: crypto.Cipher
-let decipher: crypto.Decipher
+let cipher: Cipher
+let decipher: Decipher
 
-function init(algorithm: string, key: Buffer, initVector: Buffer): void {
-  cipher = crypto.createCipheriv(algorithm, key, initVector)
-  decipher = crypto.createDecipheriv(algorithm, key, initVector)
+function init(algorithm: 'aes-128-gcm' | 'aes-192-gcm' | 'aes-256-gcm', key: Buffer, initVector: Buffer, cryptoLib: CryptoInterface): void {
+  cipher = cryptoLib.createCipheriv(algorithm, key, initVector)
+  decipher = cryptoLib.createDecipheriv(algorithm, key, initVector)
 }
 
 function encryptBuf(plainBuf: Buffer): Buffer {

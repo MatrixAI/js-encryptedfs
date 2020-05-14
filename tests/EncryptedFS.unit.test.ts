@@ -3,7 +3,6 @@ import * as crypto from 'crypto'
 import fs, { Stats } from 'fs'
 import * as os from 'os'
 import process from 'process'
-import { Buffer } from 'buffer/'
 import { errno } from '../src/EncryptedFSError'
 
 // js imports
@@ -1845,7 +1844,7 @@ describe('EncryptedFS class', () => {
       const filename = `${tempDir}/test`
       efs.writeFileSync(filename, 'something interesting')
       expect.assertions(1)
-      efs.open(filename, 'r', undefined).then((fd) => {
+      efs.open(filename, 'r').then((fd) => {
         expect(typeof fd).toEqual('number')
         done()
       }).catch((err) => {

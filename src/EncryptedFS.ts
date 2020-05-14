@@ -6,8 +6,8 @@ import { constants, DEFAULT_FILE_PERM } from './constants'
 import { EncryptedFSError, errno } from './EncryptedFSError'
 import { optionsStream, ReadStream, WriteStream } from './Streams'
 import { promisify } from 'util'
-import { Buffer } from 'buffer/'
 import autoBind from 'auto-bind-proxy'
+import { CryptoInterface } from './util'
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -59,14 +59,19 @@ export default class EncryptedFS {
     upperDirContextControl: typeof fs,
     lowerDir: typeof fs,
     lowerDirContextControl: typeof process,
-    umask = 0o022,
-    initVectorSize = 16,
-    blockSize = 4096,
-    useWebWorkers = false
+    umask: number = 0o022,
+    initVectorSize: number = 16,
+    blockSize: number = 4096,
+    useWebWorkers: boolean = false,
+    cryptoLib: CryptoInterface | undefined = undefined,
   ) {
     this.umask = umask
     this.key = key
-    this.crypto = new Crypto(key, undefined, undefined, useWebWorkers)
+    if (cryptoLib) {
+      this.crypto = new Crypto(key, cryptoLib, undefined, undefined, useWebWorkers)
+    } else {
+      this.crypto = new Crypto(key, require('crypto'), undefined, undefined, useWebWorkers)
+    }
     this.upperDir = autoBind(upperDir)
     this.upperDirContextControl = autoBind(upperDirContextControl)
     this.lowerDir = lowerDir
@@ -1154,9 +1159,9 @@ export default class EncryptedFS {
   async write(
     fd: number,
     data: Buffer | string,
-    offset: number | undefined = undefined,
-    length: number | undefined = undefined,
-    position: number | undefined = undefined
+    offset?: number,
+    length?: number,
+    position?: number
   ): Promise<number> {
     try {
       // Define defaults
@@ -1166,7 +1171,6 @@ export default class EncryptedFS {
       position = position !== undefined ? position : 0
 
       const lowerFd = this.getLowerFd(fd)
-
       // Get block boundary conditions
       const boundaryOffset = position & this.blockSize - 1 // how far from a block boundary our write is
       const numBlocksToWrite = Math.ceil((length + boundaryOffset) / this.blockSize)
@@ -1195,7 +1199,6 @@ export default class EncryptedFS {
       }
 
       // Assert newBlocks is a multiple of blocksize
-
       const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock])
       if (newBlocks.length % this.blockSize != 0) {
         throw(new EncryptedFSError(errno.EINVAL, null, null, 'write'))
@@ -1296,8 +1299,12 @@ export default class EncryptedFS {
       middleBlocks = buffer.slice(startBlockOverlaySize, endBlockBufferOffset)
     }
 
-    // TODO: assert newBlocks is a multiple of blocksize
+    // Assert newBlocks is a multiple of blocksize
     const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock])
+    if (newBlocks.length % this.blockSize != 0) {
+      throw(new EncryptedFSError(errno.EINVAL, null, null, 'write'))
+    }
+
     this.upperDir.writeSync(
       fd,
       newBlocks,
@@ -1478,58 +1485,41 @@ export default class EncryptedFS {
 	 */
   async writeFile(
     path: fs.PathLike | number,
-    data: Buffer | string,
-    options: fs.WriteFileOptions | undefined = undefined
+    data: string | Buffer,
+    options: fs.WriteFileOptions = {}
   ): Promise<void> {
     try {
+
       options = this.getFileOptions(
         { encoding: "utf8", mode: 0o666, flag: "w" },
         options,
       )
       const flag = options.flag || "w"
       const isUserFileDescriptor = this.isFileDescriptor(path)
+      let fd: number
       if (isUserFileDescriptor) {
-        const fd = <number>path
-        let offset = 0
-        if (typeof data === 'string') {
-          data = Buffer.from(data)
-        }
-        let length = data.byteLength
-
-        let position = 0
-
-        while (length > 0) {
-          const written = this.writeSync(fd, data, offset, length, position)
-          offset += written
-          length -= written
-          if (position !== null) {
-            position += written
-          }
-        }
-      } else if (typeof path === 'string') {
-        let fd: number
-        try {
-          fd = await this.open(path, flag, <number>options.mode)
-        } catch (err) {
-          throw(err)
-        }
-        if (typeof data === 'string') {
-          data = Buffer.from(data)
-        }
-        const dataBuffer = (typeof data === 'string') ? Buffer.from(data) : data
-        // const position = /a/.test(flag) ? null : 0
-        let position = 0
-        let offset = 0
-        while (length > 0) {
-          const written = await this.write(fd, data, offset, length, position)
-          offset += written
-          length -= written
-          if (position !== null) {
-            position += written
-          }
-        }
+        fd = <number>path
+      } else if (typeof path == 'string') {
+        fd = await this.open(path, flag, <number>options.mode)
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'write')
+        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFile')
+      }
+      let offset = 0
+      if (typeof data === 'string') {
+        data = Buffer.from(data)
+      }
+      let length = data.byteLength
+
+      // const position = /a/.test(flag) ? null : 0
+      let position = 0
+
+      while (length > 0) {
+        const written = await this.write(fd, data, offset, length, position)
+        offset += written
+        length -= written
+        if (position !== null) {
+          position += written
+        }
       }
     } catch (err) {
       throw(err)
@@ -1562,7 +1552,7 @@ export default class EncryptedFS {
       } else if (typeof path === 'string') {
         fd = this.openSync(path, flag, <number>options.mode)
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'write')
+        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFileSync')
       }
       let offset = 0
       if (typeof data === 'string') {
@@ -1595,34 +1585,46 @@ export default class EncryptedFS {
 	 */
   async open(
     path: fs.PathLike,
-    flags: string | undefined = undefined,
-    mode: number | undefined = undefined
+    flags: string = 'r',
+    mode: number = 0o666
   ): Promise<number> {
     try {
-      flags = (flags !== undefined) ? flags : 'r'
-      mode = (mode !== undefined) ? mode : 0o666
-      // const lowerFlags = flags[0] === "w" ? "w+" : "r+"
-      const lowerFlags = flags
+
       const _path = this.getPath(path)
-      const dirPath = Path.dirname(_path)
-      // Open on upperDir
-      const lowerFd = await promisify(this.lowerDir.open)(path, lowerFlags, mode)
-      const upperFilePath = Path.resolve(_path)
-      if (flags![0] === "r" && !this.upperDir.existsSync(upperFilePath)) {
-        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, "w"))
-      }
       // Open on lowerDir
-      const upperFd = await promisify(this.upperDir.open)(upperFilePath, flags!, mode)
+      let lowerFd = await promisify(this.lowerDir.open)(_path, flags, mode)
+      // Check if a file
+      if ((await promisify(this.lowerDir.fstat)(lowerFd)).isFile()) {
+        // Open with write permissions as well
+        await promisify(this.lowerDir.close)(lowerFd)
+        const lowerFlags = flags[0] === "w" ? "w+" : "r+"
+        lowerFd = await promisify(this.lowerDir.open)(_path, lowerFlags, mode)
+      }
+      const upperFilePath = Path.resolve(_path)
+      // Need to make path if it doesn't exist already
+      if (!this.upperDir.existsSync(upperFilePath)) {
+        const upperFilePathDir = Path.dirname(upperFilePath)
+        // mkdirp
+        await promisify(this.upperDir.mkdirp)(upperFilePathDir)
+        // create file if needed
+        await promisify(this.upperDir.close)(await promisify(this.upperDir.open)(upperFilePath, "w"))
+      }
+      // Open on upperDir
+      const upperFd = await promisify(this.upperDir.open)(upperFilePath, flags, mode)
       // Create efsFd
-      const efsFd = new FileDescriptor(lowerFd, upperFd, flags!)
+      const efsFd = new FileDescriptor(lowerFd, upperFd, flags)
       this.fileDescriptors.set(upperFd, efsFd)
 
-      if (flags![0] === "r") {
-        this.loadMetadata(upperFd)
-      } else if (flags![0] === "w") {
-        const hash = Buffer.from(this.crypto.hashSync(this.key))
-        this.metadata[upperFd] = { keyHash: hash, size: 0 }
-        this.writeMetadataSync(upperFd)
+      // If file descriptor points to file, write metadata
+      const isFile = this.fstatSync(upperFd)?.isFile()
+      if (isFile) {
+        if (flags[0] === "r") {
+          this.loadMetadata(upperFd)
+        } else if (flags[0] === "w") {
+          const hash = this.crypto.hashSync(this.key)
+          this.metadata[upperFd] = { keyHash: hash, size: 0 }
+          this.writeMetadataSync(upperFd)
+        }
       }
       return upperFd
     } catch (err) {
@@ -1641,27 +1643,37 @@ export default class EncryptedFS {
 	 */
   openSync(
     path: fs.PathLike,
-    flags: string = "r",
+    flags: string = 'r',
     mode: number = 0o666
   ): number {
     try {
-      const pathString: string = (typeof path === 'string') ? path : ((path.constructor === Buffer) ? path.toString() : this.getPathFromURL(path as URL))
-      // TODO: why do we add write flag to lower flags?
-      // const lowerFlags = flags[0] === "w" ? "w+" : "r+"
-      const lowerFlags = flags
-      const lowerFd = this.lowerDir.openSync(pathString, lowerFlags, mode)
-      const dirPath = Path.dirname(pathString)
-      const upperFilePath = Path.resolve(pathString)
-      if (flags[0] === "r" && !this.upperDir.existsSync(upperFilePath)) {
-        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, "w"))
+      const _path = this.getPath(path)
+      // Open on lowerDir
+      let lowerFd = this.lowerDir.openSync(_path, flags, mode)
+      // Check if a directory
+      if (this.lowerDir.fstatSync(lowerFd).isFile()) {
+        // Open with write permissions as well
+        this.lowerDir.closeSync(lowerFd)
+        const lowerFlags = flags[0] === "w" ? "w+" : "r+"
+        lowerFd = this.lowerDir.openSync(_path, lowerFlags, mode)
       }
+      const upperFilePath = Path.resolve(_path)
+      // Need to make path if it doesn't exist already
+      if (!this.upperDir.existsSync(upperFilePath)) {
+        const upperFilePathDir = Path.dirname(upperFilePath)
+        // mkdirp
+        this.upperDir.mkdirpSync(upperFilePathDir)
+        // create file if needed
+        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, 'w'))
+      }
+      // Open on upperDir
       const upperFd = this.upperDir.openSync(upperFilePath, flags, mode)
+      // Create efsFd
       const efsFd = new FileDescriptor(lowerFd, upperFd, flags)
       this.fileDescriptors.set(upperFd, efsFd)
 
-      // Check if file descriptor is directory
-      const isFile = this.fstatSync(upperFd)?.isFile()
       // If file descriptor points to file, write metadata
+      const isFile = this.fstatSync(upperFd)?.isFile()
       if (isFile) {
         if (flags[0] === "r") {
           this.loadMetadata(upperFd)
@@ -2001,6 +2013,7 @@ export default class EncryptedFS {
 
   private writeMetadataSync(fd: number): void {
     const iv = this.crypto.getRandomInitVectorSync()
+
     const metadata = this.getMetadata(fd)
     const serialMeta = JSON.stringify(metadata)
     const metadataBlk = Buffer.concat(

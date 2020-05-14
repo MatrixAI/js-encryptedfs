@@ -1,4 +1,3 @@
-import { Buffer } from 'buffer/'
 import { Readable, Writable } from 'readable-stream'
 import EncryptedFS from './EncryptedFS'
 import { DEFAULT_FILE_PERM } from './constants'

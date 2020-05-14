@@ -1,23 +1,26 @@
-import * as crypto from 'crypto'
+import { CryptoInterface, Cipher, Decipher, AlgorithmGCM } from './util'
 import { spawn, Worker, ModuleThread } from 'threads'
-import { Buffer } from 'buffer/'
+import * as crypto from 'crypto'
 
 export default class Crypto {
-  private algorithm: string
+  private algorithm: AlgorithmGCM
   private initVector: Buffer
   private key: Buffer
-  private cipher: crypto.Cipher
-  private decipher: crypto.Decipher
   private useWebWorkers: boolean
   private cryptorWorker?: ModuleThread
+  private cipher: Cipher
+  private decipher: Decipher
+  private cryptoLib: CryptoInterface
   constructor(
     key: Buffer | string,
-    initVector: Buffer = Buffer.from(crypto.randomBytes(16)),
-    algorithm: string = 'aes-256-gcm',
-    useWebWorkers: boolean = false
+    cryptoLib: CryptoInterface,
+    initVector?: Buffer,
+    algorithm: AlgorithmGCM = 'aes-256-gcm',
+    useWebWorkers: boolean = false,
   ) {
     this.algorithm = algorithm
-    this.initVector = initVector
+    this.cryptoLib = cryptoLib
+    this.initVector = initVector ?? this.cryptoLib.randomBytes(16)
     // TODO: generate salt ?
     this.key = this.pbkdfSync(key)
     this.cipher = crypto.createCipheriv(algorithm, this.key, this.initVector)
@@ -35,53 +38,66 @@ export default class Crypto {
 
   encryptSync(plainBuf: string | Buffer, initVector?: Buffer): Buffer {
     if (initVector && (initVector !== this.initVector)) {
-      this.resetCipherSync(initVector!)
+      this.initVector = initVector
+      this.cipher = this.cryptoLib.createCipheriv(this.algorithm, this.key, initVector)
     }
-    return Buffer.from(this.cipher.update(plainBuf))
+    return this.cipher.update(plainBuf)
   }
 
-  async encrypt(plainBuf: string | Buffer, initVector: Buffer | undefined = undefined): Promise<Buffer> {
+  async encrypt(plainBuf: string | Buffer, initVector?: Buffer): Promise<Buffer> {
+    // Re-initialize cipher if initVector was provided
     if (initVector && (initVector !== this.initVector)) {
-      this.resetCipher(initVector!)
+      this.initVector = initVector
+      if (this.useWebWorkers && this.cryptorWorker) {
+        return await this.cryptorWorker.init(this.algorithm, this.key, initVector)
+      } else {
+        this.cipher = this.cryptoLib.createCipheriv(this.algorithm, this.key, this.initVector)
+      }
     }
 
     let buffer: Buffer
     if (this.useWebWorkers && this.cryptorWorker) {
       buffer = await this.cryptorWorker.encryptBuf(plainBuf)
     } else {
-      buffer = Buffer.from(this.cipher.update(plainBuf))
+      buffer = this.cipher.update(plainBuf)
     }
     return buffer
   }
 
   decryptSync(cipherBuf: Buffer, initVector?: Buffer): Buffer {
     if (initVector && (initVector !== this.initVector)) {
-      this.resetDecipherSync(initVector!)
+      this.initVector = initVector
+      this.decipher = this.cryptoLib.createDecipheriv(this.algorithm, this.key, initVector)
     }
 
-    return Buffer.from(this.decipher.update(cipherBuf))
+    return this.decipher.update(cipherBuf)
   }
 
-  async decrypt(cipherBuf: Buffer, initVector: Buffer | undefined = undefined): Promise<Buffer> {
+  async decrypt(cipherBuf: Buffer, initVector?: Buffer): Promise<Buffer> {
     if (initVector && (initVector !== this.initVector)) {
-      await this.resetDecipher(initVector!)
+      this.initVector = initVector
+      if (this.useWebWorkers && this.cryptorWorker) {
+        return await this.cryptorWorker.init(this.algorithm, this.key, initVector)
+      } else {
+        this.decipher = this.cryptoLib.createDecipheriv(this.algorithm, this.key, this.initVector)
+      }
     }
 
     let buffer: Buffer
     if (this.useWebWorkers && this.cryptorWorker) {
       buffer = await this.cryptorWorker.decryptBuf(cipherBuf)
     } else {
-      buffer = Buffer.from(this.decipher.update(cipherBuf))
+      buffer = this.decipher.update(cipherBuf)
     }
     return buffer
   }
 
   decryptCommitSync(): Buffer {
-    return Buffer.from(this.decipher.final())
+    return this.decipher.final()
   }
 
   async decryptCommit(): Promise<Buffer> {
-    return Buffer.from(this.decipher.final())
+    return this.decipher.final()
   }
 
   // ========= HELPER FUNCTIONS =============
@@ -90,61 +106,27 @@ export default class Crypto {
     return this.initVector
   }
 
-  private resetCipherSync(initVector: Buffer) {
-    this.initVector = initVector
-    this.cipher = crypto.createCipheriv(this.algorithm, this.key, initVector)
-
-    return
-  }
-
-  private async resetCipher(initVector: Buffer) {
-    this.initVector = initVector
-    if (this.useWebWorkers && this.cryptorWorker) {
-      return await this.cryptorWorker.init(this.algorithm, this.key, initVector)
-    } else {
-      this.cipher = crypto.createCipheriv(this.algorithm, this.key, this.initVector)
-    }
-    return
-  }
-
-  private resetDecipherSync(initVector: Buffer) {
-    this.initVector = initVector
-    this.decipher = crypto.createDecipheriv(this.algorithm, this.key, initVector)
-
-    return
-  }
-
-  private async resetDecipher(initVector: Buffer) {
-    this.initVector = initVector
-    if (this.useWebWorkers && this.cryptorWorker) {
-      return await this.cryptorWorker.init(this.algorithm, this.key, initVector)
-    } else {
-      this.decipher = crypto.createDecipheriv(this.algorithm, this.key, this.initVector)
-    }
-    return
-  }
-
   getRandomInitVectorSync(): Buffer {
-    return Buffer.from(crypto.randomBytes(this.initVector.length))
+    return crypto.randomBytes(this.initVector.length)
   }
 
   async getRandomInitVector(): Promise<Buffer> {
-    return Buffer.from(crypto.randomBytes(this.initVector.length))
+    return crypto.randomBytes(this.initVector.length)
   }
 
   private pbkdfSync(pass: string | Buffer, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000): Buffer {
-    return Buffer.from(crypto.pbkdf2Sync(pass, salt, numIterations, keyLen, algo))
+    return crypto.pbkdf2Sync(pass, salt, numIterations, keyLen, algo)
   }
 
   private async pbkdf(pass: string | Buffer, salt = '', algo = 'sha256', keyLen = 32, numIterations = 10000, callback: (err: Error | null, key: Buffer) => void) {
     crypto.pbkdf2(pass, salt, numIterations, keyLen, algo, (err, key) => {
-      callback(err, Buffer.from(key))
+      callback(err, key)
     })
   }
 
   hashSync(data: string | Buffer, outputEncoding: 'hex' | 'latin1' | 'base64' = 'hex'): Buffer {
     const hash = crypto.createHash('sha256')
     hash.update(data)
-    return Buffer.from(hash.digest())
+    return hash.digest()
   }
 }

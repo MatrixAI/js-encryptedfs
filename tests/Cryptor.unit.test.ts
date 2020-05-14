@@ -1,5 +1,6 @@
 import Crypto from '../src/Crypto'
-import { Buffer } from 'buffer/'
+import * as nodeCryptoLib from 'crypto'
+import { CryptoInterface, Cipher, AlgorithmGCM, Decipher } from '../src/util'
 
 describe('Crypto class', () => {
 
@@ -12,14 +13,14 @@ describe('Crypto class', () => {
     beforeEach(() => {
       // Create the cryptor
       key = Buffer.from('very password')
-      crypto = new Crypto(key)
+      crypto = new Crypto(key, nodeCryptoLib)
       initVector = crypto.getInitVector()
     })
     test('Crypto - initialisation', () => {
       expect(crypto).toBeInstanceOf(Crypto)
     })
     test('Crypto - encrypt sync', () => {
-      let cryptor2 = new Crypto(key, initVector)
+      let cryptor2 = new Crypto(key, nodeCryptoLib, initVector)
       let plaintext = 'very important secret'
 
       let cipherText = crypto.encryptSync(plaintext)
@@ -54,11 +55,11 @@ describe('Crypto class', () => {
     beforeEach(() => {
       // Create the cryptor
       key = Buffer.from('very password')
-      crypto = new Crypto(key)
+      crypto = new Crypto(key, nodeCryptoLib)
       initVector = crypto.getInitVector()
     })
     test('encrypt - async', async done => {
-      let cryptoSync = new Crypto(key, initVector)
+      let cryptoSync = new Crypto(key, nodeCryptoLib, initVector)
 
       let plainBuf = Buffer.from('very important secret')
 
@@ -105,7 +106,7 @@ describe('Crypto class', () => {
     beforeEach(() => {
       // Create the cryptor
       key = Buffer.from('very password')
-      crypto = new Crypto(key, undefined, undefined, true)
+      crypto = new Crypto(key, nodeCryptoLib, undefined, undefined, true)
       initVector = crypto.getInitVector()
     })
 
