@@ -4,6 +4,24 @@
 
 let
   sources = {
+    "@types/node-13.13.2" = {
+      name = "_at_types_slash_node";
+      packageName = "@types/node";
+      version = "13.13.2";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/@types/node/-/node-13.13.2.tgz";
+        sha512 = "LB2R1Oyhpg8gu4SON/mfforE525+Hi/M1ineICEDftqNVTyFg1aRIeGuTvXAoWHc4nbrFncWtJgMmoyRvuGh7A==";
+      };
+    };
+    "@types/readable-stream-2.3.5" = {
+      name = "_at_types_slash_readable-stream";
+      packageName = "@types/readable-stream";
+      version = "2.3.5";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/@types/readable-stream/-/readable-stream-2.3.5.tgz";
+        sha512 = "Mq2eLkGYamlcolW603FY2ROBvcl90jPF+3jLkjpBV6qS+2aVeJqlgRG0TVAa1oWbmPdb5yOWlOPVvQle76nUNw==";
+      };
+    };
     "auto-bind-proxy-1.0.1" = {
       name = "auto-bind-proxy";
       packageName = "auto-bind-proxy";
@@ -139,6 +157,15 @@ let
         sha512 = "BViHy7LKeTz4oNnkcLJ+lVSL6vpiFeX6/d3oSH8zCW7UxP2onchk+vTGB143xuFjHS3deTgkKoXXymXqymiIdA==";
       };
     };
+    "safe-buffer-5.1.1" = {
+      name = "safe-buffer";
+      packageName = "safe-buffer";
+      version = "5.1.1";
+      src = fetchurl {
+        url = "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.1.1.tgz";
+        sha512 = "kKvNJn6Mm93gAczWVJg7wH+wGYWNrDHdWvpUmHyEsgCtIwwo3bqPtV4tR5tuPaUhTOo/kvhVwd8XwwOllGYkbg==";
+      };
+    };
     "safe-buffer-5.2.0" = {
       name = "safe-buffer";
       packageName = "safe-buffer";
@@ -200,6 +227,8 @@ let
     version = "0.0.1";
     src = ./..;
     dependencies = [
+      sources."@types/node-13.13.2"
+      sources."@types/readable-stream-2.3.5"
       sources."auto-bind-proxy-1.0.1"
       sources."base64-js-1.3.1"
       sources."buffer-5.6.0"
@@ -218,6 +247,7 @@ let
           sources."string_decoder-1.3.0"
         ];
       })
+      sources."safe-buffer-5.1.1"
       sources."symbol-observable-1.2.0"
       (sources."threads-1.4.0" // {
         dependencies = [

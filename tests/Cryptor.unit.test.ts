@@ -1,12 +1,9 @@
 import Crypto from '../src/Crypto'
 import * as nodeCryptoLib from 'crypto'
-import { CryptoInterface, Cipher, AlgorithmGCM, Decipher } from '../src/util'
 
 describe('Crypto class', () => {
 
   describe('Syncronous tests', () => {
-    // Define initialization vector for all tests
-    let initVector: Buffer
     let key: Buffer
     let crypto: Crypto
 
@@ -14,41 +11,32 @@ describe('Crypto class', () => {
       // Create the cryptor
       key = Buffer.from('very password')
       crypto = new Crypto(key, nodeCryptoLib)
-      initVector = crypto.getInitVector()
     })
     test('Crypto - initialisation', () => {
       expect(crypto).toBeInstanceOf(Crypto)
     })
     test('Crypto - encrypt sync', () => {
-      let cryptor2 = new Crypto(key, nodeCryptoLib, initVector)
-      let plaintext = 'very important secret'
+      let cryptor2 = new Crypto(key, nodeCryptoLib)
+      let plaintext = Buffer.from('very important secret')
 
-      let cipherText = crypto.encryptSync(plaintext)
-      let cipherText2 = cryptor2.encryptSync(plaintext)
+      let chunk1 = crypto.encryptBlockSync(plaintext)
+      let chunk2 = cryptor2.encryptBlockSync(plaintext)
 
-      // TODO: we have the iv, passworkd/key, and block mode
-      // the ciphertext can be verfied independenly of this
-      // we should assert it is equal to the cipher from a diff source
-      expect(cipherText).not.toStrictEqual(plaintext)
-      const decryptedTextSync = crypto.decryptSync(cipherText).toString()
-      const decryptedTextSync2 = cryptor2.decryptSync(cipherText2).toString()
-      expect(decryptedTextSync).toEqual(decryptedTextSync2)
-      // same cipher when plaintext encrypted with constance iv
-      expect(cipherText).toStrictEqual(cipherText2)
+      const decryptedText1 = crypto.decryptChunkSync(chunk1).toString()
+      const decryptedText2 = cryptor2.decryptChunkSync(chunk2).toString()
+      expect(decryptedText1).toEqual(decryptedText2)
     })
     test('decrypt - sync', () => {
       let plainBuf = Buffer.from('very important secret')
 
-      let cipherText = crypto.encryptSync(plainBuf)
-      let deciphered = crypto.decryptSync(cipherText)
+      let cipherText = crypto.encryptBlockSync(plainBuf)
+      let deciphered = crypto.decryptChunkSync(cipherText)
 
       expect(deciphered).toEqual(plainBuf)
     })
   })
 
   describe('Asyncronous tests', () => {
-    // Define initialization vector for all tests
-    let initVector: Buffer
     let key: Buffer
     let crypto: Crypto
 
@@ -56,70 +44,96 @@ describe('Crypto class', () => {
       // Create the cryptor
       key = Buffer.from('very password')
       crypto = new Crypto(key, nodeCryptoLib)
-      initVector = crypto.getInitVector()
     })
     test('encrypt - async', async done => {
-      let cryptoSync = new Crypto(key, nodeCryptoLib, initVector)
+      const cryptoSync = new Crypto(key, nodeCryptoLib)
 
-      let plainBuf = Buffer.from('very important secret')
+      const plainBuf = Buffer.from('very important secret')
 
-      let cipherBufSync = cryptoSync.encryptSync(plainBuf)
+      const cipherBufSync = cryptoSync.encryptBlockSync(plainBuf)
+      const decryptedBufSync = cryptoSync.decryptChunkSync(cipherBufSync)
 
-      const cipherBuf = await crypto.encrypt(plainBuf)
-      expect(cipherBuf).not.toEqual(plainBuf)
+      const cipherBuf = await crypto.encryptBlock(plainBuf)
+      const decryptedBuf = await crypto.decryptChunk(cipherBuf)
 
-      const decryptedBufSync = crypto.decryptSync(cipherBuf)
+      expect(decryptedBufSync).toEqual(decryptedBuf)
       expect(decryptedBufSync).toEqual(plainBuf)
-      // cipher same as when using sync fn
-      expect(cipherBuf).toStrictEqual(cipherBufSync)
       done()
     })
 
     test('encryption and decryption are consistent async', async done => {
       let plainBuf = Buffer.from('very important secret')
 
-      let cipherBuf = crypto.encryptSync(plainBuf)
+      let cipherBuf = await crypto.encryptBlock(plainBuf)
+      const deciphered = await crypto.decryptChunk(cipherBuf)
 
-      const deciphered = await crypto.decrypt(cipherBuf)
       expect(deciphered).toStrictEqual(plainBuf)
       expect(cipherBuf).not.toEqual(plainBuf)
       done()
     })
 
     test('encryption and decryption do not throw errors - async', async () => {
-      expect(async () => {
-        let plainBuf = Buffer.from('very important secret')
+      let plainBuf = Buffer.from('very important secret')
+      const cipherBuf = await crypto.encryptBlock(plainBuf)
 
-        const cipherBuf = await crypto.encrypt(plainBuf)
-
-        const decryptedBuf = await crypto.decrypt(cipherBuf)
-        expect(decryptedBuf).toStrictEqual(plainBuf)
-      }).not.toThrow()
+      expect(crypto.encryptBlock(plainBuf)).resolves.not.toThrow()
+      expect(crypto.decryptChunk(cipherBuf)).resolves.not.toThrow()
     })
   })
 
   describe('Webworker tests', () => {
-    // Define initialization vector for all tests
-    let initVector: Buffer
     let key: Buffer
     let crypto: Crypto
+
     beforeEach(() => {
       // Create the cryptor
       key = Buffer.from('very password')
-      crypto = new Crypto(key, nodeCryptoLib, undefined, undefined, true)
-      initVector = crypto.getInitVector()
+      crypto = new Crypto(key, nodeCryptoLib, true)
     })
 
     test('can use webworkers - async', async done => {
       const plainBuf = Buffer.from('some plaintext')
 
-      const cipherBuf = await crypto.encrypt(plainBuf)
+      const cipherBuf = await crypto.encryptBlock(plainBuf)
 
-      const decryptedBuf = await crypto.decrypt(cipherBuf)
+      const decryptedBuf = await crypto.decryptChunk(cipherBuf)
 
       expect(decryptedBuf).toEqual(plainBuf)
       expect(decryptedBuf).not.toEqual(cipherBuf)
       done()
     })
+
+    test('webworkers are significantly faster than sync', async done => {
+      const numTrials = 100
+      const randomBlocks: Buffer[] = []
+      for (let i=0; i < numTrials; i++) {
+        const randomBlock = nodeCryptoLib.randomBytes(4096)
+        randomBlocks.push(randomBlock)
+      }
+      const t0 = performance.now()
+      await Promise.all(
+        randomBlocks.map((buffer) => {
+          return crypto.encryptBlock(buffer)
+        })
+      )
+      const webworkersTime = performance.now() - t0
+
+      const t1 = performance.now()
+      // Test sync
+      randomBlocks.forEach((buffer) => {
+        crypto.encryptBlockSync(buffer)
+      })
+      const syncTime = performance.now() - t1
+
+
+
+      // const cipherBuf = await crypto.encryptBlock(plainBuf)
+
+      // const decryptedBuf = await crypto.decryptChunk(cipherBuf)
+
+      // expect(decryptedBuf).toEqual(plainBuf)
+      // expect(decryptedBuf).not.toEqual(cipherBuf)
+      done()
+    }, 10000)
   })
 })

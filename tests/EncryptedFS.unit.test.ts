@@ -714,13 +714,13 @@ describe('EncryptedFS class', () => {
       }).toThrow('EISDIR')
       expect(() => {
         efs.writeSync(dirfd, buffer)
-      }).toThrow('EBADF')
+      }).toThrow('EISDIR')
       expect(() => {
         efs.readFileSync(dirfd, {})
       }).toThrow('EISDIR')
       expect(() => {
         efs.writeFileSync(dirfd, `${tempDir}/test`)
-      }).toThrow('EBADF')
+      }).toThrow('EISDIR')
 
       efs.closeSync(dirfd)
       done()
@@ -801,7 +801,7 @@ describe('EncryptedFS class', () => {
       const readBuf = Buffer.allocUnsafe(buf.length)
       efs.read(fd, readBuf, 0, buf.length).then((bytesRead) => {
         expect(readBuf.toString().slice(0, str.length)).toEqual(str)
-        // expect(bytesRead).toEqual(Buffer.from(str).length)
+        expect(bytesRead).toEqual(Buffer.from(str).length)
         efs.closeSync(fd)
         done()
       }).catch((err) => {
@@ -820,9 +820,9 @@ describe('EncryptedFS class', () => {
       expect(bytesWritten).toEqual(11)
       efs.writeSync(fd, buf, 0, buf.length)
       efs.writeSync(fd, buf, 0, buf.length)
-      efs.writeSync(fd, str)
-      efs.writeSync(fd, str)
-      efs.writeSync(fd, str)
+      efs.writeFileSync(fd, str)
+      efs.writeFileSync(fd, str)
+      efs.writeFileSync(fd, str)
       efs.closeSync(fd)
       // expect(efs.readFileSync(`${tempDir}/test`, {encoding: 'utf-8'})).toEqual(str.repeat(7))
     })
@@ -852,18 +852,15 @@ describe('EncryptedFS class', () => {
               const readBuf = Buffer.allocUnsafe(buf.length)
               efs.readSync(fd, readBuf)
               expect(readBuf).toEqual(buf)
-              efs.write(fd, str).then((bytesWritten) => {
-                expect(bytesWritten).toEqual(buf.length)
+              efs.writeFile(fd, str).then(() => {
                 const readBuf = Buffer.allocUnsafe(buf.length)
                 efs.readSync(fd, readBuf)
                 expect(readBuf).toEqual(buf)
-                efs.write(fd, str).then((bytesWritten) => {
-                  expect(bytesWritten).toEqual(buf.length)
+                efs.writeFile(fd, str).then(() => {
                   const readBuf = Buffer.allocUnsafe(buf.length)
                   efs.readSync(fd, readBuf)
                   expect(readBuf).toEqual(buf)
-                  efs.write(fd, str).then((bytesWritten) => {
-                    expect(bytesWritten).toEqual(buf.length)
+                  efs.writeFile(fd, str).then(() => {
                     const readBuf = Buffer.allocUnsafe(buf.length)
                     efs.readSync(fd, readBuf)
                     expect(readBuf).toEqual(buf)
@@ -1872,11 +1869,15 @@ describe('EncryptedFS class', () => {
 
       const writeBuffer = new Buffer("Super confidential information")
 
-      efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+      const bytesWritten = efs.writeSync(fd, writeBuffer)
+
+      expect(bytesWritten).toEqual(writeBuffer.length)
 
       let readBuffer = Buffer.alloc(writeBuffer.length)
 
-      efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0)
+      const bytesRead = efs.readSync(fd, readBuffer)
+
+      expect(bytesRead).toEqual(bytesWritten)
 
       expect(writeBuffer).toStrictEqual(readBuffer)
     })
@@ -1888,11 +1889,15 @@ describe('EncryptedFS class', () => {
 
       // Write data
       const writeBuffer = Buffer.from(crypto.randomBytes(blockSize * 3))
-      efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+      const bytesWritten = efs.writeSync(fd, writeBuffer)
+
+      expect(bytesWritten).toEqual(writeBuffer.length)
 
       // Read data back
       let readBuffer = Buffer.alloc(writeBuffer.length)
-      efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0)
+      const bytesRead = efs.readSync(fd, readBuffer)
+
+      expect(bytesRead).toEqual(bytesWritten)
 
       expect(writeBuffer).toStrictEqual(readBuffer)
     })

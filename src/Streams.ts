@@ -246,7 +246,13 @@ export class WriteStream extends Writable {
         this._write(data, encoding, cb)
       })
     }
-    this.efs.write(this.fd, data, 0, data.length, this.pos).then((bytesWritten) => {
+    let internalData: Buffer
+    if (typeof data === 'string') {
+      internalData = Buffer.from(data)
+    } else {
+      internalData = data
+    }
+    this.efs.write(this.fd, internalData, 0, data.length, this.pos).then((bytesWritten) => {
       this.bytesWritten += bytesWritten
       cb()
     }).catch((err) => {
