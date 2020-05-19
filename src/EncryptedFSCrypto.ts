@@ -20,7 +20,7 @@ interface Hash {
   digest(): Buffer
 }
 
-type AlgorithmGCM = 'aes-128-gcm' | 'aes-192-gcm' | 'aes-256-gcm'
+type AlgorithmGCM = 'aes-256-gcm'
 export interface CryptoInterface {
   createDecipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null): Decipher,
   createCipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null, options?: any): Cipher,
@@ -63,7 +63,7 @@ class EncryptedFSCrypto {
   // ||      ||                       ||                   ||                       ||
   // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
   private masterKey: Buffer
-  private algorithm: AlgorithmGCM
+  private algorithm: AlgorithmGCM = 'aes-256-gcm'
   // Web workers
   private useWebWorkers: boolean
   private cryptoWorker?: ModuleThread
@@ -72,12 +72,10 @@ class EncryptedFSCrypto {
   constructor(
     masterKey: Buffer,
     cryptoLib: CryptoInterface,
-    useWebWorkers: boolean = false,
-    algorithm: AlgorithmGCM = 'aes-256-gcm'
+    useWebWorkers: boolean = false
   ) {
     // TODO: check the strength of the master key!
     this.masterKey = masterKey
-    this.algorithm = algorithm
     this.cryptoLib = cryptoLib
     // Async via Process or Web workers
     this.useWebWorkers = useWebWorkers

@@ -3,7 +3,8 @@ import * as crypto from 'crypto'
 import { deconstructChunk } from './EncryptedFSCrypto'
 import { cryptoConstants } from "./util"
 
-function encryptBlock(blockBuffer: Buffer, masterKey: Buffer, algorithm: 'aes-128-gcm' | 'aes-192-gcm' | 'aes-256-gcm', salt: Buffer, initVector: Buffer): Buffer {
+function encryptBlock(blockBuffer: Buffer, masterKey: Buffer, salt: Buffer, initVector: Buffer): Buffer {
+  const algorithm = 'aes-256-gcm'
   // Initialize cipher
   const key = crypto.pbkdf2Sync(masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
   const cipher = crypto.createCipheriv(algorithm, key, initVector)
@@ -18,7 +19,8 @@ function encryptBlock(blockBuffer: Buffer, masterKey: Buffer, algorithm: 'aes-12
   return Buffer.concat([salt, initVector, tag, encrypted])
 }
 
-function decryptChunk(chunkBuffer: Buffer, masterKey: Buffer, algorithm: 'aes-128-gcm' | 'aes-192-gcm' | 'aes-256-gcm'): Buffer {
+function decryptChunk(chunkBuffer: Buffer, masterKey: Buffer): Buffer {
+  const algorithm = 'aes-256-gcm'
   // Deconstruct chunk into metadata and encrypted data
   const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer)
 
