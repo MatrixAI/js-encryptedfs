@@ -1,6 +1,7 @@
 import { expose } from "threads/worker"
 import * as crypto from 'crypto'
-import { cryptoConstants, deconstructChunk } from "./util"
+import { deconstructChunk } from './EncryptedFSCrypto'
+import { cryptoConstants } from "./util"
 
 function encryptBlock(blockBuffer: Buffer, masterKey: Buffer, algorithm: 'aes-128-gcm' | 'aes-192-gcm' | 'aes-256-gcm', salt: Buffer, initVector: Buffer): Buffer {
   // Initialize cipher

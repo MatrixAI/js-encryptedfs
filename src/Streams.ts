@@ -2,7 +2,7 @@ import { Readable, Writable } from 'readable-stream'
 import EncryptedFS from './EncryptedFS'
 import { DEFAULT_FILE_PERM } from './constants'
 
-export type optionsStream = {
+type optionsStream = {
   highWaterMark?: number,
   flags?: string,
   encoding?: BufferEncoding,
@@ -17,10 +17,9 @@ export type optionsStream = {
  * Class representing a ReadStream.
  * @extends Readable
  */
-export class ReadStream extends Readable {
+class ReadStream extends Readable {
 
   private efs: EncryptedFS
-  // private _fs: any
   bytesRead: number
   path: string
   fd: number | null | undefined
@@ -174,10 +173,9 @@ export class ReadStream extends Readable {
  * Class representing a WriteStream.
  * @extends Writable
  */
-export class WriteStream extends Writable {
+class WriteStream extends Writable {
 
   private efs: EncryptedFS
-  // private _fs: any
   bytesWritten: number
   path: string
   fd: number | null | undefined
@@ -323,5 +321,6 @@ export class WriteStream extends Writable {
     cb()
     return
   }
-
 }
+
+export { optionsStream, ReadStream, WriteStream }
