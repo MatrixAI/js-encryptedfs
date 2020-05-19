@@ -1,5 +1,6 @@
-import { cryptoConstants } from './util'
-import { spawn, Worker, ModuleThread } from 'threads'
+import { cryptoConstants, initializeWorkerPool } from './util'
+import { ModuleThread, Pool } from 'threads'
+import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker'
 
 interface Cipher {
   update(data: string | Buffer): Buffer;
@@ -66,13 +67,14 @@ class EncryptedFSCrypto {
   private algorithm: AlgorithmGCM = 'aes-256-gcm'
   // Web workers
   private useWebWorkers: boolean
-  private cryptoWorker?: ModuleThread
+  private workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
   // Crypto lib
   private cryptoLib: CryptoInterface
   constructor(
     masterKey: Buffer,
     cryptoLib: CryptoInterface,
-    useWebWorkers: boolean = false
+    useWebWorkers: boolean = false,
+    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
   ) {
     // TODO: check the strength of the master key!
     this.masterKey = masterKey
@@ -80,9 +82,11 @@ class EncryptedFSCrypto {
     // Async via Process or Web workers
     this.useWebWorkers = useWebWorkers
     if (this.useWebWorkers) {
-      spawn(new Worker("./EncryptedFSCryptoWorker.ts")).then((worker) => {
-        this.cryptoWorker = worker
-      })
+      if (workerPool) {
+        this.workerPool = workerPool
+      } else {
+        this.workerPool = initializeWorkerPool()
+      }
     }
   }
 
@@ -129,11 +133,15 @@ class EncryptedFSCrypto {
     const salt = this.cryptoLib.randomBytes(cryptoConstants.SALT_LEN)
 
     if (this.useWebWorkers) {
-      if (!(await this.waitForCryptoWorkerInit())) {
-        throw(Error('CryptoWorker does not exist'))
+      if (!this.workerPool) {
+        console.log('waiting for web worker initialization');
+        while (!this.workerPool) {}
       }
       // Construct chunk
-      return Buffer.from(await this.cryptoWorker!.encryptBlock(blockBuffer, this.masterKey, this.algorithm, salt, initVector))
+      const workerResponse = await this.workerPool.queue(async workerCrypto => {
+        return await workerCrypto.encryptBlock(blockBuffer, this.masterKey, salt, initVector)
+      })
+      return Buffer.from(workerResponse)
     } else {
       // Create cipher
       const key = this.cryptoLib.pbkdf2Sync(this.masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
@@ -183,11 +191,15 @@ class EncryptedFSCrypto {
 	 */
   async decryptChunk(chunkBuffer: Buffer): Promise<Buffer> {
     if (this.useWebWorkers) {
-      if (!(await this.waitForCryptoWorkerInit())) {
-        throw(Error('CryptoWorker does not exist'))
+      if (!this.workerPool) {
+        console.log('waiting for web worker initialization');
+        while (!this.workerPool) {}
       }
       // Decrypt into blockBuffer
-      return Buffer.from(await this.cryptoWorker!.decryptChunk(chunkBuffer, this.masterKey, this.algorithm))
+      const workerResponse = await this.workerPool.queue(async workerCrypto => {
+        return await workerCrypto.decryptChunk(chunkBuffer, this.masterKey)
+      })
+      return Buffer.from(workerResponse)
     } else {
       // Deconstruct chunk into metadata and encrypted data
       const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer)
@@ -209,21 +221,6 @@ class EncryptedFSCrypto {
     const hash = this.cryptoLib.createHash('sha256')
     hash.update(data)
     return hash.digest()
-  }
-
-  private async delay(ms: number) {
-    return new Promise( resolve => setTimeout(resolve, ms) )
-  }
-
-  private async waitForCryptoWorkerInit(): Promise<boolean> {
-    for (let trial=0; trial < 10; trial++) {
-      if (this.cryptoWorker) {
-        return true
-      } else {
-        await this.delay(100)
-      }
-    }
-    return false
   }
 }
 

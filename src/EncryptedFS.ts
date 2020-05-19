@@ -8,6 +8,8 @@ import { optionsStream, ReadStream, WriteStream } from './Streams'
 import { promisify } from 'util'
 import autoBind from 'auto-bind-proxy'
 import { cryptoConstants } from './util'
+import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker'
+import { ModuleThread, Pool } from 'threads'
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -58,6 +60,7 @@ class EncryptedFS {
     blockSize: number = 4096,
     useWebWorkers: boolean = false,
     cryptoLib: CryptoInterface | undefined = undefined,
+    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
   ) {
     this.umask = umask
     // Set key
@@ -67,9 +70,9 @@ class EncryptedFS {
       this.masterKey = key
     }
     if (cryptoLib) {
-      this.crypto = new EncryptedFSCrypto(this.masterKey, cryptoLib, useWebWorkers)
+      this.crypto = new EncryptedFSCrypto(this.masterKey, cryptoLib, useWebWorkers, workerPool)
     } else {
-      this.crypto = new EncryptedFSCrypto(this.masterKey, require('crypto'), useWebWorkers)
+      this.crypto = new EncryptedFSCrypto(this.masterKey, require('crypto'), useWebWorkers, workerPool)
     }
     this.upperDir = autoBind(upperDir)
     this.upperDirContextControl = autoBind(upperDirContextControl)

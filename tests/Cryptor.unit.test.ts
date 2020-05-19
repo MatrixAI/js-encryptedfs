@@ -103,8 +103,8 @@ describe('Crypto class', () => {
       done()
     })
 
-    test('webworkers are significantly faster than sync', async done => {
-      const numTrials = 100
+    test('webworkers are faster than sync', async done => {
+      const numTrials = 500
       const randomBlocks: Buffer[] = []
       for (let i=0; i < numTrials; i++) {
         const randomBlock = crypto.randomBytes(4096)
@@ -125,14 +125,7 @@ describe('Crypto class', () => {
       })
       const syncTime = performance.now() - t1
 
-
-
-      // const cipherBuf = await crypto.encryptBlock(plainBuf)
-
-      // const decryptedBuf = await crypto.decryptChunk(cipherBuf)
-
-      // expect(decryptedBuf).toEqual(plainBuf)
-      // expect(decryptedBuf).not.toEqual(cipherBuf)
+      expect(syncTime).toBeGreaterThan(webworkersTime)
       done()
     }, 10000)
   })
