@@ -1,6 +1,6 @@
-import { cryptoConstants, initializeWorkerPool } from './util'
-import { ModuleThread, Pool } from 'threads'
-import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker'
+import { cryptoConstants, initializeWorkerPool } from './util';
+import { ModuleThread, Pool } from 'threads';
+import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
 
 interface Cipher {
   update(data: string | Buffer): Buffer;
@@ -17,43 +17,50 @@ interface Decipher {
 }
 
 interface Hash {
-  update(data: Buffer | string): void
-  digest(): Buffer
+  update(data: Buffer | string): void;
+  digest(): Buffer;
 }
 
-type AlgorithmGCM = 'aes-256-gcm'
+type AlgorithmGCM = 'aes-256-gcm';
 export interface CryptoInterface {
-  createDecipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null): Decipher,
-  createCipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null, options?: any): Cipher,
-  randomBytes(size: number): Buffer,
-  pbkdf2Sync(password: Buffer, salt: Buffer, iterations: number, keylen: number, digest: string): Buffer,
-  pbkdf2(password: Buffer, salt: Buffer, iterations: number, keylen: number, digest: string, callback: (err: Error | null, derivedKey: Buffer) => any): void
-  createHash(algorithm: string): Hash
+  createDecipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null): Decipher;
+  createCipheriv(algorithm: AlgorithmGCM, key: Buffer, iv: Buffer | null, options?: any): Cipher;
+  randomBytes(size: number): Buffer;
+  pbkdf2Sync(password: Buffer, salt: Buffer, iterations: number, keylen: number, digest: string): Buffer;
+  pbkdf2(
+    password: Buffer,
+    salt: Buffer,
+    iterations: number,
+    keylen: number,
+    digest: string,
+    callback: (err: Error | null, derivedKey: Buffer) => any,
+  ): void;
+  createHash(algorithm: string): Hash;
 }
 
 type DeconstructedChunkData = {
-  salt: Buffer,
-  initVector: Buffer,
-  authTag: Buffer,
-  encryptedBuffer: Buffer
-}
+  salt: Buffer;
+  initVector: Buffer;
+  authTag: Buffer;
+  encryptedBuffer: Buffer;
+};
 
 function deconstructChunk(chunkBuffer: Buffer): DeconstructedChunkData {
-  const saltEnd = cryptoConstants.SALT_LEN
-  const initVectorEnd = saltEnd + cryptoConstants.INIT_VECTOR_LEN
-  const authTagEnd = initVectorEnd + cryptoConstants.AUTH_TAG_LEN
+  const saltEnd = cryptoConstants.SALT_LEN;
+  const initVectorEnd = saltEnd + cryptoConstants.INIT_VECTOR_LEN;
+  const authTagEnd = initVectorEnd + cryptoConstants.AUTH_TAG_LEN;
 
-  const salt = chunkBuffer.slice(0, saltEnd)
-  const initVector = chunkBuffer.slice(saltEnd, initVectorEnd)
-  const authTag = chunkBuffer.slice(initVectorEnd, authTagEnd)
-  const encryptedBuffer = chunkBuffer.slice(authTagEnd)
+  const salt = chunkBuffer.slice(0, saltEnd);
+  const initVector = chunkBuffer.slice(saltEnd, initVectorEnd);
+  const authTag = chunkBuffer.slice(initVectorEnd, authTagEnd);
+  const encryptedBuffer = chunkBuffer.slice(authTagEnd);
 
   return {
     salt,
     initVector,
     authTag,
-    encryptedBuffer
-  }
+    encryptedBuffer,
+  };
 }
 
 class EncryptedFSCrypto {
@@ -63,74 +70,80 @@ class EncryptedFSCrypto {
   // || Salt || Initialization Vector || Authorisation Tag || Encrypted Data ... -> ||
   // ||      ||                       ||                   ||                       ||
   // |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-  private masterKey: Buffer
-  private algorithm: AlgorithmGCM = 'aes-256-gcm'
+  private masterKey: Buffer;
+  private algorithm: AlgorithmGCM = 'aes-256-gcm';
   // Web workers
-  private useWebWorkers: boolean
-  private workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
+  private useWebWorkers: boolean;
+  private workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>;
   // Crypto lib
-  private cryptoLib: CryptoInterface
+  private cryptoLib: CryptoInterface;
   constructor(
     masterKey: Buffer,
     cryptoLib: CryptoInterface,
     useWebWorkers: boolean = false,
-    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
+    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>,
   ) {
     // TODO: check the strength of the master key!
-    this.masterKey = masterKey
-    this.cryptoLib = cryptoLib
+    this.masterKey = masterKey;
+    this.cryptoLib = cryptoLib;
     // Async via Process or Web workers
-    this.useWebWorkers = useWebWorkers
+    this.useWebWorkers = useWebWorkers;
     if (this.useWebWorkers) {
       if (workerPool) {
-        this.workerPool = workerPool
+        this.workerPool = workerPool;
       } else {
-        this.workerPool = initializeWorkerPool()
+        this.workerPool = initializeWorkerPool();
       }
     }
   }
 
-	/**
-	 * Synchronously encrypts the provided block buffer.
+  /**
+   * Synchronously encrypts the provided block buffer.
    * According to AES-GCM, the cipher is initialized with a random initVector and derived key.
    * These are stored at the beginning of the chunk.
-	 * @param {Buffer} blockBuffer Block to be encrypted.
-	 * @returns {Buffer} Encrypted chunk.
-	 */
+   * @param {Buffer} blockBuffer Block to be encrypted.
+   * @returns {Buffer} Encrypted chunk.
+   */
   encryptBlockSync(blockBuffer: Buffer): Buffer {
     // Random initialization vector
-    const initVector = this.cryptoLib.randomBytes(cryptoConstants.INIT_VECTOR_LEN)
+    const initVector = this.cryptoLib.randomBytes(cryptoConstants.INIT_VECTOR_LEN);
 
     // Random salt
-    const salt = this.cryptoLib.randomBytes(cryptoConstants.SALT_LEN)
+    const salt = this.cryptoLib.randomBytes(cryptoConstants.SALT_LEN);
 
     // Create cipher
-    const key = this.cryptoLib.pbkdf2Sync(this.masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
-    const cipher = this.cryptoLib.createCipheriv(this.algorithm, key, initVector)
+    const key = this.cryptoLib.pbkdf2Sync(
+      this.masterKey,
+      salt,
+      cryptoConstants.PBKDF_NUM_ITERATIONS,
+      cryptoConstants.KEY_LEN,
+      'sha512',
+    );
+    const cipher = this.cryptoLib.createCipheriv(this.algorithm, key, initVector);
 
     // Encrypt block
-    const encrypted = Buffer.concat([cipher.update(blockBuffer), cipher.final()])
+    const encrypted = Buffer.concat([cipher.update(blockBuffer), cipher.final()]);
 
     // Extract the auth tag
-    const authTag = cipher.getAuthTag()
+    const authTag = cipher.getAuthTag();
 
     // Construct chunk
-    return Buffer.concat([salt, initVector, authTag, encrypted])
+    return Buffer.concat([salt, initVector, authTag, encrypted]);
   }
 
-	/**
-	 * Asynchronously encrypts the provided block buffer.
+  /**
+   * Asynchronously encrypts the provided block buffer.
    * According to AES-GCM, the cipher is initialized with a random initVector and derived key.
    * These are stored at the beginning of the chunk.
-	 * @param {Buffer} blockBuffer Block to be encrypted.
-	 * @returns {Promise<Buffer>} Promise that resolves to the encrypted chunk.
-	 */
+   * @param {Buffer} blockBuffer Block to be encrypted.
+   * @returns {Promise<Buffer>} Promise that resolves to the encrypted chunk.
+   */
   async encryptBlock(blockBuffer: Buffer): Promise<Buffer> {
     // Random initialization vector
-    const initVector = this.cryptoLib.randomBytes(cryptoConstants.INIT_VECTOR_LEN)
+    const initVector = this.cryptoLib.randomBytes(cryptoConstants.INIT_VECTOR_LEN);
 
     // Random salt
-    const salt = this.cryptoLib.randomBytes(cryptoConstants.SALT_LEN)
+    const salt = this.cryptoLib.randomBytes(cryptoConstants.SALT_LEN);
 
     if (this.useWebWorkers) {
       if (!this.workerPool) {
@@ -138,57 +151,69 @@ class EncryptedFSCrypto {
         while (!this.workerPool) {}
       }
       // Construct chunk
-      const workerResponse = await this.workerPool.queue(async workerCrypto => {
-        return await workerCrypto.encryptBlock(blockBuffer, this.masterKey, salt, initVector)
-      })
-      return Buffer.from(workerResponse)
+      const workerResponse = await this.workerPool.queue(async (workerCrypto) => {
+        return await workerCrypto.encryptBlock(blockBuffer, this.masterKey, salt, initVector);
+      });
+      return Buffer.from(workerResponse);
     } else {
       // Create cipher
-      const key = this.cryptoLib.pbkdf2Sync(this.masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
-      const cipher = this.cryptoLib.createCipheriv(this.algorithm, key, initVector)
+      const key = this.cryptoLib.pbkdf2Sync(
+        this.masterKey,
+        salt,
+        cryptoConstants.PBKDF_NUM_ITERATIONS,
+        cryptoConstants.KEY_LEN,
+        'sha512',
+      );
+      const cipher = this.cryptoLib.createCipheriv(this.algorithm, key, initVector);
 
       // Encrypt block
-      const encrypted = Buffer.concat([cipher.update(blockBuffer), cipher.final()])
+      const encrypted = Buffer.concat([cipher.update(blockBuffer), cipher.final()]);
 
       // Extract the auth tag
-      const authTag = cipher.getAuthTag()
+      const authTag = cipher.getAuthTag();
 
       // Construct chunk
-      return Buffer.concat([salt, initVector, authTag, encrypted])
+      return Buffer.concat([salt, initVector, authTag, encrypted]);
     }
   }
 
-	/**
-	 * Synchronously decrypts the provided chunk buffer.
+  /**
+   * Synchronously decrypts the provided chunk buffer.
    * According to AES-GCM, the decipher is initialized with the initVector and derived key used to encrypt the block.
    * These are stored at the beginning of the chunk.
-	 * @param {Buffer} chunkBuffer Chunk to be decrypted.
-	 * @returns {Buffer} Decrypted block.
-	 */
+   * @param {Buffer} chunkBuffer Chunk to be decrypted.
+   * @returns {Buffer} Decrypted block.
+   */
   decryptChunkSync(chunkBuffer: Buffer): Buffer {
     // Deconstruct chunk into metadata and encrypted data
-    const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer)
+    const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer);
 
     // Create decipher
-    const key = this.cryptoLib.pbkdf2Sync(this.masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
-    const decipher = this.cryptoLib.createDecipheriv(this.algorithm, key, initVector)
+    const key = this.cryptoLib.pbkdf2Sync(
+      this.masterKey,
+      salt,
+      cryptoConstants.PBKDF_NUM_ITERATIONS,
+      cryptoConstants.KEY_LEN,
+      'sha512',
+    );
+    const decipher = this.cryptoLib.createDecipheriv(this.algorithm, key, initVector);
     if (authTag) {
-      decipher.setAuthTag(authTag)
+      decipher.setAuthTag(authTag);
     }
 
     // Decrypt into blockBuffer
-    const blockBuffer = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()])
+    const blockBuffer = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
 
-    return blockBuffer
+    return blockBuffer;
   }
 
-	/**
-	 * Asynchronously decrypts the provided chunk buffer.
+  /**
+   * Asynchronously decrypts the provided chunk buffer.
    * According to AES-GCM, the decipher is initialized with the initVector and derived key used to encrypt the block.
    * These are stored at the beginning of the chunk.
-	 * @param {Buffer} chunkBuffer Chunk to be decrypted.
-	 * @returns {Promise<Buffer>} Promise that resolves to the decrypted block.
-	 */
+   * @param {Buffer} chunkBuffer Chunk to be decrypted.
+   * @returns {Promise<Buffer>} Promise that resolves to the decrypted block.
+   */
   async decryptChunk(chunkBuffer: Buffer): Promise<Buffer> {
     if (this.useWebWorkers) {
       if (!this.workerPool) {
@@ -196,33 +221,38 @@ class EncryptedFSCrypto {
         while (!this.workerPool) {}
       }
       // Decrypt into blockBuffer
-      const workerResponse = await this.workerPool.queue(async workerCrypto => {
-        return await workerCrypto.decryptChunk(chunkBuffer, this.masterKey)
-      })
-      return Buffer.from(workerResponse)
+      const workerResponse = await this.workerPool.queue(async (workerCrypto) => {
+        return await workerCrypto.decryptChunk(chunkBuffer, this.masterKey);
+      });
+      return Buffer.from(workerResponse);
     } else {
       // Deconstruct chunk into metadata and encrypted data
-      const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer)
+      const { salt, initVector, authTag, encryptedBuffer } = deconstructChunk(chunkBuffer);
 
       // Create decipher
-      const key = this.cryptoLib.pbkdf2Sync(this.masterKey, salt, cryptoConstants.PBKDF_NUM_ITERATIONS, cryptoConstants.KEY_LEN, 'sha512')
-      const decipher = this.cryptoLib.createDecipheriv(this.algorithm, key, initVector)
+      const key = this.cryptoLib.pbkdf2Sync(
+        this.masterKey,
+        salt,
+        cryptoConstants.PBKDF_NUM_ITERATIONS,
+        cryptoConstants.KEY_LEN,
+        'sha512',
+      );
+      const decipher = this.cryptoLib.createDecipheriv(this.algorithm, key, initVector);
       if (authTag) {
-        decipher.setAuthTag(authTag)
+        decipher.setAuthTag(authTag);
       }
 
       // Decrypt into blockBuffer
-      return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()])
+      return Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
     }
   }
 
   // ========= Convenience functions ============= //
   hashSync(data: string | Buffer, outputEncoding: 'hex' | 'latin1' | 'base64' = 'hex'): Buffer {
-    const hash = this.cryptoLib.createHash('sha256')
-    hash.update(data)
-    return hash.digest()
+    const hash = this.cryptoLib.createHash('sha256');
+    hash.update(data);
+    return hash.digest();
   }
 }
 
-
-export { EncryptedFSCrypto, deconstructChunk }
+export { EncryptedFSCrypto, deconstructChunk };
