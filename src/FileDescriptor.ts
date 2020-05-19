@@ -1,4 +1,4 @@
-export default class FileDescriptor {
+class FileDescriptor {
   private _lowerFd: number;
   private _upperFd: number;
   private _flags: string;
@@ -24,3 +24,5 @@ export default class FileDescriptor {
     return this._flags;
   }
 }
+
+export default FileDescriptor

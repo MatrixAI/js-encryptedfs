@@ -1,12 +1,11 @@
-import { Buffer } from 'buffer/'
-const { Readable, Writable } = require('readable-stream')
+import { Readable, Writable } from 'readable-stream'
 import EncryptedFS from './EncryptedFS'
 import { DEFAULT_FILE_PERM } from './constants'
 
 type optionsStream = {
   highWaterMark?: number,
   flags?: string,
-  encoding?: string,
+  encoding?: BufferEncoding,
   fd?: number | null,
   mode?: number,
   autoClose?: boolean,
@@ -21,7 +20,6 @@ type optionsStream = {
 class ReadStream extends Readable {
 
   private efs: EncryptedFS
-  // private _fs: any
   bytesRead: number
   path: string
   fd: number | null | undefined
@@ -178,7 +176,6 @@ class ReadStream extends Readable {
 class WriteStream extends Writable {
 
   private efs: EncryptedFS
-  // private _fs: any
   bytesWritten: number
   path: string
   fd: number | null | undefined
@@ -247,7 +244,13 @@ class WriteStream extends Writable {
         this._write(data, encoding, cb)
       })
     }
-    this.efs.write(this.fd, data, 0, data.length, this.pos).then((bytesWritten) => {
+    let internalData: Buffer
+    if (typeof data === 'string') {
+      internalData = Buffer.from(data)
+    } else {
+      internalData = data
+    }
+    this.efs.write(this.fd, internalData, 0, data.length, this.pos).then((bytesWritten) => {
       this.bytesWritten += bytesWritten
       cb()
     }).catch((err) => {
@@ -318,9 +321,6 @@ class WriteStream extends Writable {
     cb()
     return
   }
-
 }
 
-export { ReadStream, WriteStream }
-
-export { optionsStream }
+export { optionsStream, ReadStream, WriteStream }

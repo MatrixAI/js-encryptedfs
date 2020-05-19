@@ -1,15 +1,15 @@
 import fs from 'fs'
-import Crypto from './Crypto'
+import { EncryptedFSCrypto, CryptoInterface } from './EncryptedFSCrypto'
 import FileDescriptor from './FileDescriptor'
 import Path from 'path'
 import { constants, DEFAULT_FILE_PERM } from './constants'
 import { EncryptedFSError, errno } from './EncryptedFSError'
 import { optionsStream, ReadStream, WriteStream } from './Streams'
 import { promisify } from 'util'
-import { Buffer } from 'buffer/'
-
-// js imports
-const autoBind = require('auto-bind-proxy')
+import autoBind from 'auto-bind-proxy'
+import { cryptoConstants } from './util'
+import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker'
+import { ModuleThread, Pool } from 'threads'
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -21,7 +21,7 @@ const autoBind = require('auto-bind-proxy')
  * Extend the class by adding another attribute for the
  */
 
-type Metadata = {
+type UpperDirectoryMetadata = {
   size: number,
   keyHash: Buffer
 }
@@ -35,8 +35,7 @@ type Metadata = {
  * @param blockSize The size of block, defaults to 4096.
  * @param useWebWorkers Use webworkers to make crypto tasks true async, defaults to false.
  */
-export default class EncryptedFS {
-  // TODO: need to have per file cryptor instance
+class EncryptedFS {
   private uid: number
   private gid: number
   private umask: number
@@ -44,16 +43,12 @@ export default class EncryptedFS {
   private upperDirContextControl: any
   private lowerDir: typeof fs
   private lowerDirContextControl: typeof process
-  private crypto: Crypto
-  private initVectorSize: number
-  private blockSize: number
+  private crypto: EncryptedFSCrypto
   private chunkSize: number
+  private blockSize: number
   private fileDescriptors: Map<number, FileDescriptor>
-  private key: Buffer | string
-  private keySize: number = 32
-  private headerSize: number
-  private metadata: { [fd: number]: Metadata }
-  private useWebWorkers: boolean
+  private masterKey: Buffer
+  private metadata: { [fd: number]: UpperDirectoryMetadata }
   constants: any
   constructor(
     key: Buffer | string,
@@ -61,25 +56,32 @@ export default class EncryptedFS {
     upperDirContextControl: typeof fs,
     lowerDir: typeof fs,
     lowerDirContextControl: typeof process,
-    umask = 0o022,
-    initVectorSize = 16,
-    blockSize = 4096,
-    useWebWorkers = false
+    umask: number = 0o022,
+    blockSize: number = 4096,
+    useWebWorkers: boolean = false,
+    cryptoLib: CryptoInterface | undefined = undefined,
+    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>
   ) {
     this.umask = umask
-    this.key = key
-    this.crypto = new Crypto(key, undefined, undefined, useWebWorkers)
+    // Set key
+    if (typeof key === 'string') {
+      this.masterKey = Buffer.from(key)
+    } else {
+      this.masterKey = key
+    }
+    if (cryptoLib) {
+      this.crypto = new EncryptedFSCrypto(this.masterKey, cryptoLib, useWebWorkers, workerPool)
+    } else {
+      this.crypto = new EncryptedFSCrypto(this.masterKey, require('crypto'), useWebWorkers, workerPool)
+    }
     this.upperDir = autoBind(upperDir)
     this.upperDirContextControl = autoBind(upperDirContextControl)
     this.lowerDir = lowerDir
     this.lowerDirContextControl = lowerDirContextControl
-    this.initVectorSize = initVectorSize
     this.blockSize = blockSize
-    this.chunkSize = this.blockSize + this.initVectorSize
+    this.chunkSize = this.blockSize + cryptoConstants.SALT_LEN + cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN
     this.fileDescriptors = new Map()
-    this.headerSize = this.blockSize
     this.metadata = {}
-    this.useWebWorkers = useWebWorkers
     this.constants = constants
   }
 
@@ -579,9 +581,8 @@ export default class EncryptedFS {
   ): Promise<boolean> {
     // TODO: make sure upper and lower directories agree
     try {
-      const existsInUpper = this.upperDir.existsSync(path)
       const existsInLower = await promisify(this.lowerDir.exists)(path)
-      return existsInLower && existsInUpper
+      return existsInLower
     } catch (err) {
       throw(err)
     }
@@ -596,7 +597,7 @@ export default class EncryptedFS {
     path: fs.PathLike
   ): boolean {
     // TODO: make sure upper and lower directories agree
-    return this.upperDir.existsSync(path) && this.lowerDir.existsSync(path)
+    return this.lowerDir.existsSync(path)
   }
 
 	/**
@@ -842,27 +843,29 @@ export default class EncryptedFS {
 	 */
   async readFile(
     path: fs.PathLike | number,
-    options: fs.WriteFileOptions | undefined = undefined
-  ): Promise<Buffer> {
-    let fd: number | undefined = undefined
-    options = this.getFileOptions(
-      { encoding: null, mode: 0o666, flag: "a" },
+    options?: fs.WriteFileOptions
+  ): Promise<string | Buffer> {
+    const optionsInternal = this.getFileOptions(
+      { encoding: null, mode: 0o666, flag: "r" },
       options,
     )
+    let fd: number | null = null
     try {
       if (typeof path === 'number') {
         fd = <number>path
       } else {
-        fd = this.openSync(path, "r")
+        fd = await this.open(path, optionsInternal.flag, optionsInternal.mode)
       }
       const size = this.getMetadata(fd).size
-      const readBuf = Buffer.allocUnsafe(size)
-      const bytesRead = this.readSync(fd, readBuf, 0, size, 0)
-      return readBuf
+      const readBuffer = Buffer.alloc(size)
+      await this.read(fd, readBuffer)
+      return (optionsInternal.encoding) ? readBuffer.toString(optionsInternal.encoding) : readBuffer
     } catch (err) {
       throw(err)
     } finally {
-      if (fd !== undefined) this.closeSync(fd)
+      if (fd) {
+        await this.close(fd)
+      }
     }
   }
 
@@ -873,29 +876,31 @@ export default class EncryptedFS {
 	 */
   readFileSync(
     path: fs.PathLike | number,
-    options: fs.WriteFileOptions
+    options?: fs.WriteFileOptions
   ): string | Buffer {
-    let fd: number | undefined = undefined
-    options = this.getFileOptions(
-      { encoding: null, mode: 0o666, flag: "a" },
+    const optionsInternal = this.getFileOptions(
+      { encoding: null, mode: 0o666, flag: "r" },
       options,
     )
+    let fd: number | null = null
     try {
       if (typeof path === 'number') {
         fd = <number>path
       } else {
-        fd = this.openSync(path, "r")
+        fd = this.openSync(path, optionsInternal.flag, optionsInternal.mode)
       }
       // Check if file descriptor points to directory
       if (this.fstatSync(fd).isDirectory()) {
         throw (new EncryptedFSError(errno.EISDIR, null, null, 'read'))
       }
       const size = this.getMetadata(fd).size
-      const readBuffer = Buffer.allocUnsafe(size)
+      const readBuffer = Buffer.alloc(size)
       this.readSync(fd, readBuffer, 0, size, 0)
-      return (options && options.encoding) ? readBuffer.toString(options.encoding) : readBuffer
+      return (optionsInternal.encoding) ? readBuffer.toString(optionsInternal.encoding) : readBuffer
     } finally {
-      if (fd !== undefined) this.closeSync(fd)
+      if (fd) {
+        this.closeSync(fd)
+      }
     }
   }
 
@@ -994,48 +999,70 @@ export default class EncryptedFS {
 	 * Asynchronously reads data at an offset, position and length from a file descriptor into a given buffer.
 	 * @param fd number. File descriptor.
 	 * @param buffer Buffer. Buffer to be written from.
-	 * @param offset number. Offset of the data.
-	 * @param length number. Length of data to write.
-	 * @param position number. Where to start writing.
-	 * @returns Promise<number>.
+	 * @param offset number. The offset in the buffer at which to start writing.
+	 * @param length number. The number of bytes to read.
+	 * @param position number. The offset from the beginning of the file from which data should be read.
+	 * @returns Promise<number> (bytes read).
 	 */
   async read(
     fd: number,
     buffer: Buffer,
     offset: number = 0,
-    length: number = Infinity,
+    length: number = buffer.length,
     position: number = 0
   ): Promise<number> {
-    if (typeof position === 'number' && position < 0) {
+    if (offset < 0) {
       throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
     }
-    if  (length === Infinity) {
-      length = buffer.length
+    if (length < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+    }
+    if (position < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+    }
+    // Check if file descriptor points to directory
+    if (this.fstatSync(fd).isDirectory()) {
+      throw (new EncryptedFSError(errno.EISDIR, null, null, 'read'))
     }
     try {
-      const startChunkNum = this.offsetToBlockNum(position)
-      let chunkCtr = 0
       const lowerFd = this.getLowerFd(fd)
       const metadata = this.getMetadata(fd)
       if (position + length > metadata.size) {
         length = metadata.size - position
       }
+
+      // Init counters for incremental reading of blocks
       let bytesRead = 0
       let targetStart = offset
-      const numChunksToRead = Math.ceil(length / this.blockSize)
-      for (const chunkNum = startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
-        const chunkOffset = this.chunkNumToOffset(chunkNum + chunkCtr)
-        const chunkBuf = Buffer.allocUnsafe(this.chunkSize)
 
-        await promisify(this.lowerDir.read)(lowerFd, chunkBuf, 0, this.chunkSize, chunkOffset)
-        // extract the iv from beginning of chunk
-        const iv = chunkBuf.slice(0, this.initVectorSize)
-        // extract remaining data which is the cipher text
-        const chunkData = chunkBuf.slice(this.initVectorSize)
-        const plainBuf = this.crypto.decryptSync(chunkData, iv)
-        const blockBytesRead = plainBuf.copy(buffer, targetStart, 0, plainBuf.length)
+      // Determine chunk boundary conditions
+      const numChunksToRead = Math.ceil(length / this.blockSize)
+      const startBlockNum = this.offsetToBlockNum(position)
+      const startChunkNum = startBlockNum
+
+      // Initialize write boundary conditions
+      let blockBufferStart = this.getBoundaryOffset(position)
+
+      // Begin reading chunks
+      for (let chunkCtr = startChunkNum; (chunkCtr - startChunkNum) < numChunksToRead; chunkCtr++) {
+        // Read the current block into chunkBuffer
+        const chunkPosition = this.chunkNumToOffset(chunkCtr)
+        const chunkBuffer = Buffer.alloc(this.chunkSize)
+        await promisify(this.lowerDir.read)(lowerFd, chunkBuffer, 0, this.chunkSize, chunkPosition)
+
+        // Extract blockBuffer from chukBuffer
+        const blockBuffer = await this.crypto.decryptChunk(chunkBuffer)
+
+        // Determine end condition of blockBuffer to write to
+        const blockBufferEnd = (length > bytesRead + blockBuffer.length) ? blockBuffer.length : length - (chunkCtr * this.blockSize)
+
+        // Write blockBuffer to buffer
+        const blockBytesRead = blockBuffer.copy(buffer, targetStart, blockBufferStart, blockBufferEnd)
+
+        // Increment boundary variables
         bytesRead += blockBytesRead
         targetStart += blockBytesRead
+        blockBufferStart += blockBytesRead
       }
       return bytesRead
     } catch (err) {
@@ -1043,206 +1070,208 @@ export default class EncryptedFS {
     }
   }
 
-  // TODO: validation of the params?
-  // TODO: what to do if buffer is less than 4k? truncate?
-  // TODO: what happens if length is larger than buffer?
-  // So if the file contains a 100 bytes, and you read 4k, then you will read those 100 into
-  // the buffer at the specified offset. But after those 100 bytes, what ever was in the buffer will remain
 	/**
 	 * Synchronously reads data at an offset, position and length from a file descriptor into a given buffer.
 	 * @param fd number. File descriptor.
 	 * @param buffer Buffer. Buffer to be read into.
-	 * @param offset number. Offset of the data.
-	 * @param length number. Length of data to write.
-	 * @param position number. Where to start writing.
-	 * @returns number (length).
+	 * @param offset number. The offset in the buffer at which to start writing.
+	 * @param length number. The number of bytes to read.
+	 * @param position number. The offset from the beginning of the file from which data should be read.
+	 * @returns number (bytes read).
 	 */
   readSync(
     fd: number,
     buffer: Buffer,
     offset: number = 0,
-    length: number = Infinity,
+    length: number = buffer.length,
     position: number = 0,
   ): number {
-    if (typeof position === 'number' && position < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+    if (offset < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
+    }
+    if (length < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
+    }
+    if (position < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
     }
     // Check if file descriptor points to directory
     if (this.fstatSync(fd).isDirectory()) {
-      throw (new EncryptedFSError(errno.EISDIR, null, null, 'read'))
+      throw (new EncryptedFSError(errno.EISDIR, null, null, 'readSync'))
     }
+    try {
+      const lowerFd = this.getLowerFd(fd)
+      const metadata = this.getMetadata(fd)
+      if (position + length > metadata.size) {
+        length = metadata.size - position
+      }
 
+      // Accumulate plain text blocks in buffer array
+      const blockBuffers: Buffer[] = []
 
-    if  (length === Infinity) {
-      length = buffer.length
+      // Determine chunk boundary conditions
+      const numChunksToRead = Math.ceil(length / this.blockSize)
+      const startBlockNum = this.offsetToBlockNum(position)
+      const startChunkNum = startBlockNum
+
+      // Begin reading chunks
+      for (let chunkCtr = startChunkNum; (chunkCtr - startChunkNum) < numChunksToRead; chunkCtr++) {
+        // Read the current block into chunkBuffer
+        const chunkPosition = this.chunkNumToOffset(chunkCtr)
+        const chunkBuffer = Buffer.alloc(this.chunkSize)
+        this.lowerDir.readSync(lowerFd, chunkBuffer, 0, this.chunkSize, chunkPosition)
+
+        // Extract blockBuffer from chukBuffer
+        const tempBlockBuffer = this.crypto.decryptChunkSync(chunkBuffer)
+        blockBuffers.push(tempBlockBuffer)
+      }
+
+      // Create buffer of all read blockBuffers
+      const blockBuffer = Buffer.concat(
+        blockBuffers,
+        numChunksToRead * this.blockSize
+      )
+
+      // Determine end condition of blockBuffer to write to
+      const blockBufferStart = this.getBoundaryOffset(position)
+      const blockBufferEnd = blockBufferStart + length
+
+      return blockBuffer.copy(buffer, offset, blockBufferStart, blockBufferEnd)
+    } catch (err) {
+      throw(err)
     }
-
-
-    // TODO: actually use offset, length and position
-
-    // length is specified for plaintext file, but we will be reading from encrypted file
-    // hence the inclusion of 'chunks' in variable name
-    // 1. find out block number the read offset it at
-    // 2. blocknum == chunknum so read entire chunk and get iv
-    // 3. decrypt chunk with attaned iv.
-    //
-    // TODO: maybe actually better to call is a chunk
-    const startChunkNum = this.offsetToBlockNum(position)
-    let chunkCtr = 0
-    const plaintextBlocks: Buffer[] = []
-    const lowerFd = this.getLowerFd(fd)
-    const metadata = this.getMetadata(fd)
-    if (position + length > metadata.size) {
-      length = metadata.size - position
-    }
-
-    const numChunksToRead = Math.ceil(length / this.blockSize)
-
-    for (const chunkNum = startChunkNum; chunkCtr < numChunksToRead; chunkCtr++) {
-      const chunkOffset = this.chunkNumToOffset(chunkNum + chunkCtr)
-      let chunkBuf = Buffer.alloc(this.chunkSize)
-
-      this.lowerDir.readSync(lowerFd, chunkBuf, 0, this.chunkSize, chunkOffset)
-
-      // extract the iv from beginning of chunk
-      const iv = chunkBuf.slice(0, this.initVectorSize)
-      // extract remaining data which is the cipher text
-      const chunkData = chunkBuf.slice(this.initVectorSize)
-      const ptBlock = this.crypto.decryptSync(chunkData, iv)
-      plaintextBlocks.push(ptBlock)
-    }
-    const decryptedReadBuffer = Buffer.concat(
-      plaintextBlocks,
-      numChunksToRead * this.blockSize,
-    )
-
-    // offset into the decryptedReadBuffer to read from
-    const startBlockOffset = position & this.blockSize - 1
-
-    decryptedReadBuffer.copy(buffer, offset, startBlockOffset, length)
-
-		/*
-
-		// TODO: we never use buffer from param
-		// read entire chunk 'position' belongs to
-		let chunkBuf = Buffer.alloc(this._chunkSize)
-		// remember every chunk_i is associated with block_i, for integer i
-		// i.e. startChunkNum and chunkNum can be used interchangably
-		const startChunkOffset = startChunkNum * this._chunkSize
-		fs.readSync(fd, chunkBuf, 0, this._chunkSize, startChunkOffset)
-
-		// TODO: is this the most efficient way? Can we make do without the copy?
-		ptBlock.copy(buffer, offset, position, length)
-		*/
-
-		/* TODO: this is not an accurate measure of bytesRead.
-		 : find out in what cases bytesRead will be less than read
-		 : one case is when you read more than the file contains
-		 : in this case we may need a special eof marker or some meta
-		 : data about the plain text
-		 */
-    return length
   }
 
 	/**
 	 * Asynchronously writes buffer (with length) to the file descriptor at an offset and position.
 	 * @param fd number. File descriptor.
 	 * @param buffer Buffer. Buffer to be written from.
-	 * @param offset number. Offset of the data.
-	 * @param length number. Length of data to write.
-	 * @param position number. Where to start writing.
+	 * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
+	 * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
+	 * @param position number. The offset from the beginning of the file where this data should be written.
 	 * @returns Promise<number>.
 	 */
   async write(
     fd: number,
-    data: Buffer | string,
-    offset: number | undefined = undefined,
-    length: number | undefined = undefined,
-    position: number | undefined = undefined
+    buffer: Buffer,
+    offset: number = 0,
+    length: number = buffer.length - offset,
+    position: number = 0
   ): Promise<number> {
+    if (offset < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+    }
+    if (length < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+    }
+    if (position < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+    }
+    // Check if file descriptor points to directory
+    if (this.fstatSync(fd).isDirectory()) {
+      throw (new EncryptedFSError(errno.EISDIR, null, null, 'write'))
+    }
     try {
-      // Define defaults
-      const buffer = (typeof data === 'string') ? Buffer.from(data) : data
-      offset = offset !== undefined ? offset : 0
-      length = length !== undefined ? length : buffer.length
-      position = position !== undefined ? position : 0
-
+      // Discriminate upper and lower file descriptors
+      const upperFd = fd
       const lowerFd = this.getLowerFd(fd)
 
       // Get block boundary conditions
-      const boundaryOffset = position & this.blockSize - 1 // how far from a block boundary our write is
-      const numBlocksToWrite = Math.ceil((length + boundaryOffset) / this.blockSize)
+      const boundaryOffset = this.getBoundaryOffset(position) // how far from a block boundary our write is
+      const numBlocksToWrite = Math.ceil((boundaryOffset + length) / this.blockSize)
       const startBlockNum = this.offsetToBlockNum(position)
+      const startChunkNum = startBlockNum
       const endBlockNum = startBlockNum + numBlocksToWrite - 1
-      // Get overlay conditions
-      const startBlockOverlaySize = this.blockSize - boundaryOffset
-      // TODO: this should not be using the offsets. That pertains to the file, not this buffer.
-      const startBlockOverlay = buffer.slice(offset, startBlockOverlaySize)
-      let startBlock = this.overlaySegment(fd, startBlockOverlay, position)
-      let middleBlocks = Buffer.allocUnsafe(0)
-      let endBlock = Buffer.allocUnsafe(0)
-      // only bother if there is a last chunk
-      let endBlockBufferOffset: number = 0
+
+      let bufferBytesWritten: number = 0
+
+      // ================== Handle first block ================== //
+      const firstBlockStart = offset
+      const firstBlockEnd = firstBlockStart + Math.min((this.blockSize - boundaryOffset), length)
+      const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd)
+      const firstBlock = await this.overlaySegment(upperFd, firstBlockOverlay, position)
+      const firstChunk = await this.crypto.encryptBlock(firstBlock)
+      bufferBytesWritten += firstBlockOverlay.length
+
+      // ================== Handle last block if needed ================== //
+      const middleBlockLength = (numBlocksToWrite - 2) * this.blockSize
+      const lastBlockStart = firstBlockEnd + middleBlockLength
+      const lastBlockEnd = lastBlockStart + (length - (bufferBytesWritten + middleBlockLength))
+      let lastBlock: Buffer | null
+      let lastChunk: Buffer | null
       if (numBlocksToWrite >= 2) {
-        endBlockBufferOffset = startBlockOverlaySize + (numBlocksToWrite - 2) * this.blockSize
-        const endBlockOverlay = buffer.slice(offset + endBlockBufferOffset)
-
-        const endBlockOffset = this.blockNumToOffset(endBlockNum)
-
-        endBlock = this.overlaySegment(fd, endBlockOverlay, endBlockOffset)
+        const lastBlockOverlay = buffer.slice(lastBlockStart, lastBlockEnd)
+        const lastBlockOffset = this.blockNumToOffset(endBlockNum)
+        lastBlock = await this.overlaySegment(upperFd, lastBlockOverlay, lastBlockOffset)
+        lastChunk = await this.crypto.encryptBlock(lastBlock)
+        bufferBytesWritten += lastBlockOverlay.length
+      } else {
+        lastBlock = null
+        lastChunk = null
       }
+
+      // ================== Handle middle blocks if needed ================== //
       // slice out middle blocks if they actually exist
+      let middleBlocks: Buffer[] = []
+      let middleChunks: Buffer[] = []
       if (numBlocksToWrite >= 3) {
-        middleBlocks = buffer.slice(startBlockOverlaySize, endBlockBufferOffset)
+        const middleBlockBuffer = buffer.slice(firstBlockEnd, lastBlockStart)
+
+        const blockIter = this.blockGenerator(middleBlockBuffer)
+        let middleBlockCtr = startBlockNum + 1
+        for (let block of blockIter) {
+          const middleBlockOffset = this.blockNumToOffset(middleBlockCtr)
+          const middleBlock = await this.overlaySegment(upperFd, block, middleBlockOffset)
+          const middleChunk = await this.crypto.encryptBlock(middleBlock)
+          middleBlocks.push(middleBlock)
+          middleChunks.push(middleChunk)
+          middleBlockCtr += 1
+          bufferBytesWritten += block.length
+        }
       }
 
-      // Assert newBlocks is a multiple of blocksize
-
-      const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock])
-      if (newBlocks.length % this.blockSize != 0) {
-        throw(new EncryptedFSError(errno.EINVAL, null, null, 'write'))
+      // ================== Concat blocks and write ================== //
+      let totalBlocks: Buffer[] = []
+      totalBlocks.push(firstBlock)
+      totalBlocks.push(...middleBlocks)
+      if (lastBlock) {
+        totalBlocks.push(lastBlock)
       }
-
-      // Write to upper directory (unencrypted)
-      this.upperDir.writeSync(
-        fd,
-        newBlocks,
+      const blocks = Buffer.concat(totalBlocks, this.blockSize * numBlocksToWrite)
+      // Write to upperDir (unencrypted)
+      await promisify(this.upperDir.write)(
+        upperFd,
+        blocks,
         0,
-        newBlocks.length,
+        blocks.length,
         this.blockNumToOffset(startBlockNum)
       )
 
-      // Write to lower directory (encrypted)
-      const blockIter = this.blockGenerator(newBlocks)
-      const encryptedChunks: Buffer[] = []
-      for (let block of blockIter) {
-        const iv = this.crypto.getRandomInitVectorSync()
-        const ctBlock = this.crypto.encryptSync(block, iv)
-
-        const chunk = Buffer.concat([iv, ctBlock], this.chunkSize)
-        encryptedChunks.push(chunk)
+      // ================== Concat chunks and write ================== //
+      let totalChunks: Buffer[] = []
+      totalChunks.push(firstChunk)
+      totalChunks.push(...middleChunks)
+      if (lastChunk) {
+        totalChunks.push(lastChunk)
       }
-      const encryptedWriteBuffer = Buffer.concat(
-        encryptedChunks,
-        numBlocksToWrite * this.chunkSize,
-      )
-      const lowerWritePos = this.chunkNumToOffset(startBlockNum)
-
+      const chunks = Buffer.concat(totalChunks, this.chunkSize * numBlocksToWrite)
+      // Write to lowerDir (encrypted)
       await promisify(this.lowerDir.write)(
         lowerFd,
-        encryptedWriteBuffer,
+        chunks,
         0,
-        encryptedWriteBuffer.length,
-        lowerWritePos
+        chunks.length,
+        this.chunkNumToOffset(startChunkNum)
       )
 
-      const newFileSize = position! + length!
-      if (newFileSize > this.getMetadata(fd).size) {
-        this.getMetadata(fd).size = newFileSize
-        this.writeMetadataSync(fd)
+      // ================== Handle and write metadata ================== //
+      const newFileSize = position + length
+      if (newFileSize > this.getMetadata(upperFd).size) {
+        this.getMetadata(upperFd).size = newFileSize
+        this.writeMetadataSync(upperFd)
       }
 
-      return length
+      return bufferBytesWritten
     } catch (err) {
       throw(err)
     }
@@ -1252,90 +1281,137 @@ export default class EncryptedFS {
 	 * Synchronously writes buffer (with length) to the file descriptor at an offset and position.
 	 * @param fd number. File descriptor.
 	 * @param buffer Buffer. Buffer to be written from.
-	 * @param offset number. Offset of the data.
-	 * @param length number. Length of data to write.
-	 * @param position number. Where to start writing.
+	 * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
+	 * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
+	 * @param position number. The offset from the beginning of the file where this data should be written.
 	 * @returns number (length).
 	 */
   writeSync(
     fd: number,
-    data: Buffer | string,
-    offset?: number,
-    length?: number,
-    position?: number
+    buffer: Buffer,
+    offset: number = 0,
+    length: number = buffer.length - offset,
+    position: number = 0
   ): number {
-    // Define defaults
-    const buffer = (typeof data === 'string') ? Buffer.from(data) : data
-    offset = offset !== undefined ? offset : 0
-    length = length !== undefined ? length : buffer.length
-    position = position !== undefined ? position : 0
-
-    const lowerFd = this.getLowerFd(fd)
-    // Get block boundary conditions
-    const boundaryOffset = position & this.blockSize - 1 // how far from a block boundary our write is
-    const numBlocksToWrite = Math.ceil((length + boundaryOffset) / this.blockSize)
-    const startBlockNum = this.offsetToBlockNum(position)
-    const endBlockNum = startBlockNum + numBlocksToWrite - 1
-    // Get overlay conditions
-    const startBlockOverlaySize = this.blockSize - boundaryOffset
-    // TODO: this should not be using the offsets. That pertains to the file, not this buffer.
-    const startBlockOverlay = buffer.slice(offset, startBlockOverlaySize)
-    let startBlock = this.overlaySegment(fd, startBlockOverlay, position)
-    let middleBlocks = Buffer.allocUnsafe(0)
-    let endBlock = Buffer.allocUnsafe(0)
-    // only bother if there is a last chunk
-    let endBlockBufferOffset: number = 0
-    if (numBlocksToWrite >= 2) {
-      endBlockBufferOffset = startBlockOverlaySize + (numBlocksToWrite - 2) * this.blockSize
-      const endBlockOverlay = buffer.slice(offset + endBlockBufferOffset)
-
-      const endBlockOffset = this.blockNumToOffset(endBlockNum)
-
-      endBlock = this.overlaySegment(fd, endBlockOverlay, endBlockOffset)
+    if (offset < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
     }
-    // slice out middle blocks if they actually exist
-    if (numBlocksToWrite >= 3) {
-      middleBlocks = buffer.slice(startBlockOverlaySize, endBlockBufferOffset)
+    if (length < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
     }
-
-    // TODO: assert newBlocks is a multiple of blocksize
-    const newBlocks = Buffer.concat([startBlock, middleBlocks, endBlock])
-    this.upperDir.writeSync(
-      fd,
-      newBlocks,
-      0,
-      newBlocks.length,
-      this.blockNumToOffset(startBlockNum),
-    )
-    const blockIter = this.blockGenerator(newBlocks)
-    const encryptedChunks: Buffer[] = []
-    for (let block of blockIter) {
-      const iv = this.crypto.getRandomInitVectorSync()
-      const ctBlock = this.crypto.encryptSync(block, iv)
-
-      const chunk = Buffer.concat([iv, ctBlock], this.chunkSize)
-      encryptedChunks.push(chunk)
+    if (position < 0) {
+      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
     }
-    const encryptedWriteBuffer = Buffer.concat(
-      encryptedChunks,
-      numBlocksToWrite * this.chunkSize,
-    )
-    const lowerWritePos = this.chunkNumToOffset(startBlockNum)
-
-    this.lowerDir.writeSync(
-      lowerFd,
-      encryptedWriteBuffer,
-      0,
-      encryptedWriteBuffer.length,
-      lowerWritePos,
-    )
-    const newFileSize = position + length
-    if (newFileSize > this.getMetadata(fd).size) {
-      this.getMetadata(fd).size = newFileSize
-      this.writeMetadataSync(fd)
+    // Check if file descriptor points to directory
+    if (this.fstatSync(fd).isDirectory()) {
+      throw (new EncryptedFSError(errno.EISDIR, null, null, 'writeSync'))
     }
+    try {
+      // Discriminate upper and lower file descriptors
+      const upperFd = fd
+      const lowerFd = this.getLowerFd(fd)
 
-    return length
+      // Get block boundary conditions
+      const boundaryOffset = this.getBoundaryOffset(position) // how far from a block boundary our write is
+      const numBlocksToWrite = Math.ceil((boundaryOffset + length) / this.blockSize)
+      const startBlockNum = this.offsetToBlockNum(position)
+      const startChunkNum = startBlockNum
+      const endBlockNum = startBlockNum + numBlocksToWrite - 1
+
+      let bufferBytesWritten: number = 0
+
+      // ================== Handle first block ================== //
+      const firstBlockStart = offset
+      const firstBlockEnd = firstBlockStart + Math.min((this.blockSize - boundaryOffset), length)
+      const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd)
+      const firstBlock = this.overlaySegmentSync(upperFd, firstBlockOverlay, position)
+      const firstChunk = this.crypto.encryptBlockSync(firstBlock)
+      bufferBytesWritten += firstBlockOverlay.length
+
+      // ================== Handle last block if needed ================== //
+      const middleBlockLength = (numBlocksToWrite - 2) * this.blockSize
+      const lastBlockStart = firstBlockEnd + middleBlockLength
+      const lastBlockEnd = lastBlockStart + (length - (bufferBytesWritten + middleBlockLength))
+      let lastBlock: Buffer | null
+      let lastChunk: Buffer | null
+      if (numBlocksToWrite >= 2) {
+        const lastBlockOverlay = buffer.slice(lastBlockStart, lastBlockEnd)
+        const lastBlockOffset = this.blockNumToOffset(endBlockNum)
+        lastBlock = this.overlaySegmentSync(upperFd, lastBlockOverlay, lastBlockOffset)
+        lastChunk = this.crypto.encryptBlockSync(lastBlock)
+        bufferBytesWritten += lastBlockOverlay.length
+      } else {
+        lastBlock = null
+        lastChunk = null
+      }
+
+      // ================== Handle middle blocks if needed ================== //
+      // slice out middle blocks if they actually exist
+      let middleBlocks: Buffer[] = []
+      let middleChunks: Buffer[] = []
+      if (numBlocksToWrite >= 3) {
+        const middleBlockBuffer = buffer.slice(firstBlockEnd, lastBlockStart)
+
+        const blockIter = this.blockGenerator(middleBlockBuffer)
+        let middleBlockCtr = startBlockNum + 1
+        for (let block of blockIter) {
+          const middleBlockOffset = this.blockNumToOffset(middleBlockCtr)
+          const middleBlock = this.overlaySegmentSync(upperFd, block, middleBlockOffset)
+          const middleChunk = this.crypto.encryptBlockSync(middleBlock)
+          middleBlocks.push(middleBlock)
+          middleChunks.push(middleChunk)
+          middleBlockCtr += 1
+          bufferBytesWritten += block.length
+        }
+      }
+
+      // ================== Concat blocks and write ================== //
+      let totalBlocks: Buffer[] = []
+      totalBlocks.push(firstBlock)
+      totalBlocks.push(...middleBlocks)
+      if (lastBlock) {
+        totalBlocks.push(lastBlock)
+      }
+
+      const blocks = Buffer.concat(totalBlocks, this.blockSize * numBlocksToWrite)
+      // Write to upperDir (unencrypted)
+      this.upperDir.writeSync(
+        upperFd,
+        blocks,
+        0,
+        blocks.length,
+        this.blockNumToOffset(startBlockNum)
+      )
+
+      // ================== Concat chunks and write ================== //
+      let totalChunks: Buffer[] = []
+      totalChunks.push(firstChunk)
+      totalChunks.push(...middleChunks)
+      if (lastChunk) {
+        totalChunks.push(lastChunk)
+      }
+      const chunks = Buffer.concat(totalChunks, this.chunkSize * numBlocksToWrite)
+      // Write to lowerDir (encrypted)
+      this.lowerDir.writeSync(
+        lowerFd,
+        chunks,
+        0,
+        chunks.length,
+        this.chunkNumToOffset(startChunkNum)
+      )
+
+      // ================== Handle and write metadata ================== //
+      const newFileSize = position + length
+
+      if (newFileSize > this.getMetadata(fd).size) {
+        this.getMetadata(fd).size = newFileSize
+        this.writeMetadataSync(fd)
+      }
+
+      return bufferBytesWritten
+    } catch (err) {
+      throw(err)
+    }
   }
 
 	/**
@@ -1349,27 +1425,29 @@ export default class EncryptedFS {
   async appendFile(
     file: fs.PathLike | number,
     data: Buffer,
-    options: fs.WriteFileOptions
+    options?: fs.WriteFileOptions
   ): Promise<void> {
-    let fd: number
+    const optionsInternal = this.getFileOptions(
+      { encoding: 'utf8', mode: 0o666, flag: 'a' },
+      options,
+    )
+    let fd: number | null = null
     try {
       // Get file descriptor
       if (typeof file === 'number') {
         fd = file
       } else {
-        fd = await this.open(file, )
+        fd = await this.open(file, optionsInternal.flag, optionsInternal.mode)
       }
-      options = this.getFileOptions(
-        { encoding: "utf8", mode: 0o666, flag: "a" },
-        options,
-      )
-      if (!options.flag || this.isFileDescriptor(file)) {
-        options.flag = "a"
-      }
-
-      await promisify(this.lowerDir.appendFile)(file, data, options)
+      const upperFd = this.getUpperFd(fd)
+      const lowerFd = this.getLowerFd(fd)
+      await promisify(this.lowerDir.appendFile)(lowerFd, data, optionsInternal)
     } catch (err) {
       throw(err)
+    } finally {
+      if (fd) {
+        await this.close(fd)
+      }
     }
   }
 
@@ -1382,25 +1460,32 @@ export default class EncryptedFS {
 	 * @returns Promise<void>.
 	 */
   appendFileSync(
-    path: fs.PathLike,
-    data: Buffer | string,
-    options: fs.WriteFileOptions
+    file: fs.PathLike | number,
+    data: Buffer,
+    options?: fs.WriteFileOptions
   ): void {
-    if (typeof options === 'object') {
-      options = this.getFileOptions(
-        { encoding: "utf8", mode: 0o666, flag: "a" },
-        options,
-      )
-    } else {
-      options = this.getFileOptions(
-        { encoding: "utf8", mode: 0o666, flag: "a" },
-      )
+    const optionsInternal = this.getFileOptions(
+      { encoding: 'utf8', mode: 0o666, flag: 'a' },
+      options,
+    )
+    let fd: number | null = null
+    try {
+      // Get file descriptor
+      if (typeof file === 'number') {
+        fd = file
+      } else {
+        fd = this.openSync(file, optionsInternal.flag, optionsInternal.mode)
+      }
+      const upperFd = this.getUpperFd(fd)
+      const lowerFd = this.getLowerFd(fd)
+      this.lowerDir.appendFileSync(lowerFd, data, optionsInternal)
+    } catch (err) {
+      throw(err)
+    } finally {
+      if (fd) {
+        this.closeSync(fd)
+      }
     }
-    if (!options.flag || this.isFileDescriptor(path)) {
-      options.flag = "a"
-    }
-
-    this.lowerDir.appendFileSync(path, data, options)
   }
 
 	/**
@@ -1480,58 +1565,39 @@ export default class EncryptedFS {
 	 */
   async writeFile(
     path: fs.PathLike | number,
-    data: Buffer | string,
-    options: fs.WriteFileOptions | undefined = undefined
+    data: string | Buffer,
+    options: fs.WriteFileOptions = {}
   ): Promise<void> {
     try {
-      options = this.getFileOptions(
-        { encoding: "utf8", mode: 0o666, flag: "w" },
+      const optionsInternal = this.getFileOptions(
+        { encoding: 'utf8', mode: 0o666, flag: 'w' },
         options,
       )
-      const flag = options.flag || "w"
       const isUserFileDescriptor = this.isFileDescriptor(path)
+      let fd: number
       if (isUserFileDescriptor) {
-        const fd = <number>path
-        let offset = 0
-        if (typeof data === 'string') {
-          data = Buffer.from(data)
-        }
-        let length = data.byteLength
-
-        let position = 0
-
-        while (length > 0) {
-          const written = this.writeSync(fd, data, offset, length, position)
-          offset += written
-          length -= written
-          if (position !== null) {
-            position += written
-          }
-        }
-      } else if (typeof path === 'string') {
-        let fd: number
-        try {
-          fd = await this.open(path, flag, <number>options.mode)
-        } catch (err) {
-          throw(err)
-        }
-        if (typeof data === 'string') {
-          data = Buffer.from(data)
-        }
-        const dataBuffer = (typeof data === 'string') ? Buffer.from(data) : data
-        // const position = /a/.test(flag) ? null : 0
-        let position = 0
-        let offset = 0
-        while (length > 0) {
-          const written = await this.write(fd, data, offset, length, position)
-          offset += written
-          length -= written
-          if (position !== null) {
-            position += written
-          }
-        }
+        fd = <number>path
+      } else if (typeof path == 'string') {
+        fd = await this.open(path, optionsInternal.flag, optionsInternal.mode)
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'write')
+        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFile')
+      }
+      let offset = 0
+      if (typeof data === 'string') {
+        data = Buffer.from(data)
+      }
+      let length = data.byteLength
+
+      // const position = /a/.test(flag) ? null : 0
+      let position = 0
+
+      while (length > 0) {
+        const written = await this.write(fd, data, offset, length, position)
+        offset += written
+        length -= written
+        if (position !== null) {
+          position += written
+        }
       }
     } catch (err) {
       throw(err)
@@ -1552,19 +1618,18 @@ export default class EncryptedFS {
     options: fs.WriteFileOptions = {},
   ): void {
     try {
-      options = this.getFileOptions(
-        { encoding: "utf8", mode: 0o666, flag: "w" },
+      const optionsInternal = this.getFileOptions(
+        { encoding: 'utf8', mode: 0o666, flag: 'w' },
         options,
       )
-      const flag = options.flag || "w"
       const isUserFileDescriptor = this.isFileDescriptor(path)
       let fd: number
       if (isUserFileDescriptor) {
         fd = <number>path
       } else if (typeof path === 'string') {
-        fd = this.openSync(path, flag, <number>options.mode)
+        fd = this.openSync(path, optionsInternal.flag, optionsInternal.mode)
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'write')
+        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFileSync')
       }
       let offset = 0
       if (typeof data === 'string') {
@@ -1597,34 +1662,45 @@ export default class EncryptedFS {
 	 */
   async open(
     path: fs.PathLike,
-    flags: string | undefined = undefined,
-    mode: number | undefined = undefined
+    flags: number | string = 'r',
+    mode: number | string = 0o666
   ): Promise<number> {
     try {
-      flags = (flags !== undefined) ? flags : 'r'
-      mode = (mode !== undefined) ? mode : 0o666
-      // const lowerFlags = flags[0] === "w" ? "w+" : "r+"
-      const lowerFlags = flags
       const _path = this.getPath(path)
-      const dirPath = Path.dirname(_path)
-      // Open on upperDir
-      const lowerFd = await promisify(this.lowerDir.open)(path, lowerFlags, mode)
-      const upperFilePath = Path.resolve(_path)
-      if (flags![0] === "r" && !this.upperDir.existsSync(upperFilePath)) {
-        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, "w"))
-      }
       // Open on lowerDir
-      const upperFd = await promisify(this.upperDir.open)(upperFilePath, flags!, mode)
+      let lowerFd = await promisify(this.lowerDir.open)(_path, flags, mode)
+      // Check if a file
+      if ((await promisify(this.lowerDir.fstat)(lowerFd)).isFile()) {
+        // Open with write permissions as well
+        await promisify(this.lowerDir.close)(lowerFd)
+        const lowerFlags = flags[0] === "w" ? "w+" : "r+"
+        lowerFd = await promisify(this.lowerDir.open)(_path, lowerFlags, mode)
+      }
+      const upperFilePath = Path.resolve(_path)
+      // Need to make path if it doesn't exist already
+      if (!this.upperDir.existsSync(upperFilePath)) {
+        const upperFilePathDir = Path.dirname(upperFilePath)
+        // mkdirp
+        await promisify(this.upperDir.mkdirp)(upperFilePathDir)
+        // create file if needed
+        await promisify(this.upperDir.close)(await promisify(this.upperDir.open)(upperFilePath, "w"))
+      }
+      // Open on upperDir
+      const upperFd = await promisify(this.upperDir.open)(upperFilePath, flags, mode)
       // Create efsFd
-      const efsFd = new FileDescriptor(lowerFd, upperFd, flags!)
+      const efsFd = new FileDescriptor(lowerFd, upperFd, flags.toString())
       this.fileDescriptors.set(upperFd, efsFd)
 
-      if (flags![0] === "r") {
-        this.loadMetadata(upperFd)
-      } else if (flags![0] === "w") {
-        const hash = Buffer.from(this.crypto.hashSync(this.key))
-        this.metadata[upperFd] = { keyHash: hash, size: 0 }
-        this.writeMetadataSync(upperFd)
+      // If file descriptor points to file, write metadata
+      const isFile = this.fstatSync(upperFd)?.isFile()
+      if (isFile) {
+        if (flags[0] === "r") {
+          await this.loadMetadata(upperFd)
+        } else if (flags[0] === "w") {
+          const hash = this.crypto.hashSync(this.masterKey)
+          this.metadata[upperFd] = { keyHash: hash, size: 0 }
+          this.writeMetadataSync(upperFd)
+        }
       }
       return upperFd
     } catch (err) {
@@ -1643,32 +1719,42 @@ export default class EncryptedFS {
 	 */
   openSync(
     path: fs.PathLike,
-    flags: string = "r",
-    mode: number = 0o666
+    flags: number | string = 'r',
+    mode: number | string = 0o666
   ): number {
     try {
-      const pathString: string = (typeof path === 'string') ? path : ((path.constructor === Buffer) ? path.toString() : this.getPathFromURL(path as URL))
-      // TODO: why do we add write flag to lower flags?
-      // const lowerFlags = flags[0] === "w" ? "w+" : "r+"
-      const lowerFlags = flags
-      const lowerFd = this.lowerDir.openSync(pathString, lowerFlags, mode)
-      const dirPath = Path.dirname(pathString)
-      const upperFilePath = Path.resolve(pathString)
-      if (flags[0] === "r" && !this.upperDir.existsSync(upperFilePath)) {
-        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, "w"))
+      const _path = this.getPath(path)
+      // Open on lowerDir
+      let lowerFd = this.lowerDir.openSync(_path, flags, mode)
+      // Check if a directory
+      if (this.lowerDir.fstatSync(lowerFd).isFile()) {
+        // Open with write permissions as well
+        this.lowerDir.closeSync(lowerFd)
+        const lowerFlags = flags[0] === "w" ? "w+" : "r+"
+        lowerFd = this.lowerDir.openSync(_path, lowerFlags, mode)
       }
+      const upperFilePath = Path.resolve(_path)
+      // Need to make path if it doesn't exist already
+      if (!this.upperDir.existsSync(upperFilePath)) {
+        const upperFilePathDir = Path.dirname(upperFilePath)
+        // mkdirp
+        this.upperDir.mkdirpSync(upperFilePathDir)
+        // create file if needed
+        this.upperDir.closeSync(this.upperDir.openSync(upperFilePath, 'w'))
+      }
+      // Open on upperDir
       const upperFd = this.upperDir.openSync(upperFilePath, flags, mode)
-      const efsFd = new FileDescriptor(lowerFd, upperFd, flags)
+      // Create efsFd
+      const efsFd = new FileDescriptor(lowerFd, upperFd, flags.toString())
       this.fileDescriptors.set(upperFd, efsFd)
 
-      // Check if file descriptor is directory
-      const isFile = this.fstatSync(upperFd)?.isFile()
       // If file descriptor points to file, write metadata
+      const isFile = this.fstatSync(upperFd)?.isFile()
       if (isFile) {
         if (flags[0] === "r") {
-          this.loadMetadata(upperFd)
+          this.loadMetadataSync(upperFd)
         } else if (flags[0] === "w") {
-          const hash = this.crypto.hashSync(this.key)
+          const hash = this.crypto.hashSync(this.masterKey)
           this.metadata[upperFd] = { keyHash: hash, size: 0 }
           this.writeMetadataSync(upperFd)
         }
@@ -1684,10 +1770,10 @@ export default class EncryptedFS {
 	 * @returns Buffer | string (Key)
 	 */
   getKey(): Buffer | string {
-    return this.key
+    return this.masterKey
   }
 
-  private getFileOptions(defaultOptions: Object, options?: fs.WriteFileOptions): Object {
+  private getFileOptions(defaultOptions: Object, options?: fs.WriteFileOptions): { encoding?: string | null, mode?: string | number, flag?: string } {
     let optionsFinal: fs.WriteFileOptions = defaultOptions
     if (typeof options === "string") {
       if (!this.isCharacterEncoding(options)) {
@@ -1765,70 +1851,145 @@ export default class EncryptedFS {
 
   // ========= HELPER FUNCTIONS =============
 	/**
-	 * Reads the whole block that the position lies within.
+	 * Asynchronously reads the whole block that the position lies within.
 	 * @param fd File descriptor.
 	 * @param position Position of data required.
 	 * @returns Buffer.
 	 */
-  private readBlock(fd: number, position: number): Buffer {
-    // Returns zero buffer if file has no content
-    if (this.positionOutOfBounds(fd, position)) {
-      return Buffer.alloc(this.blockSize)
+  private async readBlock(fd: number, position: number): Promise<Buffer> {
+    const blockBuf = Buffer.alloc(this.blockSize)
+    // First check if its a new block or empty
+    const metadata = this.getMetadata(fd)
+    if (metadata.size == 0) {
+      return blockBuf.fill(0)
     }
-
+    // Read non-empty block
     const blockNum = this.offsetToBlockNum(position)
     const blockOffset = this.blockNumToOffset(blockNum)
-    // TODO: optimisation: if we can ensure that readSync will always write blockSize, then we can use allocUnsafe
-    const blockBuf = Buffer.alloc(this.blockSize)
+    await this.read(fd, blockBuf, 0, this.blockSize, blockOffset)
 
+    return blockBuf
+  }
+
+	/**
+	 * Synchronously reads the whole block that the position lies within.
+	 * @param fd File descriptor.
+	 * @param position Position of data required.
+	 * @returns Buffer.
+	 */
+  private readBlockSync(fd: number, position: number): Buffer {
+    const blockBuf = Buffer.alloc(this.blockSize)
+    // First check if its a new block or empty
+    const metadata = this.getMetadata(fd)
+    if (metadata.size == 0) {
+      return blockBuf.fill(0)
+    }
+    // Read non-empty block
+    const blockNum = this.offsetToBlockNum(position)
+    const blockOffset = this.blockNumToOffset(blockNum)
     this.readSync(fd, blockBuf, 0, this.blockSize, blockOffset)
 
     return blockBuf
   }
 
-  // #TODO: optimise to skip read if newData is block size, otherwise always need a read
+  // #TODO:
   // TODO: what happens if file is less than block size?
 	/**
-	 * Reads from disk the chunk containing the block that needs to be merged with new block
+	 * Asynchronously reads from disk the chunk containing the block that needs to be merged with new block
 	 * @param fd File descriptor.
 	 * @param newData Buffer containing the new data.
 	 * @param position Position of the insertion.
 	 * @returns Buffer (a plaintext buffer containing the merge blocks in a single block).
 	 */
-  private overlaySegment(fd: number, newData: Buffer, position: number) {
-    // 	case 1:  segment is aligned to start of block
-    // 	case 2:  segment is aligned to start-of-block but end before end-of-block
-    // 	case 3:  segment is not aligned to start and ends before end-of-block
-    // 	case 4:  segment is not aligned to start-of-block and ends at end-of-block
+  private async overlaySegment(fd: number, newData: Buffer, position: number): Promise<Buffer> {
+    // 	case 1:  segment is aligned to start of block and ends at end of block      |<------->|
+    // 	case 2:  segment is aligned to start-of-block but end before end-of-block   |<----->--|
+    // 	case 3:  segment is not aligned to start and ends before end-of-block       |--<--->--|
+    // 	case 4:  segment is not aligned to start-of-block and ends at end-of-block  |--<----->|
     //
     // 	Cases 3 and 4 are not possible when overlaying the last segment
-    //
-    // TODO: throw err if buff length  > block size
+
+    const writeOffset = this.getBoundaryOffset(position) // byte offset from where to start writing new data in the block
+
+    // Optimization: skip read if newData is block size and position is writeOffset is 0
+    if (writeOffset === 0 && newData.length === this.blockSize) {
+      return newData
+    }
+
+    // Make sure newData won't be written over block boundary
+    if (writeOffset + newData.length > this.blockSize) {
+      throw(new EncryptedFSError(errno.EINVAL, null, null,'overlaySegment'))
+    }
+
+    // Read relevant block
+    const originalBlock = await this.readBlock(fd, position)
 
 
-    const writeOffset = position & (this.blockSize - 1) // byte offset from where to start writing new data in the block
-
-    // read entire block, position belongs to
-    const origBlock = this.readBlock(fd, position)
-
+    const isBlockStartAligned = writeOffset === 0
+    // Get the start slice if newData is not block start aligned
     let startSlice = Buffer.alloc(0)
-    // Populate array if newData is not block aligned
-    const isBlockAligned = ((position & this.blockSize - 1) === 0)
-    if (!isBlockAligned) {
-      startSlice = origBlock.slice(0, writeOffset)
+    if (!isBlockStartAligned) {
+      startSlice = originalBlock.slice(0, writeOffset)
     }
 
     // Any data reamining after new block
-    const endSlice = origBlock.slice(writeOffset + newData.length)
+    const endSlice = originalBlock.slice(writeOffset + newData.length)
 
-    // patch up slices to create new block
-    // TODO: specify length -- maybe also assert the 3 segments do infact amount to only blocksize
+    // Patch up slices to create new block
     const newBlock = Buffer.concat([startSlice, newData, endSlice])
 
+    return newBlock
+  }
 
-    // TODO: assert that newBlock is === blockSize
+	/**
+	 * Synchronously Reads from disk the chunk containing the block that needs to be merged with new block
+	 * @param fd File descriptor.
+	 * @param newData Buffer containing the new data.
+	 * @param position Position of the insertion.
+	 * @returns Buffer (a plaintext buffer containing the merge blocks in a single block).
+	 */
+  private overlaySegmentSync(fd: number, newData: Buffer, position: number): Buffer {
+    const writeOffset = this.getBoundaryOffset(position) // byte offset from where to start writing new data in the block
+
+    // Optimization: skip read if newData is block aligned and length is blockSize
+    if (writeOffset === 0 && newData.length === this.blockSize) {
+      return newData
+    }
+
+    // Make sure newData won't be written over block boundary
+    if (writeOffset + newData.length > this.blockSize) {
+      throw(new EncryptedFSError(errno.EINVAL, null, null, 'overlaySegmentSync'))
+    }
+
+    // Read relevant block
+    const originalBlock = this.readBlockSync(fd, position)
+
+
+    const isBlockStartAligned = writeOffset === 0
+    // Get the start slice if newData is not block start aligned
+    let startSlice = Buffer.alloc(0)
+    if (!isBlockStartAligned) {
+      startSlice = originalBlock.slice(0, writeOffset)
+    }
+
+    // Any data reamining after new block
+    const endSlice = originalBlock.slice(writeOffset + newData.length)
+
+    // Patch up slices to create new block
+    const newBlock = Buffer.concat([startSlice, newData, endSlice])
 
     return newBlock
+  }
+
+	/**
+	 * Gets the byte offset from the beginning of the block that position lies within
+	 * @param position: number. Position.
+	 * @returns number. Boundary offset
+	 */
+  private getBoundaryOffset(position: number) {
+    // Position can start from 0 but block size starts counting from 1
+    // Compare apples to apples first and then subtract 1
+    return ((position + 1) % this.blockSize) - 1
   }
 
 	/**
@@ -1922,15 +2083,6 @@ export default class EncryptedFS {
   }
 
 	/**
-	 * Calculates the offset/position of the chunk number in the unencrypted file.
-	 * @param chunkNum Chunk number.
-	 * @returns number (position offset)
-	 */
-  private offsetToChunkNum(position: number) {
-    return Math.floor(position / this.chunkSize)
-  }
-
-	/**
 	 * Creates a block generator for block iteration, split is per block length.
 	 * @param blocks Buffer containing blocks to be split.
 	 * @param blockSize Size of an individual block.
@@ -1963,18 +2115,6 @@ export default class EncryptedFS {
   }
 
 	/**
-	 * Checks if the position is out of bounds for a given file (fd).
-	 * @param fd File descriptor.
-	 * @param position Position in question.
-	 * @returns boolean (true if position is out of bounds, false if position is within bounds)
-	 */
-  private positionOutOfBounds(fd: number, position: number): boolean {
-    // TODO: confirm that '>=' is correct here
-    const isPositionOutOfBounds = (position >= this.lowerDir.fstatSync(fd).size)
-    return isPositionOutOfBounds
-  }
-
-	/**
 	 * Synchronously checks if file (fd) contains conntent or not.
 	 * @param fd File descriptor.
 	 * @returns boolean (true if file has content, false if file has no content)
@@ -2002,29 +2142,46 @@ export default class EncryptedFS {
   }
 
   private writeMetadataSync(fd: number): void {
-    const iv = this.crypto.getRandomInitVectorSync()
     const metadata = this.getMetadata(fd)
     const serialMeta = JSON.stringify(metadata)
-    const metadataBlk = Buffer.concat(
+    const metadataBockBuffer = Buffer.concat(
       [Buffer.from(serialMeta)],
       this.blockSize,
     )
-    const ctMetadata = this.crypto.encryptSync(metadataBlk, iv)
-    const metaChunk = Buffer.concat([iv, ctMetadata], this.chunkSize)
+    const metadataChunkBuffer = this.crypto.encryptBlockSync(metadataBockBuffer)
     const metadataOffset = this.getMetadataOffsetSync(fd)
     this.lowerDir.writeSync(
       this.getLowerFd(fd),
-      metaChunk,
+      metadataChunkBuffer,
       0,
-      metaChunk.length,
+      metadataChunkBuffer.length,
       metadataOffset,
     )
   }
 
-  private loadMetadata(fd: number): void {
-    const metaChunk = Buffer.allocUnsafe(this.chunkSize)
+  private async loadMetadata(fd: number): Promise<void> {
+    const metaChunk = Buffer.alloc(this.chunkSize)
     const metaChunkOffset = this.getMetadataOffsetSync(fd)
-    fd
+
+    await promisify(this.lowerDir.read)(
+      this.getLowerFd(fd),
+      metaChunk,
+      0,
+      metaChunk.length,
+      metaChunkOffset,
+    )
+
+    const metaBlock = await this.crypto.decryptChunk(metaChunk)
+    const metaPlainTrimmed = metaBlock.slice(0, (metaBlock.indexOf('\0')))
+
+    const fileMeta = eval("(" + metaPlainTrimmed.toString() + ")")
+    this.metadata[fd] = fileMeta
+  }
+
+  private loadMetadataSync(fd: number): void {
+    const metaChunk = Buffer.alloc(this.chunkSize)
+    const metaChunkOffset = this.getMetadataOffsetSync(fd)
+
     this.lowerDir.readSync(
       this.getLowerFd(fd),
       metaChunk,
@@ -2032,17 +2189,15 @@ export default class EncryptedFS {
       metaChunk.length,
       metaChunkOffset,
     )
-    const iv = metaChunk.slice(0, this.initVectorSize)
 
-    const metaCt = metaChunk.slice(this.initVectorSize)
-    const metaPlain = this.crypto.decryptSync(metaCt, iv)
-    const metaPlainTrimmed = metaPlain.slice(0, (metaPlain.indexOf('\0')))
+    const metaBlock = this.crypto.decryptChunkSync(metaChunk)
+    const metaPlainTrimmed = metaBlock.slice(0, (metaBlock.indexOf('\0')))
 
     const fileMeta = eval("(" + metaPlainTrimmed.toString() + ")")
     this.metadata[fd] = fileMeta
   }
 
-  private getMetadata(fd: number): Metadata {
+  private getMetadata(fd: number): UpperDirectoryMetadata {
     if (this.metadata.hasOwnProperty(fd)) {
       const fileMeta = this.metadata[fd]
       if (fileMeta) {
@@ -2052,7 +2207,7 @@ export default class EncryptedFS {
     throw Error("file descriptor has no metadata stored")
   }
   private getMetaField(fd: number, fieldName: 'size' | 'keyHash'): number | Buffer {
-    const fileMeta: Metadata = this.getMetadata(fd)
+    const fileMeta: UpperDirectoryMetadata = this.getMetadata(fd)
     if (fileMeta.hasOwnProperty(fieldName)) {
       const fieldVal = fileMeta[fieldName]
       if (fieldVal != null) {
@@ -2120,3 +2275,4 @@ export default class EncryptedFS {
 }
 
 
+export default EncryptedFS

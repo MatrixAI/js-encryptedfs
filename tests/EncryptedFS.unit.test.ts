@@ -3,8 +3,6 @@ import * as crypto from 'crypto'
 import fs, { Stats } from 'fs'
 import * as os from 'os'
 import process from 'process'
-import { Buffer } from 'buffer/'
-import { errno } from '../src/EncryptedFSError'
 
 // js imports
 let vfs = require('virtualfs')
@@ -715,13 +713,13 @@ describe('EncryptedFS class', () => {
       }).toThrow('EISDIR')
       expect(() => {
         efs.writeSync(dirfd, buffer)
-      }).toThrow('EBADF')
+      }).toThrow('EISDIR')
       expect(() => {
         efs.readFileSync(dirfd, {})
       }).toThrow('EISDIR')
       expect(() => {
         efs.writeFileSync(dirfd, `${tempDir}/test`)
-      }).toThrow('EBADF')
+      }).toThrow('EISDIR')
 
       efs.closeSync(dirfd)
       done()
@@ -802,7 +800,7 @@ describe('EncryptedFS class', () => {
       const readBuf = Buffer.allocUnsafe(buf.length)
       efs.read(fd, readBuf, 0, buf.length).then((bytesRead) => {
         expect(readBuf.toString().slice(0, str.length)).toEqual(str)
-        // expect(bytesRead).toEqual(Buffer.from(str).length)
+        expect(bytesRead).toEqual(Buffer.from(str).length)
         efs.closeSync(fd)
         done()
       }).catch((err) => {
@@ -821,9 +819,9 @@ describe('EncryptedFS class', () => {
       expect(bytesWritten).toEqual(11)
       efs.writeSync(fd, buf, 0, buf.length)
       efs.writeSync(fd, buf, 0, buf.length)
-      efs.writeSync(fd, str)
-      efs.writeSync(fd, str)
-      efs.writeSync(fd, str)
+      efs.writeFileSync(fd, str)
+      efs.writeFileSync(fd, str)
+      efs.writeFileSync(fd, str)
       efs.closeSync(fd)
       // expect(efs.readFileSync(`${tempDir}/test`, {encoding: 'utf-8'})).toEqual(str.repeat(7))
     })
@@ -853,18 +851,15 @@ describe('EncryptedFS class', () => {
               const readBuf = Buffer.allocUnsafe(buf.length)
               efs.readSync(fd, readBuf)
               expect(readBuf).toEqual(buf)
-              efs.write(fd, str).then((bytesWritten) => {
-                expect(bytesWritten).toEqual(buf.length)
+              efs.writeFile(fd, str).then(() => {
                 const readBuf = Buffer.allocUnsafe(buf.length)
                 efs.readSync(fd, readBuf)
                 expect(readBuf).toEqual(buf)
-                efs.write(fd, str).then((bytesWritten) => {
-                  expect(bytesWritten).toEqual(buf.length)
+                efs.writeFile(fd, str).then(() => {
                   const readBuf = Buffer.allocUnsafe(buf.length)
                   efs.readSync(fd, readBuf)
                   expect(readBuf).toEqual(buf)
-                  efs.write(fd, str).then((bytesWritten) => {
-                    expect(bytesWritten).toEqual(buf.length)
+                  efs.writeFile(fd, str).then(() => {
                     const readBuf = Buffer.allocUnsafe(buf.length)
                     efs.readSync(fd, readBuf)
                     expect(readBuf).toEqual(buf)
@@ -1800,39 +1795,10 @@ describe('EncryptedFS class', () => {
   })
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  describe('Crypto specific tests', () => {
+  //////////////////////////
+  // Open, read and write //
+  //////////////////////////
+  describe('Open, read and write tests', () => {
     test('open - sync', () => {
       const filename = `${tempDir}/test`
       efs.writeFileSync(filename, 'something interesting')
@@ -1845,7 +1811,7 @@ describe('EncryptedFS class', () => {
       const filename = `${tempDir}/test`
       efs.writeFileSync(filename, 'something interesting')
       expect.assertions(1)
-      efs.open(filename, 'r', undefined).then((fd) => {
+      efs.open(filename, 'r').then((fd) => {
         expect(typeof fd).toEqual('number')
         done()
       }).catch((err) => {
@@ -1853,31 +1819,26 @@ describe('EncryptedFS class', () => {
       })
     })
 
-    // TODO: find a way to unit test this method
     test('write - sync', () => {
       let fd = efs.openSync(`${tempDir}/test.txt`, 'w+')
       const writeBuf = new Buffer("Super confidential information")
       efs.writeSync(fd, writeBuf)
     })
 
-    // // TODO: find a way to unit test this method
-    // test('read - sync', () => {
-    // 	let fd = efs.openSync(`${tempDir}/test`, 'w')
-    // 	const dummyBuffer = Buffer.alloc(10)
-    // 	const pt = efs.readSync(fd, dummyBuffer, 0, 1, 0)
-    // })
-
-
     test('write then read - single block', () => {
       let fd = efs.openSync(`${tempDir}/test.txt`, 'w+')
 
       const writeBuffer = new Buffer("Super confidential information")
 
-      efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+      const bytesWritten = efs.writeSync(fd, writeBuffer)
+
+      expect(bytesWritten).toEqual(writeBuffer.length)
 
       let readBuffer = Buffer.alloc(writeBuffer.length)
 
-      efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0)
+      const bytesRead = efs.readSync(fd, readBuffer)
+
+      expect(bytesRead).toEqual(bytesWritten)
 
       expect(writeBuffer).toStrictEqual(readBuffer)
     })
@@ -1889,212 +1850,752 @@ describe('EncryptedFS class', () => {
 
       // Write data
       const writeBuffer = Buffer.from(crypto.randomBytes(blockSize * 3))
-      efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+      const bytesWritten = efs.writeSync(fd, writeBuffer)
+
+      expect(bytesWritten).toEqual(writeBuffer.length)
 
       // Read data back
       let readBuffer = Buffer.alloc(writeBuffer.length)
-      efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0)
+      const bytesRead = efs.readSync(fd, readBuffer)
+
+      expect(bytesRead).toEqual(bytesWritten)
 
       expect(writeBuffer).toStrictEqual(readBuffer)
     })
 
-    // test('write non-zero position - middle of start block - with text buffer', () => {
-    // 	const blockSize = 4096
+    test('write non-zero position - middle of start block - with text buffer', () => {
+    	const blockSize = 4096
 
-    // 	// Define file descriptor
-    // 	// const filename = `${tempDir}/test_middle_text.txt`
-    // 	const filename = `${tempDir}/test_middle_text.txt`
-    // 	const fd = efs.openSync(filename, 'w+')
+    	// Define file descriptor
+    	const filename = `${tempDir}/test_middle_text.txt`
+    	const fd = efs.openSync(filename, 'w+')
 
-    // 	// Write initial data
-    // 	const writeBuffer = Buffer.alloc(blockSize)
-    // 	writeBuffer.write('one two three four five six seven eight nine ten')
-    // 	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+    	// Write initial data
+      const writeBuffer = Buffer.alloc(blockSize)
 
-    // 	// write data in the middle
-    // 	const middlePosition = 240
-    // 	const middleText = ' Malcom in the middle '
-    // 	const middleData = new Buffer(middleText)
-    // 	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
+    	writeBuffer.write('one two three four five six seven eight nine ten')
+    	efs.writeSync(fd, writeBuffer)
 
-    // 	// re-read the blocks
-    // 	let readBuffer = Buffer.alloc(blockSize)
-    // 	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+    	// write data in the middle
+    	const middlePosition = 240
+    	const middleText = ' Malcom in the middle '
+    	const middleData = new Buffer(middleText)
+    	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
 
-    // 	middleData.copy(writeBuffer, middlePosition)
-    // 	const expected = writeBuffer
+    	// re-read the blocks
+    	let readBuffer = Buffer.alloc(blockSize)
+      efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
 
-    // 	expect(expected.slice(0, blockSize)).toStrictEqual(readBuffer.slice(0, blockSize))
-    // })
+    	middleData.copy(writeBuffer, middlePosition)
+    	const expected = writeBuffer
 
-    // // TODO: this should really be split out into tests only concerning writes and tests only concerning reads
-    // /* the start and end blocks are handled differently to the middle blocks
-    // * hence they all need their own tests to verify functionality */
-    // test('write non-zero position - middle of start block', () => {
-    // 	const blockSize = 4096
+    	expect(expected).toStrictEqual(readBuffer)
+    })
 
-    // 	// write a three block file
-    // 	const writeBuffer = crypto.randomBytes(blockSize * 3)
-    // 	const filename = `${tempDir}/test_middle.txt`
-    // 	const fd = efs.openSync(filename, 'w+')
-    // 	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+    test('write non-zero position - middle of start block', () => {
+    	const blockSize = 4096
 
-    // 	// write data in the middle
-    // 	const middlePosition = 2000
-    // 	const middleText = 'Malcom in the'
-    // 	const middleData = new Buffer(middleText)
-    // 	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
+    	// write a three block file
+    	const writeBuffer = crypto.randomBytes(blockSize * 3)
+    	const filename = `${tempDir}/test_middle.txt`
+    	const fd = efs.openSync(filename, 'w+')
+    	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
 
-    // 	// re-read the blocks
-    // 	let readBuffer = Buffer.alloc(blockSize * 3)
-    // 	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+    	// write data in the middle
+    	const middlePosition = 2000
+    	const middleText = 'Malcom in the'
+    	const middleData = new Buffer(middleText)
+    	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
 
-    // 	middleData.copy(writeBuffer, middlePosition)
-    // 	const expected = writeBuffer
+    	// re-read the blocks
+    	let readBuffer = Buffer.alloc(blockSize * 3)
+    	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
 
-    // 	expect(expected.slice(0, blockSize)).toStrictEqual(readBuffer.slice(0, blockSize))
-    // })
+    	middleData.copy(writeBuffer, middlePosition)
+    	const expected = writeBuffer
 
-    // test('write non-zero position - middle of middle block', () => {
-    // 	const blockSize = 4096
+    	expect(expected).toStrictEqual(readBuffer)
+    })
 
-    // 	// write a three block file
-    // 	const writeBuffer = crypto.randomBytes(blockSize * 3)
-    // 	const filename = `${tempDir}/test_middle.txt`
-    // 	let fd = efs.openSync(filename, 'w+')
-    // 	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+    test('write non-zero position - middle of middle block', () => {
+    	const blockSize = 4096
 
-    // 	// write data in the middle
-    // 	const middlePosition = blockSize + 2000
-    // 	const middleData = new Buffer('Malcom in the')
-    // 	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
+    	// write a three block file
+    	const writeBuffer = crypto.randomBytes(blockSize * 3)
+    	const filename = `${tempDir}/test_middle.txt`
+    	let fd = efs.openSync(filename, 'w+')
+    	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
 
-    // 	// re-read the blocks
-    // 	let readBuffer = Buffer.alloc(blockSize * 3)
-    // 	fd = efs.openSync(filename)
-    // 	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+    	// write data in the middle
+    	const middlePosition = blockSize + 2000
+    	const middleData = new Buffer('Malcom in the')
+    	efs.writeSync(fd, middleData, 0, middleData.length, middlePosition)
 
-    // 	middleData.copy(writeBuffer, middlePosition)
-    // 	const expected = writeBuffer
+    	// re-read the blocks
+    	let readBuffer = Buffer.alloc(blockSize * 3)
+    	fd = efs.openSync(filename)
+    	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
 
-    // 	expect(readBuffer.toString()).toEqual(expected.toString())
-    // })
+    	middleData.copy(writeBuffer, middlePosition)
+    	const expected = writeBuffer
 
-    // test('write non-zero position - middle of end block', () => {
-    // 	const blockSize = 4096
+    	expect(readBuffer).toEqual(expected)
+    })
 
-    // 	// write a three block file
-    // 	const writePos = 2 * blockSize + 2000
-    // 	const writeBuffer = crypto.randomBytes(blockSize * 3)
-    // 	const fd = efs.openSync(`${tempDir}/test_middle.txt`)
-    // 	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+    test('write non-zero position - middle of end block', () => {
+    	const blockSize = 4096
 
-    // 	// write data in the middle
-    // 	const middleData = new Buffer('Malcom in the')
-    // 	efs.writeSync(fd, middleData, 0, middleData.length, writePos)
+    	// write a three block file
+    	const writePos = 2 * blockSize + 2000
+    	const writeBuffer = crypto.randomBytes(blockSize * 3)
+    	const fd = efs.openSync(`${tempDir}/test_middle.txt`, 'w+')
+    	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
 
-    // 	// re-read the blocks
-    // 	let readBuffer = Buffer.alloc(blockSize * 3)
-    // 	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+    	// write data in the middle
+    	const middleData = new Buffer('Malcom in the')
+    	efs.writeSync(fd, middleData, 0, middleData.length, writePos)
 
-    // 	middleData.copy(writeBuffer, writePos)
-    // 	const expected = writeBuffer
+    	// re-read the blocks
+    	let readBuffer = Buffer.alloc(blockSize * 3)
+    	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+
+    	middleData.copy(writeBuffer, writePos)
+    	const expected = writeBuffer
 
 
-    // 	expect(readBuffer.toString()).toEqual(expected.toString())
-    // })
+    	expect(readBuffer).toEqual(expected)
+    })
 
-    // test('write segment spanning across two block', () => {
-    // 	const blockSize = 4096
+    test('write segment spanning across two block', () => {
+    	const blockSize = 4096
 
-    // 	// write a three block file
-    // 	const writeBuffer = crypto.randomBytes(blockSize * 3)
-    // 	const fd = efs.openSync(`${tempDir}/test_middle.txt`, 'w+')
-    // 	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+    	// write a three block file
+    	const writeBuffer = crypto.randomBytes(blockSize * 3)
+    	const fd = efs.openSync(`${tempDir}/test_middle.txt`, 'w+')
+    	efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
 
-    // 	// write data in the middle
-    // 	const writePos = 4090
-    // 	const middleData = new Buffer('Malcom in the')
-    // 	efs.writeSync(fd, middleData, 0, middleData.length, writePos)
+    	// write data in the middle
+    	const writePos = 4090
+    	const middleData = new Buffer('Malcom in the')
+    	efs.writeSync(fd, middleData, 0, middleData.length, writePos)
 
-    // 	// re-read the blocks
-    // 	let readBuffer = Buffer.alloc(blockSize * 3)
-    // 	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
+    	// re-read the blocks
+    	let readBuffer = Buffer.alloc(blockSize * 3)
+    	efs.readSync(fd, readBuffer, 0, readBuffer.length, 0)
 
-    // 	middleData.copy(writeBuffer, writePos)
-    // 	const expected = writeBuffer
+    	middleData.copy(writeBuffer, writePos)
+    	const expected = writeBuffer
 
-    // 	expect(readBuffer.toString()).toEqual(expected.toString())
-    // })
+    	expect(readBuffer).toEqual(expected)
+    })
   })
 
+  ////////////////////////
+  // Bisimulation tests //
+  ////////////////////////
+  describe('Bisimulation with nodejs fs tests', () => {
+    let efsTempDir: string
+    let fsTempDir: string
+    beforeEach(() => {
+      efsTempDir = `${tempDir}/efs`
+      fsTempDir = `${tempDir}/fs`
+      efs.mkdirSync(efsTempDir)
+      fs.mkdirSync(fsTempDir)
+    })
 
-  //   	// TODO: find a way to unit test this method
-  //   	test('performance test without web workers', () => {
-  // 		const t0 = performance.now()
+    describe('one set of read/write operations', () => {
+      describe('one set of read/write operations - 1 block', () => {
+        test('one set of read/write operations - 1 block - full block aligned', () => {
+          // case: |<---------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
 
-  // 		const blockSize = 4096
-  // 		for (let trial = 0; trial < 10000; trial++) {
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
 
-  // 			const filename = `${tempDir}/nww-test${trial}.txt`
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
 
-  // 			const randomPass = crypto.randomBytes(blockSize*3).toString('hex')
-  // 			const writeBuffer = new Buffer(randomPass)
-  // 			let fd = efs.openSync(filename, 'w+')
-  // 			efs.writeSync(fd, writeBuffer, 0, writeBuffer.length, 0)
+        test('one set of read/write operations - 1 block - left block aligned', () => {
+          // case: |<-------->--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 0, 3000, 0)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
 
-  // 			// Read from file
-  // 			fd = efs.openSync(filename, 'r')
-  // 			const readBuffer = Buffer.alloc(writeBuffer.length)
-  // 			efs.readSync(fd, readBuffer, 0, writeBuffer.length, 0)
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 0, 3000, 0)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
 
-  // 			expect(readBuffer.toString()).toEqual(writeBuffer.toString())
-  // 			expect(readBuffer.toString()).toEqual(randomPass)
-  // 		}
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
 
-  // 		const t1 = performance.now()
+        test('one set of read/write operations - 1 block - right block aligned', () => {
+          // case: |--<-------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 3096, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 3096, 1000)
 
-  // 		console.log("Without webworkers, 1000 runs took " + (t1 - t0)/1000. + " seconds.")
-  // 	})
-  // 	// TODO: find a way to unit test this method
-  // 	test('performance test with web workers', async (done) => {
-  // 		const t0 = performance.now()
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 3096, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 3096, 1000)
 
-  // 		const blockSize = 4096
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
 
-  // 		let trialCount = 0
+        test('one set of read/write operations - 1 block - not block aligned', () => {
+          // case: |--<------>--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 2000, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 2000, 1000)
 
-  // 		for (let trial = 0; trial < 10; trial++) {
-  // 			(async () => {
-  // 				const filename = `${tempDir}/ww-test${trial}.txt`
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 2000, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 2000, 1000)
 
-  // 				const randomPass = crypto.randomBytes(blockSize*3).toString('hex')
-  // 				const writeBuffer = new Buffer(randomPass)
-  // 				let fd = efs.openSync(filename, 'w+')
-  // 				await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0)
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+      describe('one set of read/write operations - 2 block', () => {
+        test('one set of read/write operations - 2 block - full block aligned', () => {
+          // case: |<---------->|<---------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
 
-  // 				// Read from file
-  // 				fd = efs.openSync(filename, 'r')
-  // 				const readBuffer = Buffer.alloc(writeBuffer.length)
-  // 				await efs.read(fd, readBuffer, 0, writeBuffer.length, 0, () => {})
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
 
-  // 				// expect(readBuffer.toString()).toEqual(writeBuffer.toString())
-  // 				// expect(readBuffer.toString()).toEqual(randomPass)
-  // 				console.log(`Im encrypting document ${filename}`);
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
 
-  // 				trialCount++
-  // 			})()
-  // 		}
+        test('one set of read/write operations - 2 block - left block aligned', () => {
+          // case: |<---------->|<-------->--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 0, 6000, 0)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
 
-  // 		for (let trial = 0; trial < 10; trial++) {
-  // 			console.log('Im updating the UI');
-  // 			await new Promise(r => setTimeout(r, 10))
-  // 		}
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 0, 6000, 0)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
 
-  // 		const t1 = performance.now()
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
 
+        test('one set of read/write operations - 2 block - right block aligned', () => {
+          // case: |--<-------->|<---------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 2*blockSize-1000, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 2*blockSize-1000, 1000)
 
-  // 		console.log("With webworkers, 1000 runs took " + (t1 - t0)/1000. + " seconds.")
-  // 		done()
-  //   })
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 2*blockSize-1000, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 2*blockSize-1000, 1000)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('one set of read/write operations - 2 block - not block aligned', () => {
+          // case: |--<-------->|<-------->--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 6000, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 6000, 1000)
+
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 6000, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 6000, 1000)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+      describe('one set of read/write operations - 3 block', () => {
+        test('one set of read/write operations - 3 block - full block aligned', () => {
+          // case: |<---------->|<---------->|<---------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('one set of read/write operations - 3 block - left block aligned', () => {
+          // case: |<---------->|<---------->|<-------->--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 0, 2*blockSize+1000, 0)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 0, 2*blockSize+1000, 0)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('one set of read/write operations - 3 block - right block aligned', () => {
+          // case: |--<-------->|<---------->|<---------->|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 3*blockSize-1000, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 3*blockSize-1000, 1000)
+
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 3*blockSize-1000, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 3*blockSize-1000, 1000)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('one set of read/write operations - 3 block - not block aligned', () => {
+          // case: |--<-------->|<---------->|<-------->--|
+          const blockSize = 4096
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          // efs
+          const efsFilename = `${efsTempDir}/file`
+          const efsFd = efs.openSync(efsFilename, 'w+')
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, 1000, 2*blockSize+1000, 1000)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 1000, 2*blockSize+1000, 1000)
+
+          // fs
+          const fsFilename = `${fsTempDir}/file`
+          const fsFd = fs.openSync(fsFilename, 'w+')
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, 1000, 2*blockSize+1000, 1000)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 1000, 2*blockSize+1000, 1000)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+    })
+
+    describe('read/write operations on existing 3 block file', () => {
+      let efsFd: number
+      let fsFd: number
+      const blockSize = 20
+
+      beforeEach(() => {
+        // Write 3 block file
+        // case: |<---------->|<---------->|<---------->|
+        const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+        // efs
+        const efsFilename = `${efsTempDir}/file`
+        efsFd = efs.openSync(efsFilename, 'w+')
+        efs.writeSync(efsFd, firstWriteBuffer)
+
+        // fs
+        const fsFilename = `${fsTempDir}/file`
+        fsFd = fs.openSync(fsFilename, 'w+')
+        fs.writeSync(fsFd, firstWriteBuffer)
+      })
+
+      describe('read/write operations on existing 3 block file - one set of read/write operations - 1 block', () => {
+        test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - full block aligned', () => {
+          // case: |<---------->|<==========>|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          const offset = 0
+          const length = blockSize
+          const position = 0
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - left block aligned', () => {
+          // case: |<-------->==|<==========>|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          const offset = 0
+          const length = Math.ceil(blockSize*0.8)
+          const position = 0
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - right block aligned', () => {
+          // case: |==<-------->|<==========>|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = blockSize - offset
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - not block aligned', () => {
+          // case: |==<------>==|<==========>|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = Math.ceil(blockSize*0.6)
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+      describe('read/write operations on existing 3 block file - one set of read/write operations - 2 block', () => {
+        test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - full block aligned', () => {
+          // case: |<---------->|<---------->|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          const offset = 0
+          const length = 2*blockSize
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - left block aligned', () => {
+          // case: |<---------->|<-------->==|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          const offset = 0
+          const length = blockSize + Math.ceil(blockSize*0.8)
+          const position = 0
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, efsFirstReadBuffer.length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, fsFirstReadBuffer.length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - right block aligned', () => {
+          // case: |==<-------->|<---------->|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = 2*blockSize - offset
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - not block aligned', () => {
+          // case: |==<-------->|<-------->==|<==========>|
+          const firstWriteBuffer = crypto.randomBytes(2*blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = 2*(blockSize-offset)
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(2*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+      describe('read/write operations on existing 3 block file - one set of read/write operations - 3 block', () => {
+        test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - full block aligned', () => {
+          // case: |<---------->|<---------->|<---------->|
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          const offset = 0
+          const length = 3*blockSize
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - left block aligned', () => {
+          // case: |<---------->|<---------->|<-------->==|
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          const offset = 0
+          const length = 3*blockSize - Math.ceil(blockSize*0.2)
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, 0, efsFirstReadBuffer.length, 0)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - right block aligned', () => {
+          // case: |==<-------->|<---------->|<---------->|
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = 3*blockSize - offset
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+
+        test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - not block aligned', () => {
+          // case: |==<-------->|<---------->|<-------->==|
+          const firstWriteBuffer = crypto.randomBytes(3*blockSize)
+          const offset = Math.ceil(blockSize*0.2)
+          const length = 3*blockSize - 2*offset
+          const position = offset
+          // efs
+          const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer, offset, length, position)
+          const efsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position)
+
+          // fs
+          const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer, offset, length, position)
+          const fsFirstReadBuffer = Buffer.alloc(3*blockSize)
+          fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position)
+
+          // Comparison
+          expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten)
+          expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+        })
+      })
+    })
+
+    describe('readFile/writeFile operations', () => {
+      const blockSize = 4096
+
+      test('readFile/writeFile operations - under block size', () => {
+        const firstWriteBuffer = crypto.randomBytes(Math.ceil(blockSize*Math.random()))
+        // efs
+        const efsFilename = `${efsTempDir}/file`
+        efs.writeFileSync(efsFilename, firstWriteBuffer)
+        const efsFirstReadBuffer = efs.readFileSync(efsFilename)
+
+        // fs
+        const fsFilename = `${fsTempDir}/file`
+        fs.writeFileSync(fsFilename, firstWriteBuffer)
+        const fsFirstReadBuffer = fs.readFileSync(fsFilename)
+
+        // Comparison
+        expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+      })
+
+      test('readFile/writeFile operations - over block size', () => {
+        const firstWriteBuffer = crypto.randomBytes(Math.ceil(blockSize + blockSize*Math.random()))
+        // efs
+        const efsFilename = `${efsTempDir}/file`
+        efs.writeFileSync(efsFilename, firstWriteBuffer)
+        const efsFirstReadBuffer = efs.readFileSync(efsFilename)
+
+        // fs
+        const fsFilename = `${fsTempDir}/file`
+        fs.writeFileSync(fsFilename, firstWriteBuffer)
+        const fsFirstReadBuffer = fs.readFileSync(fsFilename)
+
+        // Comparison
+        expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer)
+      })
+    })
+  })
 })
