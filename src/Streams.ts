@@ -1,35 +1,34 @@
-import { Readable, Writable } from 'readable-stream'
-import EncryptedFS from './EncryptedFS'
-import { DEFAULT_FILE_PERM } from './constants'
+import { Readable, Writable } from 'readable-stream';
+import EncryptedFS from './EncryptedFS';
+import { DEFAULT_FILE_PERM } from './constants';
 
 type optionsStream = {
-  highWaterMark?: number,
-  flags?: string,
-  encoding?: BufferEncoding,
-  fd?: number | null,
-  mode?: number,
-  autoClose?: boolean,
-  start?: number,
-  end?: number
-}
+  highWaterMark?: number;
+  flags?: string;
+  encoding?: BufferEncoding;
+  fd?: number | null;
+  mode?: number;
+  autoClose?: boolean;
+  start?: number;
+  end?: number;
+};
 
 /**
  * Class representing a ReadStream.
  * @extends Readable
  */
 class ReadStream extends Readable {
-
-  private efs: EncryptedFS
-  bytesRead: number
-  path: string
-  fd: number | null | undefined
-  flags: string
-  mode: number | undefined
-  autoClose: boolean
-  start: number | undefined
-  end: number
-  pos: number
-  closed: boolean
+  private efs: EncryptedFS;
+  bytesRead: number;
+  path: string;
+  fd: number | null | undefined;
+  flags: string;
+  mode: number | undefined;
+  autoClose: boolean;
+  start: number | undefined;
+  end: number;
+  pos: number;
+  closed: boolean;
 
   /**
    * Creates ReadStream.
@@ -39,26 +38,26 @@ class ReadStream extends Readable {
   constructor(path: string, options: optionsStream, fileSystem: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
-      encoding: options.encoding
-    })
-    this.efs = fileSystem
-    this.bytesRead = 0
-    this.path = path
-    this.fd = (options.fd === undefined) ? null : options.fd
-    this.flags = (options.flags === undefined) ? 'r' : options.flags
-    this.mode = (options.mode === undefined) ? DEFAULT_FILE_PERM : options.mode
-    this.autoClose = (options.autoClose === undefined) ? true : options.autoClose
-    this.start = options.start
-    this.end = (options.end === undefined) ? Infinity : options.end
-    this.pos = options.start ?? 0
+      encoding: options.encoding,
+    });
+    this.efs = fileSystem;
+    this.bytesRead = 0;
+    this.path = path;
+    this.fd = options.fd === undefined ? null : options.fd;
+    this.flags = options.flags === undefined ? 'r' : options.flags;
+    this.mode = options.mode === undefined ? DEFAULT_FILE_PERM : options.mode;
+    this.autoClose = options.autoClose === undefined ? true : options.autoClose;
+    this.start = options.start;
+    this.end = options.end === undefined ? Infinity : options.end;
+    this.pos = options.start ?? 0;
     if (typeof this.fd !== 'number') {
-      this._open()
+      this._open();
     }
     super.on('end', () => {
       if (this.autoClose) {
-        this.destroy()
+        this.destroy();
       }
-    })
+    });
   }
 
   /**
@@ -66,17 +65,20 @@ class ReadStream extends Readable {
    * @private
    */
   _open() {
-    this.efs.open(this.path, this.flags, this.mode).then((fd) => {
-      this.fd = fd;
-      super.emit('open', fd);
-      super.read();
-    }).catch((err) => {
-      if (this.autoClose) {
-        this.destroy()
-      }
-      super.emit('error', err)
-      return
-    });
+    this.efs
+      .open(this.path, this.flags, this.mode)
+      .then((fd) => {
+        this.fd = fd;
+        super.emit('open', fd);
+        super.read();
+      })
+      .catch((err) => {
+        if (this.autoClose) {
+          this.destroy();
+        }
+        super.emit('error', err);
+        return;
+      });
   }
 
   /**
@@ -89,45 +91,41 @@ class ReadStream extends Readable {
   _read(size: number) {
     if (typeof this.fd !== 'number') {
       super.once('open', () => {
-        this._read(size)
-      })
-      return
+        this._read(size);
+      });
+      return;
     }
     if (this.destroyed) {
-      return
+      return;
     }
     // this.pos is only ever used if this.start is specified
     if (this.pos != null && this.end !== Infinity) {
-      size = Math.min(this.end - this.pos + 1, size)
+      size = Math.min(this.end - this.pos + 1, size);
     }
     if (size <= 0) {
-      this.push(null)
-      return
+      this.push(null);
+      return;
     }
 
-    const buffer = Buffer.allocUnsafe(size)
-    this.efs.read(
-      this.fd,
-      buffer,
-      0,
-      size,
-      this.pos
-    ).then((bytesRead) => {
+    const buffer = Buffer.allocUnsafe(size);
+    this.efs
+      .read(this.fd, buffer, 0, size, this.pos)
+      .then((bytesRead) => {
         if (bytesRead! > 0) {
-          this.bytesRead += bytesRead!
-          this.push(buffer!.slice(0, bytesRead))
+          this.bytesRead += bytesRead!;
+          this.push(buffer!.slice(0, bytesRead));
         } else {
-          this.push(null)
+          this.push(null);
         }
-      }
-    ).catch((err) => {
-      if (this.autoClose) {
-        this.destroy()
-      }
-      super.emit('error', err)
-    })
+      })
+      .catch((err) => {
+        if (this.autoClose) {
+          this.destroy();
+        }
+        super.emit('error', err);
+      });
     if (this.pos != null) {
-      this.pos += size
+      this.pos += size;
     }
   }
 
@@ -137,8 +135,8 @@ class ReadStream extends Readable {
    */
   _destroy(e: Error, cb: Function) {
     this._close((e_) => {
-      cb(e || e_)
-    })
+      cb(e || e_);
+    });
   }
 
   /**
@@ -147,26 +145,28 @@ class ReadStream extends Readable {
    */
   _close(cb: any) {
     if (cb) {
-      super.once('close', cb)
+      super.once('close', cb);
     }
     if (typeof this.fd !== 'number') {
       super.once('open', () => {
-        this._close(null)
-      })
-      return
+        this._close(null);
+      });
+      return;
     }
     if (this.closed) {
-      return new Promise(() => super.emit('close'))
+      return new Promise(() => super.emit('close'));
     }
-    this.closed = true
-    this.efs.close(this.fd).then(() => {
-      this.emit('close')
-    }).catch((err) => {
-      this.emit('error', err)
-    })
-    this.fd = null
+    this.closed = true;
+    this.efs
+      .close(this.fd)
+      .then(() => {
+        this.emit('close');
+      })
+      .catch((err) => {
+        this.emit('error', err);
+      });
+    this.fd = null;
   }
-
 }
 
 /**
@@ -174,45 +174,44 @@ class ReadStream extends Readable {
  * @extends Writable
  */
 class WriteStream extends Writable {
-
-  private efs: EncryptedFS
-  bytesWritten: number
-  path: string
-  fd: number | null | undefined
-  flags: string
-  mode: number | undefined
-  autoClose: boolean
-  start: number | undefined
-  pos: number | undefined
-  closed: boolean | undefined
+  private efs: EncryptedFS;
+  bytesWritten: number;
+  path: string;
+  fd: number | null | undefined;
+  flags: string;
+  mode: number | undefined;
+  autoClose: boolean;
+  start: number | undefined;
+  pos: number | undefined;
+  closed: boolean | undefined;
 
   /**
    * Creates WriteStream.
    */
   constructor(path: string, options: optionsStream, fs: EncryptedFS) {
     super({
-      highWaterMark: options.highWaterMark
-    })
-    this.efs = fs
-    this.bytesWritten = 0
-    this.path = path
-    this.fd = options.fd === undefined ? null : options.fd
-    this.flags = options.flags === undefined ? 'w' : options.flags
-    this.mode = options.mode === undefined ? DEFAULT_FILE_PERM : options.mode
-    this.autoClose = options.autoClose === undefined ? true : options.autoClose
-    this.start = options.start ?? 0
-    this.pos = this.start // WriteStream maintains its own position
+      highWaterMark: options.highWaterMark,
+    });
+    this.efs = fs;
+    this.bytesWritten = 0;
+    this.path = path;
+    this.fd = options.fd === undefined ? null : options.fd;
+    this.flags = options.flags === undefined ? 'w' : options.flags;
+    this.mode = options.mode === undefined ? DEFAULT_FILE_PERM : options.mode;
+    this.autoClose = options.autoClose === undefined ? true : options.autoClose;
+    this.start = options.start ?? 0;
+    this.pos = this.start; // WriteStream maintains its own position
     if (options.encoding) {
-      super.setDefaultEncoding(options.encoding)
+      super.setDefaultEncoding(options.encoding);
     }
     if (typeof this.fd !== 'number') {
-      this._open()
+      this._open();
     }
     super.on('finish', () => {
       if (this.autoClose) {
-        this.destroy()
+        this.destroy();
       }
-    })
+    });
   }
 
   /**
@@ -220,17 +219,20 @@ class WriteStream extends Writable {
    * @private
    */
   _open() {
-    this.efs.open(this.path, this.flags, this.mode).then((fd) => {
-      this.fd = fd;
-      super.emit('open', fd);
-      // super.read();
-    }).catch((err) => {
-      if (this.autoClose) {
-        this.destroy();
-      };
-      super.emit('error', err);
-      return;
-    });
+    this.efs
+      .open(this.path, this.flags, this.mode)
+      .then((fd) => {
+        this.fd = fd;
+        super.emit('open', fd);
+        // super.read();
+      })
+      .catch((err) => {
+        if (this.autoClose) {
+          this.destroy();
+        }
+        super.emit('error', err);
+        return;
+      });
   }
 
   /**
@@ -241,26 +243,29 @@ class WriteStream extends Writable {
   _write(data: Buffer | string, encoding: string | undefined, cb: Function) {
     if (typeof this.fd !== 'number') {
       return super.once('open', () => {
-        this._write(data, encoding, cb)
-      })
+        this._write(data, encoding, cb);
+      });
     }
-    let internalData: Buffer
+    let internalData: Buffer;
     if (typeof data === 'string') {
-      internalData = Buffer.from(data)
+      internalData = Buffer.from(data);
     } else {
-      internalData = data
+      internalData = data;
     }
-    this.efs.write(this.fd, internalData, 0, data.length, this.pos).then((bytesWritten) => {
-      this.bytesWritten += bytesWritten
-      cb()
-    }).catch((err) => {
-      if (this.autoClose) {
-        this.destroy()
-      }
-      cb(err)
-    })
+    this.efs
+      .write(this.fd, internalData, 0, data.length, this.pos)
+      .then((bytesWritten) => {
+        this.bytesWritten += bytesWritten;
+        cb();
+      })
+      .catch((err) => {
+        if (this.autoClose) {
+          this.destroy();
+        }
+        cb(err);
+      });
     if (this.pos !== undefined) {
-      this.pos += data.length
+      this.pos += data.length;
     }
   }
 
@@ -269,12 +274,8 @@ class WriteStream extends Writable {
    * @private
    */
   _writev(chunks: Array<{ chunk: Buffer }>, cb: Function) {
-    this._write(
-      Buffer.concat(chunks.map((chunk) => chunk.chunk)),
-      undefined,
-      cb
-    )
-    return
+    this._write(Buffer.concat(chunks.map((chunk) => chunk.chunk)), undefined, cb);
+    return;
   }
 
   /**
@@ -283,8 +284,8 @@ class WriteStream extends Writable {
    */
   _destroy(e: Error, cb: Function) {
     this._close((e_) => {
-      cb(e || e_)
-    })
+      cb(e || e_);
+    });
   }
 
   /**
@@ -293,24 +294,27 @@ class WriteStream extends Writable {
    */
   _close(cb: any) {
     if (cb) {
-      super.once('close', cb)
+      super.once('close', cb);
     }
     if (typeof this.fd !== 'number') {
       super.once('open', () => {
-        this._close(null)
-      })
-      return
+        this._close(null);
+      });
+      return;
     }
     if (this.closed) {
-      return new Promise(() => super.emit('close'))
+      return new Promise(() => super.emit('close'));
     }
-    this.closed = true
-    this.efs.close(this.fd).then(() => {
-      this.emit('close')
-    }).catch((err) => {
-      this.emit('error', err)
-    })
-    this.fd = null
+    this.closed = true;
+    this.efs
+      .close(this.fd)
+      .then(() => {
+        this.emit('close');
+      })
+      .catch((err) => {
+        this.emit('error', err);
+      });
+    this.fd = null;
   }
 
   /**
@@ -318,9 +322,9 @@ class WriteStream extends Writable {
    * @private
    */
   _final(cb: Function) {
-    cb()
-    return
+    cb();
+    return;
   }
 }
 
-export { optionsStream, ReadStream, WriteStream }
+export { optionsStream, ReadStream, WriteStream };

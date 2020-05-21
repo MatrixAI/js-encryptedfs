@@ -2,14 +2,10 @@ class FileDescriptor {
   private _lowerFd: number;
   private _upperFd: number;
   private _flags: string;
-  constructor(
-    lowerFd: number,
-    upperFd: number,
-    flags: string
-  ) {
+  constructor(lowerFd: number, upperFd: number, flags: string) {
     this._lowerFd = lowerFd;
     this._upperFd = upperFd;
-    this._flags = flags
+    this._flags = flags;
   }
 
   getUpperFd(): number {
@@ -25,4 +21,4 @@ class FileDescriptor {
   }
 }
 
-export default FileDescriptor
+export default FileDescriptor;

@@ -43,19 +43,13 @@ const constants = Object.freeze({
   SEEK_CUR: 1,
   SEEK_END: 2,
   MAP_SHARED: 1,
-  MAP_PRIVATE: 2
-})
+  MAP_PRIVATE: 2,
+});
 
 /**
  * Default file permissions of `rw-rw-rw-`.
  */
-const DEFAULT_FILE_PERM = (
-  constants.S_IRUSR |
-  constants.S_IWUSR |
-  constants.S_IRGRP |
-  constants.S_IWGRP |
-  constants.S_IROTH |
-  constants.S_IWOTH
-)
+const DEFAULT_FILE_PERM =
+  constants.S_IRUSR | constants.S_IWUSR | constants.S_IRGRP | constants.S_IWGRP | constants.S_IROTH | constants.S_IWOTH;
 
-export { constants, DEFAULT_FILE_PERM }
+export { constants, DEFAULT_FILE_PERM };
