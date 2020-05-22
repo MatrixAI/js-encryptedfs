@@ -71,7 +71,15 @@
 				<a href="#chunks" id="chunks" style="color: inherit; text-decoration: none;">
 					<h2>Chunks</h2>
 				</a>
-				<p>Chunks consist of a an acutal data &#39;block&#39; with the IV preceding it</p>
+				<p>Chunks consist of a an acutal data &#39;block&#39; that is encrypted. It is also prepended with the salt, initialization vector and authorisation tag used to encrypt the data.</p>
+				<p>Below is a diagram showing the layout of the encrypted chunks.</p>
+				<pre style="white-space:pre !important; overflow-x:scroll !important">
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+||      ||                       ||                   ||                        ||
+|| Salt || Initialization Vector || Authorisation Tag || Encrypted Block ... -> ||
+||      ||                       ||                   ||                        ||
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+</pre>
 				<a href="#blocks" id="blocks" style="color: inherit; text-decoration: none;">
 					<h2>Blocks</h2>
 				</a>
@@ -90,13 +98,18 @@
 					<h2>Segments</h2>
 				</a>
 				<p>Some amount of data equal or smaller than a block.</p>
+				<a href="#encryption-scheme" id="encryption-scheme" style="color: inherit; text-decoration: none;">
+					<h2>Encryption scheme</h2>
+				</a>
+				<p>EFS uses AES-GCM symmetric encryption, which requires the derivation of a symmetric encryption key using <code>pbkdf</code> and a randomly generated salt and init vector. Sizes for these parameters follow NIST recommendations: <a href="https://csrc.nist.gov/publications/detail/sp/800-38d/final">https://csrc.nist.gov/publications/detail/sp/800-38d/final</a>.</p>
+				<p>An authorisation tag based on chunk encryption is stored along side the salt and init vector. This provides a basic chunk level integrity gurantee that can be verified upon decryption in accordance with the AES-GCM algorithm.</p>
 				<a href="#functionality" id="functionality" style="color: inherit; text-decoration: none;">
 					<h2>Functionality</h2>
 				</a>
 				<ul>
-					<li>Keys are never decrypted on disk</li>
-					<li>Uses Asymmetric and Symmetric Encryption</li>
-					<li>Allows choice of algorithm for encryption/decryption</li>
+					<li>Keys are never decrypted on disk, they are in fact decrypted in an in-memory file system</li>
+					<li>Uses Symmetric Encryption</li>
+					<li>Encryption keys are transparent to the user</li>
 				</ul>
 				<a href="#getting-started" id="getting-started" style="color: inherit; text-decoration: none;">
 					<h1>Getting Started</h1>
@@ -139,13 +152,13 @@
 						<a href="globals.html"><em>Globals</em></a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/_crypto_.html">&quot;<wbr>Crypto&quot;</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/_cryptoworker_.html">&quot;<wbr>Crypto<wbr>Worker&quot;</a>
-					</li>
-					<li class=" tsd-kind-module">
 						<a href="modules/_encryptedfs_.html">&quot;<wbr>EncryptedFS&quot;</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/_encryptedfscrypto_.html">&quot;<wbr>EncryptedFSCrypto&quot;</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/_encryptedfscryptoworker_.html">&quot;<wbr>EncryptedFSCrypto<wbr>Worker&quot;</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/_encryptedfserror_.html">&quot;<wbr>EncryptedFSError&quot;</a>
@@ -162,6 +175,9 @@
 					<li class=" tsd-kind-module">
 						<a href="modules/_index_.html">&quot;index&quot;</a>
 					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/_util_.html">&quot;util&quot;</a>
+					</li>
 				</ul>
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
@@ -176,9 +192,13 @@
 		<h2>Legend</h2>
 		<div class="tsd-legend-group">
 			<ul class="tsd-legend">
+				<li class="tsd-kind-object-literal"><span class="tsd-kind-icon">Object literal</span></li>
 				<li class="tsd-kind-variable"><span class="tsd-kind-icon">Variable</span></li>
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>

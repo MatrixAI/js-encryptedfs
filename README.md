@@ -4,11 +4,14 @@ This library provides an Encrypted File System (EFS)
 Chunks consist of a an acutal data 'block' that is encrypted. It is also prepended with the salt, initialization vector and authorisation tag used to encrypt the data.
 
 Below is a diagram showing the layout of the encrypted chunks.
+<pre style="white-space:pre !important; overflow-x:scroll !important">
 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 ||      ||                       ||                   ||                        ||
 || Salt || Initialization Vector || Authorisation Tag || Encrypted Block ... -> ||
 ||      ||                       ||                   ||                        ||
 ||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+</pre>
+
 ## Blocks
 This is a constant sized amount (optionally user-specified) of business data.
 A large file is split into several block of *block_size* (generall 4k).

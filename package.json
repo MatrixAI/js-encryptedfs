@@ -21,7 +21,7 @@
   "scripts": {
     "develop": "webpack --mode=development --watch & webpack-dev-server --mode=development & wait",
     "build": "webpack --mode='production'",
-    "prepublish": "tsc",
+    "prepublish": "tsc; typedoc --out docs src; webpack --mode='production'",
     "lint": "eslint '{src,tests}/**/*.{js,ts}' --quiet --fix",
     "test": "jest",
     "dos2unix": "dos2unix dist/*",

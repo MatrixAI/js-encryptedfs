@@ -1,0 +1,52 @@
+declare const constants: Readonly<{
+    O_RDONLY: number;
+    O_WRONLY: number;
+    O_RDWR: number;
+    O_ACCMODE: number;
+    S_IFMT: number;
+    S_IFREG: number;
+    S_IFDIR: number;
+    S_IFCHR: number;
+    S_IFBLK: number;
+    S_IFIFO: number;
+    S_IFLNK: number;
+    S_IFSOCK: number;
+    O_CREAT: number;
+    O_EXCL: number;
+    O_NOCTTY: number;
+    O_TRUNC: number;
+    O_APPEND: number;
+    O_DIRECTORY: number;
+    O_NOATIME: number;
+    O_NOFOLLOW: number;
+    O_SYNC: number;
+    O_DIRECT: number;
+    O_NONBLOCK: number;
+    S_IRWXU: number;
+    S_IRUSR: number;
+    S_IWUSR: number;
+    S_IXUSR: number;
+    S_IRWXG: number;
+    S_IRGRP: number;
+    S_IWGRP: number;
+    S_IXGRP: number;
+    S_IRWXO: number;
+    S_IROTH: number;
+    S_IWOTH: number;
+    S_IXOTH: number;
+    F_OK: number;
+    R_OK: number;
+    W_OK: number;
+    X_OK: number;
+    COPYFILE_EXCL: number;
+    SEEK_SET: number;
+    SEEK_CUR: number;
+    SEEK_END: number;
+    MAP_SHARED: number;
+    MAP_PRIVATE: number;
+}>;
+/**
+ * Default file permissions of `rw-rw-rw-`.
+ */
+declare const DEFAULT_FILE_PERM: number;
+export { constants, DEFAULT_FILE_PERM };
