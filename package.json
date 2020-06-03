@@ -1,5 +1,5 @@
 {
-  "name": "js-encryptedfs",
+  "name": "encryptedfs",
   "version": "0.1.0",
   "author": "Roger Qiu",
   "description": "Encrypted filesystem written in TypeScript for Node.js",
