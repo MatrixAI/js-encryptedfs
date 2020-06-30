@@ -13,4 +13,9 @@ function initializeWorkerPool(numWorkers: number = 8): Pool<ModuleThread<Encrypt
   return Pool(() => spawn<EncryptedFSCryptoWorker>(new Worker('./EncryptedFSCryptoWorker.ts')), numWorkers);
 }
 
-export { cryptoConstants, initializeWorkerPool };
+type UpperDirectoryMetadata = {
+  size: number;
+  keyHash: Buffer;
+};
+
+export { cryptoConstants, initializeWorkerPool, UpperDirectoryMetadata };
