@@ -2027,4 +2027,4 @@ class EncryptedFSPromises {
   }
 }
 
-export default EncryptedFS;
+export default EncryptedFSPromises;

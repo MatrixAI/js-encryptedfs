@@ -12,17 +12,8 @@ const EncryptedFSError_1 = require("@encryptedfs/EncryptedFSError");
 const util_2 = require("@encryptedfs/util");
 const Streams_1 = require("@encryptedfs/Streams");
 const EncryptedFSCrypto_1 = require("@encryptedfs/EncryptedFSCrypto");
-/* TODO: we need to maintain seperate permission for the lower directory vs the upper director
- * For example: if you open a file as write-only, how will you merge the block on the ct file?
- * First you need to read, overlay, then write. But we can read, since the file is write-only.
- * So the lower dir file always needs to be read-write, the upper dir file permission will be
- * whatever the user specified.
- *
- * One way to implement this is through inheriting the FileDeescriptors class.
- * Extend the class by adding another attribute for the
- */
 /**
- * Encrypted filesystem written in TypeScript for Node.js.
+ * Promise based encrypted filesystem written in TypeScript for Node.js.
  * @param key A key.
  * @param upperDir The upper directory file system.
  * @param lowerDir The lower directory file system.
@@ -30,7 +21,7 @@ const EncryptedFSCrypto_1 = require("@encryptedfs/EncryptedFSCrypto");
  * @param blockSize The size of block, defaults to 4096.
  * @param useWebWorkers Use webworkers to make crypto tasks true async, defaults to false.
  */
-class EncryptedFS {
+class EncryptedFSPromises {
     constructor(key, upperDir, upperDirContextControl, lowerDir, lowerDirContextControl, umask = 0o022, blockSize = 4096, useWebWorkers = false, cryptoLib = undefined, workerPool) {
         this.umask = umask;
         // Set key
@@ -1843,4 +1834,4 @@ class EncryptedFS {
     }
 }
 exports.default = EncryptedFS;
-//# sourceMappingURL=EncryptedFS.js.map
+//# sourceMappingURL=EncryptedFSPromises.js.map

@@ -10,6 +10,7 @@ import { cryptoConstants, UpperDirectoryMetadata } from '@encryptedfs/util';
 import { optionsStream, ReadStream, WriteStream } from '@encryptedfs/Streams';
 import { EncryptedFSCryptoWorker } from '@encryptedfs/EncryptedFSCryptoWorker';
 import { EncryptedFSCrypto, CryptoInterface } from '@encryptedfs/EncryptedFSCrypto';
+import EncryptedFSPromises from './promises/EncryptedFSPromises';
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -32,6 +33,8 @@ import { EncryptedFSCrypto, CryptoInterface } from '@encryptedfs/EncryptedFSCryp
  * @param useWebWorkers Use webworkers to make crypto tasks true async, defaults to false.
  */
 class EncryptedFS {
+  promises: EncryptedFSPromises
+
   private uid: number;
   private gid: number;
   private umask: number;
@@ -58,6 +61,19 @@ class EncryptedFS {
     cryptoLib: CryptoInterface | undefined = undefined,
     workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>,
   ) {
+    this.promises = new EncryptedFSPromises(
+      key,
+      upperDir,
+      upperDirContextControl,
+      lowerDir,
+      lowerDirContextControl,
+      umask,
+      blockSize,
+      useWebWorkers,
+      cryptoLib,
+      workerPool
+    )
+
     this.umask = umask;
     // Set key
     if (typeof key === 'string') {

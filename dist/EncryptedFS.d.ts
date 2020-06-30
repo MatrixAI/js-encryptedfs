@@ -1,9 +1,9 @@
 /// <reference types="node" />
 import fs from 'fs';
-import { CryptoInterface } from './EncryptedFSCrypto';
-import { optionsStream, ReadStream, WriteStream } from './Streams';
-import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
 import { ModuleThread, Pool } from 'threads';
+import { optionsStream, ReadStream, WriteStream } from '@encryptedfs/Streams';
+import { EncryptedFSCryptoWorker } from '@encryptedfs/EncryptedFSCryptoWorker';
+import { CryptoInterface } from '@encryptedfs/EncryptedFSCrypto';
 /**
  * Encrypted filesystem written in TypeScript for Node.js.
  * @param key A key.
