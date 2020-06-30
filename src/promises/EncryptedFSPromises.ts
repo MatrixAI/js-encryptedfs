@@ -143,7 +143,7 @@ class EncryptedFSPromises {
    */
   async lstat(path: fs.PathLike): Promise<fs.Stats> {
     try {
-      return await promisify(this.upperDir.lstatSync)(path);
+      return await promisify(this.lowerDir.lstat)(path);
     } catch (err) {
       throw err;
     }
@@ -155,7 +155,7 @@ class EncryptedFSPromises {
    * @returns void.
    */
   lstatSync(path: fs.PathLike): fs.Stats {
-    return this.upperDir.lstatSync(path);
+    return this.lowerDir.lstatSync(path);
   }
 
   /**
