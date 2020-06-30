@@ -1,5 +1,4 @@
 const path = require('path');
-const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const ThreadsPlugin = require('threads-plugin');
 const nodeExternals = require('webpack-node-externals');
 
@@ -14,8 +13,7 @@ module.exports = {
   },
   devtool: "source-map",
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
-    plugins: [new TsconfigPathsPlugin()]
+    extensions: ['.tsx', '.ts', '.js']
   },
   node: {
     fs: 'empty'

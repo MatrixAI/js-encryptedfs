@@ -1,5 +1,5 @@
-import { Readable, Writable } from 'readable-stream';
 import EncryptedFS from './EncryptedFS';
+import { Readable, Writable } from 'readable-stream';
 import { DEFAULT_FILE_PERM } from './constants';
 
 type optionsStream = {
@@ -65,7 +65,7 @@ class ReadStream extends Readable {
    * @private
    */
   _open() {
-    this.efs
+    this.efs.promises
       .open(this.path, this.flags, this.mode)
       .then((fd) => {
         this.fd = fd;
@@ -108,7 +108,7 @@ class ReadStream extends Readable {
     }
 
     const buffer = Buffer.allocUnsafe(size);
-    this.efs
+    this.efs.promises
       .read(this.fd, buffer, 0, size, this.pos)
       .then((bytesRead) => {
         if (bytesRead! > 0) {
@@ -157,7 +157,7 @@ class ReadStream extends Readable {
       return new Promise(() => super.emit('close'));
     }
     this.closed = true;
-    this.efs
+    this.efs.promises
       .close(this.fd)
       .then(() => {
         this.emit('close');
@@ -219,7 +219,7 @@ class WriteStream extends Writable {
    * @private
    */
   _open() {
-    this.efs
+    this.efs.promises
       .open(this.path, this.flags, this.mode)
       .then((fd) => {
         this.fd = fd;
@@ -252,7 +252,7 @@ class WriteStream extends Writable {
     } else {
       internalData = data;
     }
-    this.efs
+    this.efs.promises
       .write(this.fd, internalData, 0, data.length, this.pos)
       .then((bytesWritten) => {
         this.bytesWritten += bytesWritten;
@@ -306,7 +306,7 @@ class WriteStream extends Writable {
       return new Promise(() => super.emit('close'));
     }
     this.closed = true;
-    this.efs
+    this.efs.promises
       .close(this.fd)
       .then(() => {
         this.emit('close');
