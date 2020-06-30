@@ -1,5 +1,5 @@
-import { cryptoConstants, initializeWorkerPool } from './util';
 import { ModuleThread, Pool } from 'threads';
+import { cryptoConstants, initializeWorkerPool } from './util';
 import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
 
 interface Cipher {
@@ -148,7 +148,7 @@ class EncryptedFSCrypto {
     if (this.useWebWorkers) {
       if (!this.workerPool) {
         console.log('waiting for web worker initialization');
-        while (!this.workerPool) {}
+        while (!this.workerPool) { }
       }
       // Construct chunk
       const workerResponse = await this.workerPool.queue(async (workerCrypto) => {
@@ -218,7 +218,7 @@ class EncryptedFSCrypto {
     if (this.useWebWorkers) {
       if (!this.workerPool) {
         console.log('waiting for web worker initialization');
-        while (!this.workerPool) {}
+        while (!this.workerPool) { }
       }
       // Decrypt into blockBuffer
       const workerResponse = await this.workerPool.queue(async (workerCrypto) => {

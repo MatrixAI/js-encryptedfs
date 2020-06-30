@@ -1,7 +1,7 @@
-import { expose } from 'threads/worker';
 import * as crypto from 'crypto';
-import { deconstructChunk } from './EncryptedFSCrypto';
+import { expose } from 'threads/worker';
 import { cryptoConstants } from './util';
+import { deconstructChunk } from './EncryptedFSCrypto';
 
 const encryptedFSCryptoWorker = {
   encryptBlock(blockBuffer: Buffer, masterKey: Buffer, salt: Buffer, initVector: Buffer): Buffer {

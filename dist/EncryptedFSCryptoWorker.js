@@ -7,10 +7,10 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const worker_1 = require("threads/worker");
 const crypto = __importStar(require("crypto"));
-const EncryptedFSCrypto_1 = require("./EncryptedFSCrypto");
+const worker_1 = require("threads/worker");
 const util_1 = require("./util");
+const EncryptedFSCrypto_1 = require("./EncryptedFSCrypto");
 const encryptedFSCryptoWorker = {
     encryptBlock(blockBuffer, masterKey, salt, initVector) {
         const algorithm = 'aes-256-gcm';
