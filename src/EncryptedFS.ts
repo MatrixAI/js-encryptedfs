@@ -464,8 +464,7 @@ class EncryptedFS {
     path: fs.PathLike,
     options: { encoding: BufferEncoding; withFileTypes?: false } | undefined = undefined,
   ): string[] {
-    const upperDirContents = this.upperDir.readdirSync(path, options);
-    return upperDirContents;
+    return this.lowerDir.readdirSync(path, options);
   }
 
   /**
