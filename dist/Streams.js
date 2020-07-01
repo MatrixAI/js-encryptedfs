@@ -42,7 +42,7 @@ class ReadStream extends readable_stream_1.Readable {
      * @private
      */
     _open() {
-        this.efs
+        this.efs.promises
             .open(this.path, this.flags, this.mode)
             .then((fd) => {
             this.fd = fd;
@@ -83,7 +83,7 @@ class ReadStream extends readable_stream_1.Readable {
             return;
         }
         const buffer = Buffer.allocUnsafe(size);
-        this.efs
+        this.efs.promises
             .read(this.fd, buffer, 0, size, this.pos)
             .then((bytesRead) => {
             if (bytesRead > 0) {
@@ -131,7 +131,7 @@ class ReadStream extends readable_stream_1.Readable {
             return new Promise(() => super.emit('close'));
         }
         this.closed = true;
-        this.efs
+        this.efs.promises
             .close(this.fd)
             .then(() => {
             this.emit('close');
@@ -182,7 +182,7 @@ class WriteStream extends readable_stream_1.Writable {
      * @private
      */
     _open() {
-        this.efs
+        this.efs.promises
             .open(this.path, this.flags, this.mode)
             .then((fd) => {
             this.fd = fd;
@@ -215,7 +215,7 @@ class WriteStream extends readable_stream_1.Writable {
         else {
             internalData = data;
         }
-        this.efs
+        this.efs.promises
             .write(this.fd, internalData, 0, data.length, this.pos)
             .then((bytesWritten) => {
             this.bytesWritten += bytesWritten;
@@ -266,7 +266,7 @@ class WriteStream extends readable_stream_1.Writable {
             return new Promise(() => super.emit('close'));
         }
         this.closed = true;
-        this.efs
+        this.efs.promises
             .close(this.fd)
             .then(() => {
             this.emit('close');

@@ -3,14 +3,13 @@ import Path from 'path';
 import { promisify } from 'util';
 import autoBind from 'auto-bind-proxy';
 import { ModuleThread, Pool } from 'threads';
-import FileDescriptor from '@encryptedfs/FileDescriptor';
-import { constants, DEFAULT_FILE_PERM } from '@encryptedfs/constants';
-import { EncryptedFSError, errno } from '@encryptedfs/EncryptedFSError';
-import { cryptoConstants, UpperDirectoryMetadata } from '@encryptedfs/util';
-import { optionsStream, ReadStream, WriteStream } from '@encryptedfs/Streams';
-import { EncryptedFSCryptoWorker } from '@encryptedfs/EncryptedFSCryptoWorker';
-import { EncryptedFSCrypto, CryptoInterface } from '@encryptedfs/EncryptedFSCrypto';
-import EncryptedFSPromises from './promises/EncryptedFSPromises';
+import FileDescriptor from './FileDescriptor';
+import { constants, DEFAULT_FILE_PERM } from './constants';
+import { EncryptedFSError, errno } from './EncryptedFSError';
+import { cryptoConstants } from './util';
+import { optionsStream, ReadStream, WriteStream } from './Streams';
+import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
+import { EncryptedFSCrypto, CryptoInterface } from './EncryptedFSCrypto';
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -23,6 +22,11 @@ import EncryptedFSPromises from './promises/EncryptedFSPromises';
  */
 
 
+type UpperDirectoryMetadata = {
+  size: number;
+  keyHash: Buffer;
+};
+
 /**
  * Encrypted filesystem written in TypeScript for Node.js.
  * @param key A key.
@@ -33,8 +37,6 @@ import EncryptedFSPromises from './promises/EncryptedFSPromises';
  * @param useWebWorkers Use webworkers to make crypto tasks true async, defaults to false.
  */
 class EncryptedFS {
-  promises: EncryptedFSPromises
-
   private uid: number;
   private gid: number;
   private umask: number;
@@ -61,19 +63,6 @@ class EncryptedFS {
     cryptoLib: CryptoInterface | undefined = undefined,
     workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>,
   ) {
-    this.promises = new EncryptedFSPromises(
-      key,
-      upperDir,
-      upperDirContextControl,
-      lowerDir,
-      lowerDirContextControl,
-      umask,
-      blockSize,
-      useWebWorkers,
-      cryptoLib,
-      workerPool
-    )
-
     this.umask = umask;
     // Set key
     if (typeof key === 'string') {
@@ -96,6 +85,245 @@ class EncryptedFS {
     this.fileDescriptors = new Map();
     this.metadata = {};
     this.constants = constants;
+  }
+
+  promises = {
+    /**
+     * Asynchronously tests a user's permissions for the file specified by path.
+     * @param fd number. File descriptor.
+     * @returns Promise<void>.
+     */
+    access: this.accessAsync.bind(this),
+    /**
+     * Asynchronously retrieves the path stats in the upper file system directory. Propagates upper fs method.
+     * @param path string. Path to create.
+     * @returns void.
+     */
+    lstat: this.lstatAsync.bind(this),
+    /**
+     * Asynchronously makes the directory in the upper file system directory. Propagates upper fs method.
+     * @param path string. Path to create.
+     * @param mode number | undefined. Permissions or mode.
+     * @returns void.
+     */
+    mkdir: this.mkdirAsync.bind(this),
+    /**
+     * Asynchronously makes a temporary directory with the prefix given.
+     * @param prefix string. Prefix of temporary directory.
+     * @param options { encoding: CharacterEncoding } | CharacterEncoding | null | undefined
+     * @returns void.
+     */
+    mkdtemp: this.mkdtempAsync.bind(this),
+    /**
+     * Asynchronously retrieves  in the upper file system directory. Propagates upper fs method.
+     * @param path string.
+     * @returns void.
+     */
+    stat: this.statAsync.bind(this),
+    /**
+     * Asynchronously removes the directory in the upper file system directory. Propagates upper fs method.
+     * @param path string. Path to create.
+     * @param options: { recursive: boolean }.
+     * @returns void.
+     */
+    rmdir: this.rmdirAsync.bind(this),
+    /**
+     * Asynchronously creates a symbolic link between the given paths in the upper file system directory. Propagates upper fs method.
+     * @param target string. Destination path.
+     * @param path string. Source path.
+     * @returns void.
+     */
+    symlink: this.symlinkAsync.bind(this),
+    /**
+     * Asynchronously changes the size of the file by len bytes.
+     * @param dstPath string. Destination path.
+     * @param srcPath string. Source path.
+     * @returns void.
+     */
+    truncate: this.truncateAsync.bind(this),
+    /**
+     * Asynchronously unlinks the given path in the upper and lower file system directories.
+     * @param path string. Path to create.
+     * @returns void.
+     */
+    unlink: this.unlinkAsync.bind(this),
+    /**
+     * Asynchronously changes the access and modification times of the file referenced by path.
+     * @param path string. Path to file.
+     * @param atime number | string | Date. Access time.
+     * @param mtime number | string | Date. Modification time.
+     * @returns void.
+     */
+    utimes: this.utimesAsync.bind(this),
+    /**
+     * Asynchronously closes the file descriptor.
+     * @param fd number. File descriptor.
+     * @returns Promise<void>.
+     */
+    close: this.closeAsync.bind(this),
+    /**
+     * Asynchronously writes buffer (with length) to the file descriptor at an offset and position.
+     * @param path string. Path to directory to be read.
+     * @param options FileOptions.
+     * @returns string[] (directory contents).
+     */
+    readdir: this.readdirAsync.bind(this),
+    /**
+     * Asynchronously checks if path exists.
+     * @param path string.
+     * @returns boolean.
+     */
+    exists: this.existsAsync.bind(this),
+    /**
+     * Asynchronously manipulates the allocated disk space for a file.
+     * @param fdIndex number. File descriptor index.
+     * @param offset number. Offset to start manipulations from.
+     * @param len number. New length for the file.
+     * @returns void.
+     */
+    fallocate: this.fallocateAsync.bind(this),
+    /**
+     * Asynchronously changes the permissions of the file referred to by fdIndex.
+     * @param fdIndex number. File descriptor index.
+     * @param mode number. New permissions set.
+     * @returns void.
+     */
+    fchmod: this.fchmodAsync.bind(this),
+    /**
+     * Asynchronously changes the owner or group of the file referred to by fdIndex.
+     * @param fdIndex number. File descriptor index.
+     * @param uid number. User identifier.
+     * @param gid number. Group identifier.
+     * @returns void.
+     */
+    fchown: this.fchownAsync.bind(this),
+    /**
+     * Asynchronously flushes in memory data to disk. Not required to update metadata.
+     * @param fdIndex number. File descriptor index.
+     * @returns void.
+     */
+    fdatasync: this.fdatasyncAsync.bind(this),
+    /**
+     * Asynchronously retrieves data about the file described by fdIndex.
+     * @param fd number. File descriptor.
+     * @returns void.
+     */
+    fstat: this.fstatAsync.bind(this),
+    /**
+     * Asynchronously flushes all modified data to disk.
+     * @param fdIndex number. File descriptor index.
+     * @returns void.
+     */
+    fsync: this.fsyncAsync.bind(this),
+    /**
+     * Asynchronously truncates to given length.
+     * @param fdIndex number. File descriptor index
+     * @param len number. Length to truncate to.
+     * @returns void.
+     */
+    ftruncate: this.ftruncateAsync.bind(this),
+    /**
+     * Asynchronously changes the access and modification times of the file referenced by fdIndex.
+     * @param fdIndex number. File descriptor index
+     * @param atime number | string | Date. Access time.
+     * @param mtime number | string | Date. Modification time.
+     * @returns void.
+     */
+    futimes: this.futimesAsync.bind(this),
+    /**
+     * Asynchronously links a path to a new path.
+     * @param existingPath string.
+     * @param newPath string.
+     * @returns void.
+     */
+    link: this.linkAsync.bind(this),
+    /**
+     * Asynchronously reads data from a file given the path of that file.
+     * @param path string. Path to file.
+     * @returns void.
+     */
+    readFile: this.readFileAsync.bind(this),
+    /**
+     * Asynchronously reads link of the given the path. Propagated from upper fs.
+     * @param path string. Path to file.
+     * @param options FileOptions | undefined.
+     * @returns Buffer | string.
+     */
+    readlink: this.readlinkAsync.bind(this),
+    /**
+     * Asynchronously determines the actual location of path. Propagated from upper fs.
+     * @param path string. Path to file.
+     * @param options FileOptions | undefined.
+     * @returns void.
+     */
+    realpath: this.realpathAsync.bind(this),
+    /**
+     * Asynchronously renames the file system object described by oldPath to the given new path. Propagated from upper fs.
+     * @param oldPath string. Old path.
+     * @param oldPath string. New path.
+     * @returns void.
+     */
+    rename: this.renameAsync.bind(this),
+    /**
+     * Asynchronously reads data at an offset, position and length from a file descriptor into a given buffer.
+     * @param fd number. File descriptor.
+     * @param buffer Buffer. Buffer to be written from.
+     * @param offset number. The offset in the buffer at which to start writing.
+     * @param length number. The number of bytes to read.
+     * @param position number. The offset from the beginning of the file from which data should be read.
+     * @returns Promise<number> (bytes read).
+     */
+    read: this.readAsync.bind(this),
+    /**
+     * Asynchronously writes buffer (with length) to the file descriptor at an offset and position.
+     * @param fd number. File descriptor.
+     * @param buffer Buffer. Buffer to be written from.
+     * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
+     * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
+     * @param position number. The offset from the beginning of the file where this data should be written.
+     * @returns Promise<number>.
+     */
+    write: this.writeAsync.bind(this),
+    /**
+     * Asynchronously append data to a file, creating the file if it does not exist.
+     * @param file string | number. Path to the file or directory.
+     * @param data string | Buffer. The data to be appended.
+     * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
+     * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
+     * @returns Promise<void>.
+     */
+    appendFile: this.appendFileAsync.bind(this),
+    /**
+     * Asynchronously changes the access permissions of the file system object described by path.
+     * @param path string. Path to the fs object.
+     * @param mode number. New permissions set.
+     * @returns void.
+     */
+    chmod: this.chmodAsync.bind(this),
+    /**
+     * Asynchronously changes the owner or group of the file system object described by path.
+     * @param path string. Path to the fs object.
+     * @param uid number. User identifier.
+     * @param gid number. Group identifier.
+     * @returns void.
+     */
+    chown: this.chownAsync.bind(this),
+    /**
+     * Asynchronously writes data to the path specified with some FileOptions.
+     * @param path string | number. Path to the file or directory.
+     * @param data string | Buffer. The data to be written.
+     * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined } | undefined
+     * @returns void.
+     */
+    writeFile: this.writeFileAsync.bind(this),
+    /**
+     * Asynchronously opens a file or directory and returns the file descriptor.
+     * @param path string. Path to the file or directory.
+     * @param flags string. Flags for read/write operations. Defaults to 'r'.
+     * @param mode number. Read and write permissions. Defaults to 0o666.
+     * @returns Promise<number>
+     */
+    open: this.openAsync.bind(this),
   }
 
   getUmask(): number {
@@ -142,10 +370,9 @@ class EncryptedFS {
 
   /**
    * Asynchronously tests a user's permissions for the file specified by path.
-   * @param fd number. File descriptor.
-   * @returns Promise<void>.
+   * @param fd File descriptor.
    */
-  async access(path: fs.PathLike, mode: number = 0): Promise<void> {
+  private async accessAsync(path: fs.PathLike, mode: number = 0): Promise<void> {
     try {
       await promisify(this.lowerDir.access)(path, mode);
     } catch (err) {
@@ -154,9 +381,20 @@ class EncryptedFS {
   }
 
   /**
+   * Tests a user's permissions for the file specified by path.
+   * @param fd File descriptor.
+   */
+  access(path: fs.PathLike, mode: number = 0, callback?: fs.NoParamCallback): void {
+    this.accessAsync(path, mode).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously tests a user's permissions for the file specified by path.
-   * @param fd number. File descriptor.
-   * @returns void.
+   * @param fd File descriptor.
    */
   accessSync(path: fs.PathLike, mode: number = this.constants.F_OK): void {
     this.lowerDir.accessSync(path, mode);
@@ -164,10 +402,9 @@ class EncryptedFS {
 
   /**
    * Asynchronously retrieves the path stats in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
-   * @returns void.
+   * @param path Path to create.
    */
-  async lstat(path: fs.PathLike): Promise<fs.Stats> {
+  private async lstatAsync(path: fs.PathLike): Promise<fs.Stats> {
     try {
       return await promisify(this.lowerDir.lstat)(path);
     } catch (err) {
@@ -176,9 +413,20 @@ class EncryptedFS {
   }
 
   /**
+   * Retrieves the path stats in the upper file system directory. Propagates upper fs method.
+   * @param path Path to create.
+   */
+  lstat(path: fs.PathLike, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
+    this.lstatAsync(path).then((stats) => {
+      if (callback) callback(null, stats)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously retrieves the path stats in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
-   * @returns void.
+   * @param path Path to create.
    */
   lstatSync(path: fs.PathLike): fs.Stats {
     return this.lowerDir.lstatSync(path);
@@ -186,11 +434,10 @@ class EncryptedFS {
 
   /**
    * Asynchronously makes the directory in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
+   * @param path Path to create.
    * @param mode number | undefined. Permissions or mode.
-   * @returns void.
    */
-  async mkdir(
+  private async mkdirAsync(
     path: fs.PathLike,
     options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false },
   ): Promise<string> {
@@ -208,10 +455,24 @@ class EncryptedFS {
   }
 
   /**
+   * Makes the directory in the upper file system directory. Propagates upper fs method.
+   */
+  mkdir(
+    path: fs.PathLike,
+    options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false },
+    callback?: (err: Error | null, path: string | null) => void
+  ): void {
+    this.mkdirAsync(path, options).then((path) => {
+      if (callback) callback(null, path)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously makes the directory in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
+   * @param path Path to create.
    * @param mode number | undefined. Permissions or mode.
-   * @returns void.
    */
   mkdirSync(path: fs.PathLike, options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false }): void {
     this.lowerDir.mkdirSync(path, options);
@@ -223,12 +484,11 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously makes a temporary directory with the prefix given.
-   * @param prefix string. Prefix of temporary directory.
+   * Asynchronously makes a temporary directory with the prefix given.
+   * @param prefix Prefix of temporary directory.
    * @param options { encoding: CharacterEncoding } | CharacterEncoding | null | undefined
-   * @returns void.
    */
-  async mkdtemp(
+  private async mkdtempAsync(
     prefix: string,
     options: { encoding: BufferEncoding } | BufferEncoding | null | undefined = 'utf8',
   ): Promise<string> {
@@ -242,10 +502,26 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously makes a temporary directory with the prefix given.
-   * @param prefix string. Prefix of temporary directory.
+   * Makes a temporary directory with the prefix given.
+   * @param prefix Prefix of temporary directory.
    * @param options { encoding: CharacterEncoding } | CharacterEncoding | null | undefined
-   * @returns void.
+   */
+  mkdtemp(
+    prefix: string,
+    options: { encoding: BufferEncoding } | BufferEncoding | null | undefined = 'utf8',
+    callback?: (err: Error | null, path: string | null) => void
+  ): void {
+    this.mkdtempAsync(prefix, options).then((path) => {
+      if (callback) callback(null, path)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
+   * Synchronously makes a temporary directory with the prefix given.
+   * @param prefix Prefix of temporary directory.
+   * @param options { encoding: CharacterEncoding } | CharacterEncoding | null | undefined
    */
   mkdtempSync(
     prefix: string,
@@ -259,10 +535,8 @@ class EncryptedFS {
 
   /**
    * Asynchronously retrieves  in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
-   * @returns void.
    */
-  async stat(path: fs.PathLike): Promise<fs.Stats> {
+  private async statAsync(path: fs.PathLike): Promise<fs.Stats> {
     try {
       return await promisify(this.upperDir.stat)(path);
     } catch (err) {
@@ -271,9 +545,18 @@ class EncryptedFS {
   }
 
   /**
+   * Retrieves  in the upper file system directory. Propagates upper fs method.
+   */
+  stat(path: fs.PathLike, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
+    this.statAsync(path).then((stats) => {
+      if (callback) callback(null, stats)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Asynchronously retrieves  in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
-   * @returns void.
    */
   statSync(path: fs.PathLike): fs.Stats {
     return this.upperDir.statSync(path);
@@ -281,11 +564,10 @@ class EncryptedFS {
 
   /**
    * Asynchronously removes the directory in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
+   * @param path Path to create.
    * @param options: { recursive: boolean }.
-   * @returns void.
    */
-  async rmdir(path: fs.PathLike, options: fs.RmDirAsyncOptions | undefined = undefined): Promise<void> {
+  private async rmdirAsync(path: fs.PathLike, options: fs.RmDirAsyncOptions | undefined = undefined): Promise<void> {
     try {
       if (!(options?.recursive ?? false)) {
         await promisify(this.upperDir.mkdtemp)(path, options);
@@ -297,10 +579,24 @@ class EncryptedFS {
   }
 
   /**
+   * Removes the directory in the upper file system directory. Propagates upper fs method.
+   */
+  rmdir(
+    path: fs.PathLike,
+    options: fs.RmDirAsyncOptions | undefined = undefined,
+    callback?: fs.NoParamCallback
+  ): void {
+    this.rmdirAsync(path, options).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously removes the directory in the upper file system directory. Propagates upper fs method.
-   * @param path string. Path to create.
+   * @param path Path to create.
    * @param options: { recursive: boolean }.
-   * @returns void.
    */
   rmdirSync(path: fs.PathLike, options: fs.RmDirOptions | undefined = undefined): void {
     // TODO: rmdirSync on VFS doesn't have an option to recusively delete
@@ -316,11 +612,10 @@ class EncryptedFS {
 
   /**
    * Asynchronously creates a symbolic link between the given paths in the upper file system directory. Propagates upper fs method.
-   * @param target string. Destination path.
-   * @param path string. Source path.
-   * @returns void.
+   * @param target Destination path.
+   * @param path Source path.
    */
-  async symlink(
+  private async symlinkAsync(
     target: fs.PathLike,
     path: fs.PathLike,
     type: 'dir' | 'file' | 'junction' | null | undefined,
@@ -334,10 +629,27 @@ class EncryptedFS {
   }
 
   /**
+   * Creates a symbolic link between the given paths in the upper file system directory. Propagates upper fs method.
+   * @param target Destination path.
+   * @param path Source path.
+   */
+  symlink(
+    target: fs.PathLike,
+    path: fs.PathLike,
+    type: 'dir' | 'file' | 'junction' | null | undefined,
+    callback?: fs.NoParamCallback
+  ): void {
+    this.symlinkAsync(target, path, type).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously creates a symbolic link between the given paths in the upper file system directory. Propagates upper fs method.
-   * @param dstPath string. Destination path.
-   * @param srcPath string. Source path.
-   * @returns void.
+   * @param dstPath Destination path.
+   * @param srcPath Source path.
    */
   symlinkSync(
     target: fs.PathLike,
@@ -350,11 +662,8 @@ class EncryptedFS {
 
   /**
    * Asynchronously changes the size of the file by len bytes.
-   * @param dstPath string. Destination path.
-   * @param srcPath string. Source path.
-   * @returns void.
    */
-  async truncate(file: fs.PathLike | number, len: number = 0): Promise<void> {
+  private async truncateAsync(file: fs.PathLike | number, len: number = 0): Promise<void> {
     try {
       this.upperDir.truncateSync(file, len);
     } catch (err) {
@@ -363,10 +672,18 @@ class EncryptedFS {
   }
 
   /**
+   * Changes the size of the file by len bytes.
+   */
+  truncate(file: fs.PathLike | number, len: number = 0, callback?: fs.NoParamCallback): void {
+    this.truncateAsync(file, len).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously changes the size of the file by len bytes.
-   * @param dstPath string. Destination path.
-   * @param srcPath string. Source path.
-   * @returns void.
    */
   truncateSync(file: fs.PathLike | number, len: number = 0): void {
     return this.upperDir.truncateSync(file, len);
@@ -374,10 +691,9 @@ class EncryptedFS {
 
   /**
    * Asynchronously unlinks the given path in the upper and lower file system directories.
-   * @param path string. Path to create.
-   * @returns void.
+   * @param path Path to create.
    */
-  async unlink(path: fs.PathLike): Promise<void> {
+  private async unlinkAsync(path: fs.PathLike): Promise<void> {
     try {
       this.upperDir.unlinkSync(path);
       await promisify(this.lowerDir.unlink)(path);
@@ -387,9 +703,20 @@ class EncryptedFS {
   }
 
   /**
+   * Unlinks the given path in the upper and lower file system directories.
+   * @param path Path to create.
+   */
+  unlink(path: fs.PathLike, callback?: fs.NoParamCallback): void {
+    this.unlinkAsync(path).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously unlinks the given path in the upper and lower file system directories.
-   * @param path string. Path to create.
-   * @returns void.
+   * @param path Path to create.
    */
   unlinkSync(path: fs.PathLike): void {
     return this.upperDir.unlinkSync(path);
@@ -397,12 +724,11 @@ class EncryptedFS {
 
   /**
    * Asynchronously changes the access and modification times of the file referenced by path.
-   * @param path string. Path to file.
+   * @param path Path to file.
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
-   * @returns void.
    */
-  async utimes(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
+  private async utimesAsync(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
     try {
       this.upperDir.utimesSync(path, atime, mtime);
       await promisify(this.lowerDir.utimes)(path, atime, mtime);
@@ -412,11 +738,24 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously changes the access and modification times of the file referenced by path.
-   * @param path string. Path to file.
+   * Changes the access and modification times of the file referenced by path.
+   * @param path Path to file.
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
-   * @returns void.
+   */
+  utimes(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date, callback?: fs.NoParamCallback): void {
+    this.utimesAsync(path, atime, mtime).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
+   * Synchronously changes the access and modification times of the file referenced by path.
+   * @param path Path to file.
+   * @param atime number | string | Date. Access time.
+   * @param mtime number | string | Date. Modification time.
    */
   utimesSync(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date): void {
     this.upperDir.utimesSync(path, atime, mtime);
@@ -426,9 +765,8 @@ class EncryptedFS {
   /**
    * Asynchronously closes the file descriptor.
    * @param fd number. File descriptor.
-   * @returns Promise<void>.
    */
-  async close(fd: number): Promise<void> {
+  private async closeAsync(fd: number): Promise<void> {
     if (this.isFileDescriptor(fd)) {
       this.upperDir.closeSync(fd);
       const lowerFd = this.getLowerFd(fd);
@@ -439,9 +777,20 @@ class EncryptedFS {
   }
 
   /**
+   * Closes the file descriptor.
+   * @param fd number. File descriptor.
+   */
+  close(fd: number, callback?: fs.NoParamCallback): void {
+    this.closeAsync(fd).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously closes the file descriptor.
    * @param fd number. File descriptor.
-   * @returns void.
    */
   closeSync(fd: number): void {
     const isUserFileDescriptor = this.isFileDescriptor(fd);
@@ -454,14 +803,13 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously writes buffer (with length) to the file descriptor at an offset and position.
-   * @param path string. Path to directory to be read.
+   * Asynchronously writes buffer (with length) to the file descriptor at an offset and position.
+   * @param path Path to directory to be read.
    * @param options FileOptions.
-   * @returns string[] (directory contents).
    */
-  async readdir(
+  private async readdirAsync(
     path: fs.PathLike,
-    options: { encoding: BufferEncoding; withFileTypes?: false } | undefined = undefined,
+    options?: { encoding: BufferEncoding; withFileTypes?: false },
   ): Promise<string[]> {
     try {
       return await promisify(this.lowerDir.readdir)(path, options);
@@ -471,22 +819,37 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously writes buffer (with length) to the file descriptor at an offset and position.
-   * @param path string. Path to directory to be read.
+   * Writes buffer (with length) to the file descriptor at an offset and position.
+   * @param path Path to directory to be read.
    * @param options FileOptions.
-   * @returns string[] (directory contents).
+   */
+  readdir(
+    path: fs.PathLike,
+    options?: { encoding: BufferEncoding; withFileTypes?: false },
+    callback?: (err: Error | null, contents: string[] | null) => void
+  ): void {
+    this.readdirAsync(path, options).then((contents) => {
+      if (callback) callback(null, contents)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
+   * Synchronously writes buffer (with length) to the file descriptor at an offset and position.
+   * @param path Path to directory to be read.
+   * @param options FileOptions.
    */
   readdirSync(
     path: fs.PathLike,
-    options: { encoding: BufferEncoding; withFileTypes?: false } | undefined = undefined,
+    options?: { encoding: BufferEncoding; withFileTypes?: false },
   ): string[] {
     return this.lowerDir.readdirSync(path, options);
   }
 
   /**
    * Creates a read stream from the given path and options.
-   * @param path string.
-   * @returns boolean.
+   * @param path
    */
   createReadStream(path: fs.PathLike, options: optionsStream | undefined): ReadStream {
     path = this.getPath(path);
@@ -511,8 +874,7 @@ class EncryptedFS {
 
   /**
    * Creates a write stream from the given path and options.
-   * @param path string.
-   * @returns boolean.
+   * @param path
    */
   createWriteStream(path: fs.PathLike, options: optionsStream | undefined): WriteStream {
     path = this.getPath(path);
@@ -535,11 +897,10 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously checks if path exists.
-   * @param path string.
-   * @returns boolean.
+   * Asynchronously checks if path exists.
+   * @param path
    */
-  async exists(path: fs.PathLike): Promise<boolean> {
+  private async existsAsync(path: fs.PathLike): Promise<boolean> {
     // TODO: make sure upper and lower directories agree
     try {
       const existsInLower = await promisify(this.lowerDir.exists)(path);
@@ -550,9 +911,21 @@ class EncryptedFS {
   }
 
   /**
+   * Checks if path exists.
+   * @param path
+   */
+  exists(path: fs.PathLike, callback?: (err: Error | null, exists: boolean | null) => void): void {
+    // TODO: make sure upper and lower directories agree
+    this.existsAsync(path).then((exists) => {
+      if (callback) callback(null, exists)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously checks if path exists.
-   * @param path string.
-   * @returns boolean.
+   * @param path
    */
   existsSync(path: fs.PathLike): boolean {
     // TODO: make sure upper and lower directories agree
@@ -564,10 +937,23 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    * @param offset number. Offset to start manipulations from.
    * @param len number. New length for the file.
-   * @returns void.
    */
-  async fallocate(fdIndex: number, offset: number, len: number): Promise<void> {
+  private async fallocateAsync(fdIndex: number, offset: number, len: number): Promise<void> {
     return await promisify(this.upperDir.fallocate)(fdIndex, offset, len);
+  }
+
+  /**
+   * Manipulates the allocated disk space for a file.
+   * @param fdIndex number. File descriptor index.
+   * @param offset number. Offset to start manipulations from.
+   * @param len number. New length for the file.
+   */
+  fallocate(fdIndex: number, offset: number, len: number, callback?: fs.NoParamCallback): void {
+    this.fallocateAsync(fdIndex, offset, len).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
@@ -575,7 +961,6 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    * @param offset number. Offset to start manipulations from.
    * @param len number. New length for the file.
-   * @returns void.
    */
   fallocateSync(fdIndex: number, offset: number, len: number): void {
     return this.upperDir.fallocateSync(fdIndex, offset, len);
@@ -585,17 +970,28 @@ class EncryptedFS {
    * Asynchronously changes the permissions of the file referred to by fdIndex.
    * @param fdIndex number. File descriptor index.
    * @param mode number. New permissions set.
-   * @returns void.
    */
-  async fchmod(fdIndex: number, mode: number = 0): Promise<void> {
+  private async fchmodAsync(fdIndex: number, mode: number = 0): Promise<void> {
     return await promisify(this.upperDir.fchmod)(fdIndex, mode);
+  }
+
+  /**
+   * Changes the permissions of the file referred to by fdIndex.
+   * @param fdIndex number. File descriptor index.
+   * @param mode number. New permissions set.
+   */
+  fchmod(fdIndex: number, mode: number = 0, callback?: fs.NoParamCallback): void {
+    this.fchmodAsync(fdIndex, mode).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
    * Synchronously changes the permissions of the file referred to by fdIndex.
    * @param fdIndex number. File descriptor index.
    * @param mode number. New permissions set.
-   * @returns void.
    */
   fchmodSync(fdIndex: number, mode: number = 0): void {
     return this.upperDir.fchmodSync(fdIndex, mode);
@@ -606,10 +1002,23 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
-   * @returns void.
    */
-  async fchown(fdIndex: number, uid: number, gid: number): Promise<void> {
+  private async fchownAsync(fdIndex: number, uid: number, gid: number): Promise<void> {
     return await promisify(this.upperDir.fchown)(fdIndex, uid, gid);
+  }
+
+  /**
+   * Changes the owner or group of the file referred to by fdIndex.
+   * @param fdIndex number. File descriptor index.
+   * @param uid number. User identifier.
+   * @param gid number. Group identifier.
+   */
+  fchown(fdIndex: number, uid: number, gid: number, callback?: fs.NoParamCallback): void {
+    this.fchownAsync(fdIndex, uid, gid).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
@@ -617,7 +1026,6 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
-   * @returns void.
    */
   fchownSync(fdIndex: number, uid: number, gid: number): void {
     return this.upperDir.fchownSync(fdIndex, uid, gid);
@@ -626,16 +1034,26 @@ class EncryptedFS {
   /**
    * Asynchronously flushes in memory data to disk. Not required to update metadata.
    * @param fdIndex number. File descriptor index.
-   * @returns void.
    */
-  async fdatasync(fdIndex: number): Promise<void> {
+  private async fdatasyncAsync(fdIndex: number): Promise<void> {
     return await promisify(this.upperDir.fdatasync)(fdIndex);
+  }
+
+  /**
+   * Flushes in memory data to disk. Not required to update metadata.
+   * @param fdIndex number. File descriptor index.
+   */
+  fdatasync(fdIndex: number, callback?: fs.NoParamCallback): void {
+    this.fdatasyncAsync(fdIndex).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
    * Synchronously flushes in memory data to disk. Not required to update metadata.
    * @param fdIndex number. File descriptor index.
-   * @returns void.
    */
   fdatasyncSync(fdIndex: number): void {
     return this.upperDir.fdatasyncSync(fdIndex);
@@ -644,34 +1062,54 @@ class EncryptedFS {
   /**
    * Asynchronously retrieves data about the file described by fdIndex.
    * @param fd number. File descriptor.
-   * @returns void.
    */
-  async fstat(fd: number): Promise<fs.Stats> {
+  private async fstatAsync(fd: number): Promise<fs.Stats> {
     return await promisify(this.upperDir.fstat)(fd);
+  }
+
+  /**
+   * Retrieves data about the file described by fdIndex.
+   * @param fd number. File descriptor.
+   */
+  fstat(fd: number, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
+    this.fstatAsync(fd).then((stats) => {
+      if (callback) callback(null, stats)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
   }
 
   /**
    * Synchronously retrieves data about the file described by fdIndex.
    * @param fd number. File descriptor.
-   * @returns void.
    */
   fstatSync(fd: number): fs.Stats {
     return this.upperDir.fstatSync(fd);
   }
 
   /**
-   * Synchronously flushes all modified data to disk.
+   * Asynchronously flushes all modified data to disk.
    * @param fdIndex number. File descriptor index.
-   * @returns void.
    */
-  async fsync(fdIndex: number): Promise<void> {
+  private async fsyncAsync(fdIndex: number): Promise<void> {
     return await promisify(this.upperDir.fsync)(fdIndex);
+  }
+
+  /**
+   * Flushes all modified data to disk.
+   * @param fdIndex number. File descriptor index.
+   */
+  fsync(fdIndex: number, callback?: fs.NoParamCallback): void {
+    this.fsyncAsync(fdIndex).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
    * Synchronously flushes all modified data to disk.
    * @param fdIndex number. File descriptor index.
-   * @returns void.
    */
   fsyncSync(fdIndex: number): void {
     return this.upperDir.fsyncSync(fdIndex);
@@ -681,17 +1119,28 @@ class EncryptedFS {
    * Asynchronously truncates to given length.
    * @param fdIndex number. File descriptor index
    * @param len number. Length to truncate to.
-   * @returns void.
    */
-  async ftruncate(fdIndex: number, len: number = 0): Promise<void> {
+  private async ftruncateAsync(fdIndex: number, len: number = 0): Promise<void> {
     return await promisify(this.upperDir.ftruncate)(fdIndex, len);
+  }
+
+  /**
+   * Truncates to given length.
+   * @param fdIndex number. File descriptor index
+   * @param len number. Length to truncate to.
+   */
+  ftruncate(fdIndex: number, len: number = 0, callback?: fs.NoParamCallback): void {
+    this.ftruncateAsync(fdIndex, len).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
    * Synchronously truncates to given length.
    * @param fdIndex number. File descriptor index
    * @param len number. Length to truncate to.
-   * @returns void.
    */
   ftruncateSync(fdIndex: number, len: number = 0): void {
     return this.upperDir.ftruncateSync(fdIndex, len);
@@ -702,10 +1151,23 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
-   * @returns void.
    */
-  async futimes(fdIndex: number, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
+  private async futimesAsync(fdIndex: number, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
     return await promisify(this.upperDir.futimes)(fdIndex, atime, mtime);
+  }
+
+  /**
+   * Changes the access and modification times of the file referenced by fdIndex.
+   * @param fdIndex number. File descriptor index
+   * @param atime number | string | Date. Access time.
+   * @param mtime number | string | Date. Modification time.
+   */
+  futimes(fdIndex: number, atime: number | string | Date, mtime: number | string | Date, callback?: fs.NoParamCallback): void {
+    this.futimesAsync(fdIndex, atime, mtime).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
@@ -713,28 +1175,38 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
-   * @returns void.
    */
   futimesSync(fdIndex: number, atime: number | string | Date, mtime: number | string | Date): void {
     return this.upperDir.futimesSync(fdIndex, atime, mtime);
   }
 
   /**
-   * Synchronously links a path to a new path.
-   * @param existingPath string.
-   * @param newPath string.
-   * @returns void.
+   * Asynchronously links a path to a new path.
+   * @param existingPath
+   * @param newPath
    */
-  async link(existingPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
+  private async linkAsync(existingPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
     await promisify(this.upperDir.link)(existingPath, newPath);
     await promisify(this.lowerDir.link)(existingPath, newPath);
   }
 
   /**
+   * Links a path to a new path.
+   * @param existingPath
+   * @param newPath
+   */
+  link(existingPath: fs.PathLike, newPath: fs.PathLike, callback?: fs.NoParamCallback): void {
+    this.linkAsync(existingPath, newPath).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously links a path to a new path.
-   * @param existingPath string.
-   * @param newPath string.
-   * @returns void.
+   * @param existingPath
+   * @param newPath
    */
   linkSync(existingPath: fs.PathLike, newPath: fs.PathLike): void {
     this.lowerDir.linkSync(existingPath, newPath);
@@ -742,36 +1214,46 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously reads data from a file given the path of that file.
-   * @param path string. Path to file.
-   * @returns void.
+   * Asynchronously reads data from a file given the path of that file.
+   * @param path Path to file.
    */
-  async readFile(path: fs.PathLike | number, options?: fs.WriteFileOptions): Promise<string | Buffer> {
+  private async readFileAsync(path: fs.PathLike | number, options?: fs.WriteFileOptions): Promise<string | Buffer> {
     const optionsInternal = this.getFileOptions({ encoding: null, mode: 0o666, flag: 'r' }, options);
     let fd: number | null = null;
     try {
       if (typeof path === 'number') {
         fd = <number>path;
       } else {
-        fd = await this.open(path, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(path, optionsInternal.flag, optionsInternal.mode);
       }
       const size = this.getMetadata(fd).size;
       const readBuffer = Buffer.alloc(size);
-      await this.read(fd, readBuffer);
+      await this.readAsync(fd, readBuffer);
       return optionsInternal.encoding ? readBuffer.toString(optionsInternal.encoding) : readBuffer;
     } catch (err) {
       throw err;
     } finally {
       if (fd) {
-        await this.close(fd);
+        await this.closeAsync(fd);
       }
     }
   }
 
   /**
+   * Reads data from a file given the path of that file.
+   * @param path Path to file.
+   */
+  readFile(path: fs.PathLike | number, options: fs.WriteFileOptions, callback?: (err: Error | null, s: string | Buffer | null) => void): void {
+    this.readFileAsync(path, options).then((data) => {
+      if (callback) callback(null, data)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously reads data from a file given the path of that file.
-   * @param path string. Path to file.
-   * @returns Buffer (read buffer).
+   * @param path Path to file.
    */
   readFileSync(path: fs.PathLike | number, options?: fs.WriteFileOptions): string | Buffer {
     const optionsInternal = this.getFileOptions({ encoding: null, mode: 0o666, flag: 'r' }, options);
@@ -799,11 +1281,10 @@ class EncryptedFS {
 
   /**
    * Synchronously reads link of the given the path. Propagated from upper fs.
-   * @param path string. Path to file.
+   * @param path Path to file.
    * @param options FileOptions | undefined.
-   * @returns Buffer | string.
    */
-  async readlink(path: fs.PathLike, options: fs.WriteFileOptions | undefined = undefined): Promise<Buffer | string> {
+  private async readlinkAsync(path: fs.PathLike, options: fs.WriteFileOptions): Promise<Buffer | string> {
     try {
       return this.upperDir.readlinkSync(path, options);
     } catch (err) {
@@ -812,22 +1293,33 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously reads link of the given the path. Propagated from upper fs.
-   * @param path string. Path to file.
+   * Reads link of the given the path. Propagated from upper fs.
+   * @param path Path to file.
    * @param options FileOptions | undefined.
-   * @returns string | Buffer.
    */
-  readlinkSync(path: fs.PathLike, options: fs.WriteFileOptions | undefined = undefined): string | Buffer {
+  readlink(path: fs.PathLike, options: fs.WriteFileOptions, callback?: (err: Error | null, data: string | Buffer | null) => void): void {
+    this.readlinkAsync(path, options).then((data) => {
+      if (callback) callback(null, data)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
+   * Synchronously reads link of the given the path. Propagated from upper fs.
+   * @param path Path to file.
+   * @param options FileOptions | undefined.
+   */
+  readlinkSync(path: fs.PathLike, options: fs.WriteFileOptions): string | Buffer {
     return this.upperDir.readlinkSync(path, options);
   }
 
   /**
    * Asynchronously determines the actual location of path. Propagated from upper fs.
-   * @param path string. Path to file.
+   * @param path Path to file.
    * @param options FileOptions | undefined.
-   * @returns void.
    */
-  async realpath(path: fs.PathLike, options: fs.WriteFileOptions | undefined = undefined): Promise<string> {
+  private async realpathAsync(path: fs.PathLike, options: fs.WriteFileOptions): Promise<string> {
     try {
       return await promisify(this.upperDir.realpath)(path, options);
     } catch (err) {
@@ -836,10 +1328,22 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously determines the actual location of path. Propagated from upper fs.
-   * @param path string. Path to file.
+   * Determines the actual location of path. Propagated from upper fs.
+   * @param path Path to file.
    * @param options FileOptions | undefined.
-   * @returns Buffer (read buffer).
+   */
+  realpath(path: fs.PathLike, options: fs.WriteFileOptions, callback?: (err: Error | null, path: string | null) => void): void {
+    this.realpathAsync(path, options).then((path) => {
+      if (callback) callback(null, path)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
+   * Synchronously determines the actual location of path. Propagated from upper fs.
+   * @param path Path to file.
+   * @param options FileOptions | undefined.
    */
   realpathSync(path: fs.PathLike, options: fs.WriteFileOptions | undefined = undefined): string | Buffer {
     return this.upperDir.realpathSync(path, options);
@@ -847,11 +1351,10 @@ class EncryptedFS {
 
   /**
    * Asynchronously renames the file system object described by oldPath to the given new path. Propagated from upper fs.
-   * @param oldPath string. Old path.
-   * @param oldPath string. New path.
-   * @returns void.
+   * @param oldPath Old path.
+   * @param newPath New path.
    */
-  async rename(oldPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
+  private async renameAsync(oldPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
     try {
       this.upperDir.renameSync(oldPath, newPath);
       await promisify(this.lowerDir.rename)(oldPath, newPath);
@@ -861,10 +1364,22 @@ class EncryptedFS {
   }
 
   /**
+   * Renames the file system object described by oldPath to the given new path. Propagated from upper fs.
+   * @param oldPath Old path.
+   * @param newPath New path.
+   */
+  rename(oldPath: fs.PathLike, newPath: fs.PathLike, callback?: fs.NoParamCallback): void {
+    this.renameAsync(oldPath, newPath).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously renames the file system object described by oldPath to the given new path. Propagated from upper fs.
-   * @param oldPath string. Old path.
-   * @param oldPath string. New path.
-   * @returns void.
+   * @param oldPath Old path.
+   * @param newPath New path.
    */
   renameSync(oldPath: fs.PathLike, newPath: fs.PathLike): void {
     return this.upperDir.renameSync(oldPath, newPath);
@@ -877,9 +1392,8 @@ class EncryptedFS {
    * @param offset number. The offset in the buffer at which to start writing.
    * @param length number. The number of bytes to read.
    * @param position number. The offset from the beginning of the file from which data should be read.
-   * @returns Promise<number> (bytes read).
    */
-  async read(
+  private async readAsync(
     fd: number,
     buffer: Buffer,
     offset: number = 0,
@@ -947,13 +1461,35 @@ class EncryptedFS {
   }
 
   /**
+   * Reads data at an offset, position and length from a file descriptor into a given buffer.
+   * @param fd number. File descriptor.
+   * @param buffer Buffer. Buffer to be written from.
+   * @param offset number. The offset in the buffer at which to start writing.
+   * @param length number. The number of bytes to read.
+   * @param position number. The offset from the beginning of the file from which data should be read.
+   */
+  read(
+    fd: number,
+    buffer: Buffer,
+    offset: number = 0,
+    length: number = buffer.length,
+    position: number = 0,
+    callback?: (err: Error | null, bytesRead: number | null) => void
+  ): void {
+    this.readAsync(fd, buffer, offset, length, position).then((bytesRead) => {
+      if (callback) callback(null, bytesRead)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously reads data at an offset, position and length from a file descriptor into a given buffer.
    * @param fd number. File descriptor.
    * @param buffer Buffer. Buffer to be read into.
    * @param offset number. The offset in the buffer at which to start writing.
    * @param length number. The number of bytes to read.
    * @param position number. The offset from the beginning of the file from which data should be read.
-   * @returns number (bytes read).
    */
   readSync(
     fd: number,
@@ -1022,9 +1558,8 @@ class EncryptedFS {
    * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
    * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
    * @param position number. The offset from the beginning of the file where this data should be written.
-   * @returns Promise<number>.
    */
-  async write(
+  private async writeAsync(
     fd: number,
     buffer: Buffer,
     offset: number = 0,
@@ -1139,13 +1674,35 @@ class EncryptedFS {
   }
 
   /**
+   * Writes buffer (with length) to the file descriptor at an offset and position.
+   * @param fd number. File descriptor.
+   * @param buffer Buffer. Buffer to be written from.
+   * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
+   * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
+   * @param position number. The offset from the beginning of the file where this data should be written.
+   */
+  write(
+    fd: number,
+    buffer: Buffer,
+    offset: number = 0,
+    length: number = buffer.length - offset,
+    position: number = 0,
+    callback?: (err: Error | null, bytesWritten: number | null) => void
+  ): void {
+    this.writeAsync(fd, buffer, offset, length, position).then((bytesWritten) => {
+      if (callback) callback(null, bytesWritten)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
+  /**
    * Synchronously writes buffer (with length) to the file descriptor at an offset and position.
    * @param fd number. File descriptor.
    * @param buffer Buffer. Buffer to be written from.
    * @param offset number. The part of the buffer to be written. If not supplied, defaults to 0.
    * @param length number. The number of bytes to write. If not supplied, defaults to buffer.length - offset.
    * @param position number. The offset from the beginning of the file where this data should be written.
-   * @returns number (length).
    */
   writeSync(
     fd: number,
@@ -1269,9 +1826,8 @@ class EncryptedFS {
    * @param data string | Buffer. The data to be appended.
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
-   * @returns Promise<void>.
    */
-  async appendFile(file: fs.PathLike | number, data: Buffer, options?: fs.WriteFileOptions): Promise<void> {
+  private async appendFileAsync(file: fs.PathLike | number, data: Buffer, options?: fs.WriteFileOptions): Promise<void> {
     const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'a' }, options);
     let fd: number | null = null;
     try {
@@ -1279,7 +1835,7 @@ class EncryptedFS {
       if (typeof file === 'number') {
         fd = file;
       } else {
-        fd = await this.open(file, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(file, optionsInternal.flag, optionsInternal.mode);
       }
       const upperFd = this.getUpperFd(fd);
       const lowerFd = this.getLowerFd(fd);
@@ -1288,9 +1844,24 @@ class EncryptedFS {
       throw err;
     } finally {
       if (fd) {
-        await this.close(fd);
+        await this.closeAsync(fd);
       }
     }
+  }
+
+  /**
+   * Append data to a file, creating the file if it does not exist.
+   * @param file string | number. Path to the file or directory.
+   * @param data string | Buffer. The data to be appended.
+   * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
+   * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
+   */
+  appendFile(file: fs.PathLike | number, data: Buffer, options: fs.WriteFileOptions, callback?: fs.NoParamCallback): void {
+    this.appendFileAsync(file, data, options).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
   }
 
   /**
@@ -1299,7 +1870,6 @@ class EncryptedFS {
    * @param data string | Buffer. The data to be appended.
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
-   * @returns Promise<void>.
    */
   appendFileSync(file: fs.PathLike | number, data: Buffer, options?: fs.WriteFileOptions): void {
     const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'a' }, options);
@@ -1325,11 +1895,10 @@ class EncryptedFS {
 
   /**
    * Asynchronously changes the access permissions of the file system object described by path.
-   * @param path string. Path to the fs object.
+   * @param path Path to the fs object.
    * @param mode number. New permissions set.
-   * @returns void.
    */
-  async chmod(path: fs.PathLike, mode: number = 0): Promise<void> {
+  private async chmodAsync(path: fs.PathLike, mode: number = 0): Promise<void> {
     try {
       await promisify(this.upperDir.chmod)(path, mode);
       await promisify(this.lowerDir.chmod)(path, mode);
@@ -1339,10 +1908,22 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously changes the access permissions of the file system object described by path.
-   * @param path string. Path to the fs object.
+   * Changes the access permissions of the file system object described by path.
+   * @param path Path to the fs object.
    * @param mode number. New permissions set.
-   * @returns void.
+   */
+  chmod(path: fs.PathLike, mode: number = 0, callback?: fs.NoParamCallback): void {
+    this.chmodAsync(path, mode).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
+   * Synchronously changes the access permissions of the file system object described by path.
+   * @param path Path to the fs object.
+   * @param mode number. New permissions set.
    */
   chmodSync(path: fs.PathLike, mode: number = 0): void {
     this.upperDir.chmodSync(path, mode);
@@ -1350,13 +1931,12 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously changes the owner or group of the file system object described by path.
-   * @param path string. Path to the fs object.
+   * Asynchronously changes the owner or group of the file system object described by path.
+   * @param path Path to the fs object.
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
-   * @returns void.
    */
-  async chown(path: fs.PathLike, uid: number, gid: number): Promise<void> {
+  private async chownAsync(path: fs.PathLike, uid: number, gid: number): Promise<void> {
     try {
       await promisify(this.upperDir.chown)(path, uid, gid);
       await promisify(this.lowerDir.chown)(path, uid, gid);
@@ -1366,11 +1946,24 @@ class EncryptedFS {
   }
 
   /**
-   * Synchronously changes the owner or group of the file system object described by path.
-   * @param path string. Path to the fs object.
+   * Changes the owner or group of the file system object described by path.
+   * @param path Path to the fs object.
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
-   * @returns void.
+   */
+  chown(path: fs.PathLike, uid: number, gid: number, callback?: fs.NoParamCallback): void {
+    this.chownAsync(path, uid, gid).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
+   * Synchronously changes the owner or group of the file system object described by path.
+   * @param path Path to the fs object.
+   * @param uid number. User identifier.
+   * @param gid number. Group identifier.
    */
   chownSync(path: fs.PathLike, uid: number, gid: number): void {
     this.upperDir.chownSync(path, uid, gid);
@@ -1382,9 +1975,8 @@ class EncryptedFS {
    * @param path string | number. Path to the file or directory.
    * @param data string | Buffer. The data to be written.
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined } | undefined
-   * @returns void.
    */
-  async writeFile(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions = {}): Promise<void> {
+  private async writeFileAsync(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions): Promise<void> {
     try {
       const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'w' }, options);
       const isUserFileDescriptor = this.isFileDescriptor(path);
@@ -1392,7 +1984,7 @@ class EncryptedFS {
       if (isUserFileDescriptor) {
         fd = <number>path;
       } else if (typeof path == 'string') {
-        fd = await this.open(path, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(path, optionsInternal.flag, optionsInternal.mode);
       } else {
         throw new EncryptedFSError(errno.EBADF, null, null, 'writeFile');
       }
@@ -1406,7 +1998,7 @@ class EncryptedFS {
       let position = 0;
 
       while (length > 0) {
-        const written = await this.write(fd, data, offset, length, position);
+        const written = await this.writeAsync(fd, data, offset, length, position);
         offset += written;
         length -= written;
         if (position !== null) {
@@ -1419,12 +2011,25 @@ class EncryptedFS {
   }
 
   /**
+   * Writes data to the path specified with some FileOptions.
+   * @param path string | number. Path to the file or directory.
+   * @param data string | Buffer. The data to be written.
+   * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined } | undefined
+   */
+  writeFile(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions, callback?: fs.NoParamCallback): void {
+    this.writeFileAsync(path, data, options).then(() => {
+      if (callback) callback(null)
+    }).catch((err: Error) => {
+      if (callback) callback(err)
+    })
+  }
+
+  /**
    * Synchronously writes data to the path specified with some FileOptions.
    * @param path string | number. Path to the file or directory.
    * @param data string | Buffer. Defines the data to be .
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
-   * @returns void.
    */
   writeFileSync(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions = {}): void {
     try {
@@ -1462,12 +2067,11 @@ class EncryptedFS {
 
   /**
    * Asynchronously opens a file or directory and returns the file descriptor.
-   * @param path string. Path to the file or directory.
-   * @param flags string. Flags for read/write operations. Defaults to 'r'.
+   * @param path Path to the file or directory.
+   * @param flags Flags for read/write operations. Defaults to 'r'.
    * @param mode number. Read and write permissions. Defaults to 0o666.
-   * @returns Promise<number>
    */
-  async open(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666): Promise<number> {
+  private async openAsync(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666): Promise<number> {
     try {
       const _path = this.getPath(path);
       // Open on lowerDir
@@ -1511,14 +2115,27 @@ class EncryptedFS {
     }
   }
 
+  /**
+   * Opens a file or directory and returns the file descriptor.
+   * @param path Path to the file or directory.
+   * @param flags Flags for read/write operations. Defaults to 'r'.
+   * @param mode number. Read and write permissions. Defaults to 0o666.
+   */
+  open(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666, callback?: (err: Error | null, fd: number | null) => void): void {
+    this.openAsync(path, flags, mode).then((fd: number) => {
+      if (callback) callback(null, fd)
+    }).catch((err: Error) => {
+      if (callback) callback(err, null)
+    })
+  }
+
   // TODO: actually implement flags
   // TODO: w+ should truncate, r+ should not
   /**
    * Synchronously opens a file or directory and returns the file descriptor.
-   * @param path string. Path to the file or directory.
-   * @param flags string. Flags for read/write operations. Defaults to 'r'.
+   * @param path Path to the file or directory.
+   * @param flags Flags for read/write operations. Defaults to 'r'.
    * @param mode number. Read and write permissions. Defaults to 0o666.
-   * @returns number (file descriptor in the upperDir).
    */
   openSync(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666): number {
     try {
@@ -1564,14 +2181,81 @@ class EncryptedFS {
     }
   }
 
+  lchown(path: fs.PathLike, uid: number, gid: number, callback: fs.NoParamCallback) {
+    throw new Error('Method not implemented')
+  }
+
+  lchownSync(path: fs.PathLike, uid: number, gid: number) {
+    throw new Error('Method not implemented')
+  }
+
+  lchmod(path: fs.PathLike, mode: string | number, callback: fs.NoParamCallback) {
+    throw new Error('Method not implemented')
+  }
+
+  lchmodSync(path: fs.PathLike, mode: string | number) {
+    throw new Error('Method not implemented')
+  }
+
+  watchFile(filename: fs.PathLike, options: any, listener: any) {
+    throw new Error('Method not implemented')
+  }
+
+  unwatchFile(filename: fs.PathLike, listener?: any) {
+    throw new Error('Method not implemented')
+  }
+
+  watch(filename: fs.PathLike, options: any, listener: any) {
+    throw new Error('Method not implemented')
+  }
+
+  copyFile(src: fs.PathLike, dest: fs.PathLike, callback: fs.NoParamCallback) {
+    throw new Error('Method not implemented')
+  }
+
+  copyFileSync(src: fs.PathLike, dest: fs.PathLike) {
+    throw new Error('Method not implemented')
+  }
+
+  writev(fd: number, buffers: NodeJS.ArrayBufferView[], cb: (err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void) {
+    throw new Error('Method not implemented')
+  }
+
+  writevSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | undefined) {
+    throw new Error('Method not implemented')
+  }
+
+  readv(fd: number, buffers: NodeJS.ArrayBufferView[], cb: (err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void) {
+    throw new Error('Method not implemented')
+  }
+
+  readvSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | undefined) {
+    throw new Error('Method not implemented')
+  }
+
+  opendirSync(path: string, options?: fs.OpenDirOptions | undefined) {
+    throw new Error('Method not implemented')
+  }
+
+  opendir(path: string, cb: (err: NodeJS.ErrnoException | null, dir: fs.Dir) => void) {
+    throw new Error('Method not implemented')
+  }
+
+  Stats: any
+  Dirent: any
+  Dir: any
+  ReadStream: any
+  WriteStream: any
+  BigIntStats: any
+
   /**
    * Get key used for encryption.
-   * @returns Buffer | string (Key)
    */
   getKey(): Buffer | string {
     return this.masterKey;
   }
 
+  // ============= HELPER FUNCTIONS ============= //
   private getFileOptions(
     defaultOptions: Object,
     options?: fs.WriteFileOptions,
@@ -1652,12 +2336,10 @@ class EncryptedFS {
     );
   }
 
-  // ========= HELPER FUNCTIONS =============
   /**
    * Asynchronously reads the whole block that the position lies within.
    * @param fd File descriptor.
    * @param position Position of data required.
-   * @returns Buffer.
    */
   private async readBlock(fd: number, position: number): Promise<Buffer> {
     const blockBuf = Buffer.alloc(this.blockSize);
@@ -1669,7 +2351,7 @@ class EncryptedFS {
     // Read non-empty block
     const blockNum = this.offsetToBlockNum(position);
     const blockOffset = this.blockNumToOffset(blockNum);
-    await this.read(fd, blockBuf, 0, this.blockSize, blockOffset);
+    await this.readAsync(fd, blockBuf, 0, this.blockSize, blockOffset);
 
     return blockBuf;
   }
@@ -1678,7 +2360,6 @@ class EncryptedFS {
    * Synchronously reads the whole block that the position lies within.
    * @param fd File descriptor.
    * @param position Position of data required.
-   * @returns Buffer.
    */
   private readBlockSync(fd: number, position: number): Buffer {
     const blockBuf = Buffer.alloc(this.blockSize);
@@ -1702,7 +2383,6 @@ class EncryptedFS {
    * @param fd File descriptor.
    * @param newData Buffer containing the new data.
    * @param position Position of the insertion.
-   * @returns Buffer (a plaintext buffer containing the merge blocks in a single block).
    */
   private async overlaySegment(fd: number, newData: Buffer, position: number): Promise<Buffer> {
     // 	case 1:  segment is aligned to start of block and ends at end of block      |<------->|
@@ -1748,7 +2428,6 @@ class EncryptedFS {
    * @param fd File descriptor.
    * @param newData Buffer containing the new data.
    * @param position Position of the insertion.
-   * @returns Buffer (a plaintext buffer containing the merge blocks in a single block).
    */
   private overlaySegmentSync(fd: number, newData: Buffer, position: number): Buffer {
     const writeOffset = this.getBoundaryOffset(position); // byte offset from where to start writing new data in the block
@@ -1785,7 +2464,6 @@ class EncryptedFS {
   /**
    * Gets the byte offset from the beginning of the block that position lies within
    * @param position: number. Position.
-   * @returns number. Boundary offset
    */
   private getBoundaryOffset(position: number) {
     // Position can start from 0 but block size starts counting from 1
@@ -1796,7 +2474,6 @@ class EncryptedFS {
   /**
    * Checks if path is a file descriptor (number) or not (string).
    * @param path Path of file.
-   * @returns boolean
    */
   private isFileDescriptor(path: fs.PathLike | number): path is number {
     if (typeof path === 'number') {
@@ -1811,7 +2488,6 @@ class EncryptedFS {
   /**
    * Retrieves the upperFd from an efs fd index.
    * @param fdIndex File descriptor.
-   * @returns number
    */
   private getUpperFd(fdIndex: number): number {
     if (this.fileDescriptors.has(fdIndex)) {
@@ -1834,7 +2510,6 @@ class EncryptedFS {
   /**
    * Retrieves the lowerFd from an efs fd index.
    * @param fdIndex File descriptor.
-   * @returns number
    */
   private getLowerFd(fdIndex: number): number {
     if (this.fileDescriptors.has(fdIndex)) {
@@ -1857,7 +2532,6 @@ class EncryptedFS {
   /**
    * Takes a position in a file and returns the block number that 'position' lies in.
    * @param position
-   * @returns number (Block number)
    */
   private offsetToBlockNum(position: number): number {
     // we use blockSize as opposed to chunkSize because chunk contains metadata
@@ -1868,7 +2542,6 @@ class EncryptedFS {
   /**
    * Calculates the offset/position of the block number in the unencrypted file.
    * @param blockNum Block number.
-   * @returns number (position offset)
    */
   private blockNumToOffset(blockNum: number): number {
     return blockNum * this.blockSize;
@@ -1877,7 +2550,6 @@ class EncryptedFS {
   /**
    * Calculates the offset/position of the chunk number in the unencrypted file.
    * @param chunkNum Chunk number.
-   * @returns number (position offset)
    */
   private chunkNumToOffset(chunkNum: number): number {
     return chunkNum * this.chunkSize;
@@ -1887,7 +2559,6 @@ class EncryptedFS {
    * Creates a block generator for block iteration, split is per block length.
    * @param blocks Buffer containing blocks to be split.
    * @param blockSize Size of an individual block.
-   * @returns IterableIterator<Buffer> (the iterator for the blocks split into buffer.length/blockSize blocks)
    */
   private *blockGenerator(blocks: Buffer, blockSize: number = this.blockSize): IterableIterator<Buffer> {
     let iterCount = 0;
@@ -1903,7 +2574,6 @@ class EncryptedFS {
    * Creates a chunk generator for chunk iteration, split is per block length.
    * @param chunks Buffer containing blocks to be split.
    * @param chunkSize Size of an individual block.
-   * @returns IterableIterator<Buffer> (the iterator for the chunks split into buffer.length/chunkSize blocks)
    */
   private *chunkGenerator(chunks: Buffer, chunkSize: number = this.chunkSize): IterableIterator<Buffer> {
     let iterCount = 0;
@@ -1918,7 +2588,6 @@ class EncryptedFS {
   /**
    * Synchronously checks if file (fd) contains conntent or not.
    * @param fd File descriptor.
-   * @returns boolean (true if file has content, false if file has no content)
    */
   private hasContentSync(fd: number): boolean {
     const hasContent = this.lowerDir.fstatSync(fd).size !== 0;
@@ -1928,7 +2597,6 @@ class EncryptedFS {
   /**
    * Synchronously checks for file size.
    * @param fd File descriptor.
-   * @returns boolean (true if file has content, false if file has no content)
    */
   private getPostWriteFileSize(fd: number, position: number, length: number): number {
     const fileMeta = this.metadata[fd];

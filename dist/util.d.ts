@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { Pool, ModuleThread } from 'threads';
 import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
 declare const cryptoConstants: Readonly<{
@@ -9,8 +8,4 @@ declare const cryptoConstants: Readonly<{
     PBKDF_NUM_ITERATIONS: number;
 }>;
 declare function initializeWorkerPool(numWorkers?: number): Pool<ModuleThread<EncryptedFSCryptoWorker>>;
-declare type UpperDirectoryMetadata = {
-    size: number;
-    keyHash: Buffer;
-};
-export { cryptoConstants, initializeWorkerPool, UpperDirectoryMetadata };
+export { cryptoConstants, initializeWorkerPool };

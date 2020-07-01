@@ -1,6 +1,6 @@
 /// <reference types="node" />
-import { Readable, Writable } from 'readable-stream';
 import EncryptedFS from './EncryptedFS';
+import { Readable, Writable } from 'readable-stream';
 declare type optionsStream = {
     highWaterMark?: number;
     flags?: string;

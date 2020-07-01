@@ -10,13 +10,9 @@
     "module": "CommonJS",
     "target": "ES2018",
     "baseUrl": "./src",
-    "paths": {
-      "@encryptedfs/*": [
-        "*"
-      ]
-    }
+    "strictBindCallApply": true,
   },
   "include": [
-    "./src/**/*"
+    "./src/**/*",
   ]
 }
