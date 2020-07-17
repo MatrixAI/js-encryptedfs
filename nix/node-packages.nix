@@ -1475,7 +1475,7 @@ let
   args = {
     name = "encryptedfs";
     packageName = "encryptedfs";
-    version = "1.0.1";
+    version = "1.0.2";
     src = ./..;
     dependencies = [
       sources."@babel/code-frame-7.8.3"
