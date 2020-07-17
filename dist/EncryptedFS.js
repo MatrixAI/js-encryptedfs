@@ -617,7 +617,9 @@ class EncryptedFS {
      */
     async unlinkAsync(path) {
         try {
-            this.upperDir.unlinkSync(path);
+            if (this.upperDir.existsSync(path)) {
+                this.upperDir.unlinkSync(path);
+            }
             await util_1.promisify(this.lowerDir.unlink)(path);
         }
         catch (err) {
@@ -642,7 +644,10 @@ class EncryptedFS {
      * @param path Path to create.
      */
     unlinkSync(path) {
-        return this.upperDir.unlinkSync(path);
+        if (this.upperDir.existsSync(path)) {
+            this.upperDir.unlinkSync(path);
+        }
+        this.lowerDir.unlinkSync(path);
     }
     /**
      * Asynchronously changes the access and modification times of the file referenced by path.
