@@ -695,7 +695,9 @@ class EncryptedFS {
    */
   private async unlinkAsync(path: fs.PathLike): Promise<void> {
     try {
-      this.upperDir.unlinkSync(path);
+      if (this.upperDir.existsSync(path)) {
+        this.upperDir.unlinkSync(path);
+      }
       await promisify(this.lowerDir.unlink)(path);
     } catch (err) {
       throw err;
@@ -719,7 +721,10 @@ class EncryptedFS {
    * @param path Path to create.
    */
   unlinkSync(path: fs.PathLike): void {
-    return this.upperDir.unlinkSync(path);
+    if (this.upperDir.existsSync(path)) {
+      this.upperDir.unlinkSync(path);
+    }
+    this.lowerDir.unlinkSync(path)
   }
 
   /**
