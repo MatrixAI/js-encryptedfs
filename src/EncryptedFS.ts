@@ -1,15 +1,16 @@
+import type { UpperDirectoryMetadata, BufferEncoding } from './types';
 import fs from 'fs';
 import Path from 'path';
-import { promisify } from 'util';
-import autoBind from 'auto-bind-proxy';
-import { ModuleThread, Pool } from 'threads';
+import { promisify } from './util';
+import autoBind from 'auto-bind';
 import FileDescriptor from './FileDescriptor';
 import { constants, DEFAULT_FILE_PERM } from './constants';
 import { EncryptedFSError, errno } from './EncryptedFSError';
 import { cryptoConstants } from './util';
 import { optionsStream, ReadStream, WriteStream } from './Streams';
-import { EncryptedFSCryptoWorker } from './EncryptedFSCryptoWorker';
-import { EncryptedFSCrypto, CryptoInterface } from './EncryptedFSCrypto';
+import * as cryptoUtils from './crypto';
+import { EncryptedFSLayers } from './types';
+import { WorkerManager } from './workers';
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director
  * For example: if you open a file as write-only, how will you merge the block on the ct file?
@@ -17,15 +18,9 @@ import { EncryptedFSCrypto, CryptoInterface } from './EncryptedFSCrypto';
  * So the lower dir file always needs to be read-write, the upper dir file permission will be
  * whatever the user specified.
  *
- * One way to implement this is through inheriting the FileDeescriptors class.
+ * One way to implement this is through inheriting the FileDescriptors class.
  * Extend the class by adding another attribute for the
  */
-
-
-type UpperDirectoryMetadata = {
-  size: number;
-  keyHash: Buffer;
-};
 
 /**
  * Encrypted filesystem written in TypeScript for Node.js.
@@ -34,34 +29,29 @@ type UpperDirectoryMetadata = {
  * @param lowerDir The lower directory file system.
  * @param initVectorSize The size of the initial vector, defaults to 16.
  * @param blockSize The size of block, defaults to 4096.
- * @param useWebWorkers Use webworkers to make crypto tasks true async, defaults to false.
+ * @param cryptoLib The library to use for cryptography
  */
 class EncryptedFS {
-  private uid: number;
-  private gid: number;
-  private umask: number;
-  private upperDir: any;
-  private upperDirContextControl: any;
-  private lowerDir: typeof fs;
-  private lowerDirContextControl: typeof process;
-  private crypto: EncryptedFSCrypto;
-  private chunkSize: number;
-  private blockSize: number;
-  private fileDescriptors: Map<number, FileDescriptor>;
-  private masterKey: Buffer;
-  private metadata: { [fd: number]: UpperDirectoryMetadata };
+  protected umask: number;
+  protected upperDir: any;
+  protected lowerDir: typeof fs;
+  protected chunkSize: number;
+  protected blockSize: number;
+  protected fileDescriptors: Map<number, FileDescriptor>;
+  protected masterKey: Buffer;
+  protected metadata: { [fd: number]: UpperDirectoryMetadata };
+  protected upperBasePath: string;
+  protected lowerBasePath: string;
+  protected workerManager?: WorkerManager;
   constants: any;
   constructor(
     key: Buffer | string,
     upperDir: typeof fs,
-    upperDirContextControl: typeof fs,
     lowerDir: typeof fs,
-    lowerDirContextControl: typeof process,
+    upperBasePath: string = '',
+    lowerBasePath: string = '',
     umask: number = 0o022,
     blockSize: number = 4096,
-    useWebWorkers: boolean = false,
-    cryptoLib: CryptoInterface | undefined = undefined,
-    workerPool?: Pool<ModuleThread<EncryptedFSCryptoWorker>>,
   ) {
     this.umask = umask;
     // Set key
@@ -70,21 +60,18 @@ class EncryptedFS {
     } else {
       this.masterKey = key;
     }
-    if (cryptoLib) {
-      this.crypto = new EncryptedFSCrypto(this.masterKey, cryptoLib, useWebWorkers, workerPool);
-    } else {
-      this.crypto = new EncryptedFSCrypto(this.masterKey, require('crypto'), useWebWorkers, workerPool);
-    }
     this.upperDir = autoBind(upperDir);
-    this.upperDirContextControl = autoBind(upperDirContextControl);
     this.lowerDir = lowerDir;
-    this.lowerDirContextControl = lowerDirContextControl;
     this.blockSize = blockSize;
     this.chunkSize =
-      this.blockSize + cryptoConstants.SALT_LEN + cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN;
+      this.blockSize +
+      cryptoConstants.INIT_VECTOR_LEN +
+      cryptoConstants.AUTH_TAG_LEN;
     this.fileDescriptors = new Map();
     this.metadata = {};
     this.constants = constants;
+    this.upperBasePath = upperBasePath;
+    this.lowerBasePath = lowerBasePath;
   }
 
   promises = {
@@ -324,59 +311,47 @@ class EncryptedFS {
      * @returns Promise<number>
      */
     open: this.openAsync.bind(this),
+  };
+
+  public setWorkerManager(workerManager: WorkerManager) {
+    this.workerManager = workerManager;
   }
 
-  getUmask(): number {
+  public unsetWorkerManager() {
+    delete this.workerManager;
+  }
+
+  getumask(): number {
     return this.umask;
-  }
-
-  setUmask(umask: number): void {
-    this.upperDirContextControl.setUmask(umask);
-    this.lowerDirContextControl.umask(umask);
-    this.umask = umask;
-  }
-
-  getUid(): number {
-    return this.uid;
-  }
-
-  setUid(uid: number): void {
-    this.upperDirContextControl.setUid(uid);
-    this.lowerDirContextControl.setuid(uid);
-    this.uid = uid;
-  }
-
-  getGid(): number {
-    return this.gid;
-  }
-
-  setGid(gid: number): void {
-    this.upperDirContextControl.setGid(gid);
-    this.lowerDirContextControl.setgid(gid);
-    this.gid = gid;
-  }
-
-  getCwd(): string {
-    return this.upperDirContextControl.getCwd();
-  }
-
-  // TODO: nodejs fs (i.e. lowerDir) does not have a native method for changing directory and depends on process.chdir(...)
-  // which seems a little too much like a global change. We could also just keep track of the cwd in upperDir (vfs) and then
-  // every time there is an operation using lowerDir, we just prepend this cwd to the path.
-  chdir(path: string): void {
-    this.upperDirContextControl.chdir(path);
-    this.lowerDirContextControl.chdir(path);
   }
 
   /**
    * Asynchronously tests a user's permissions for the file specified by path.
    * @param fd File descriptor.
    */
-  private async accessAsync(path: fs.PathLike, mode: number = 0): Promise<void> {
+  private async accessAsync(
+    path: fs.PathLike,
+    mode: number = 0,
+  ): Promise<void> {
     try {
-      await promisify(this.lowerDir.access)(path, mode);
+      const accessAsync = promisify(this.lowerDir.access).bind(this.lowerDir);
+      await accessAsync(`${this.lowerBasePath}/${path}`, mode);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -384,12 +359,18 @@ class EncryptedFS {
    * Tests a user's permissions for the file specified by path.
    * @param fd File descriptor.
    */
-  access(path: fs.PathLike, mode: number = 0, callback?: fs.NoParamCallback): void {
-    this.accessAsync(path, mode).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  access(
+    path: fs.PathLike,
+    mode: number = 0,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.accessAsync(path, mode)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -397,7 +378,7 @@ class EncryptedFS {
    * @param fd File descriptor.
    */
   accessSync(path: fs.PathLike, mode: number = this.constants.F_OK): void {
-    this.lowerDir.accessSync(path, mode);
+    this.lowerDir.accessSync(`${this.lowerBasePath}/${path}`, mode);
   }
 
   /**
@@ -406,9 +387,24 @@ class EncryptedFS {
    */
   private async lstatAsync(path: fs.PathLike): Promise<fs.Stats> {
     try {
-      return await promisify(this.lowerDir.lstat)(path);
+      const lstatAsync = promisify(this.lowerDir.lstat).bind(this.lowerDir);
+      return await lstatAsync(`${this.lowerBasePath}/${path}`);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -416,12 +412,17 @@ class EncryptedFS {
    * Retrieves the path stats in the upper file system directory. Propagates upper fs method.
    * @param path Path to create.
    */
-  lstat(path: fs.PathLike, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
-    this.lstatAsync(path).then((stats) => {
-      if (callback) callback(null, stats)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  lstat(
+    path: fs.PathLike,
+    callback?: (err: Error | null, stats: fs.Stats | null) => void,
+  ): void {
+    this.lstatAsync(path)
+      .then((stats) => {
+        if (callback) callback(null, stats);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -429,7 +430,7 @@ class EncryptedFS {
    * @param path Path to create.
    */
   lstatSync(path: fs.PathLike): fs.Stats {
-    return this.lowerDir.lstatSync(path);
+    return this.lowerDir.lstatSync(`${this.lowerBasePath}/${path}`);
   }
 
   /**
@@ -443,14 +444,32 @@ class EncryptedFS {
   ): Promise<string> {
     try {
       if (options.recursive) {
-        await promisify(this.upperDir.mkdirp)(path, options.mode);
+        const mkdirpUAsync = promisify(this.upperDir.mkdirp).bind(
+          this.upperDir,
+        );
+        await mkdirpUAsync(`${this.upperBasePath}/${path}`, options.mode);
       } else {
-        await promisify(this.upperDir.mkdir)(path, options.mode);
+        const mkdirUAsync = promisify(this.upperDir.mkdir).bind(this.upperDir);
+        await mkdirUAsync(`${this.upperBasePath}/${path}`, options.mode);
       }
-      const _path = await promisify(this.lowerDir.mkdir)(path, options);
+      const mkdirLAsync = promisify(this.lowerDir.mkdir).bind(this.lowerDir);
+      const _path = await mkdirLAsync(`${this.lowerBasePath}/${path}`, options);
       return _path!;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -460,13 +479,15 @@ class EncryptedFS {
   mkdir(
     path: fs.PathLike,
     options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false },
-    callback?: (err: Error | null, path: string | null) => void
+    callback?: (err: Error | null, path: string | null) => void,
   ): void {
-    this.mkdirAsync(path, options).then((path) => {
-      if (callback) callback(null, path)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+    this.mkdirAsync(path, options)
+      .then((path) => {
+        if (callback) callback(null, path);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -474,12 +495,15 @@ class EncryptedFS {
    * @param path Path to create.
    * @param mode number | undefined. Permissions or mode.
    */
-  mkdirSync(path: fs.PathLike, options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false }): void {
-    this.lowerDir.mkdirSync(path, options);
+  mkdirSync(
+    path: fs.PathLike,
+    options: fs.MakeDirectoryOptions = { mode: 0o777, recursive: false },
+  ): void {
+    this.lowerDir.mkdirSync(`${this.lowerBasePath}/${path}`, options);
     if (options.recursive) {
-      this.upperDir.mkdirpSync(path, options.mode);
+      this.upperDir.mkdirpSync(`${this.upperBasePath}/${path}`, options.mode);
     } else {
-      this.upperDir.mkdirSync(path, options.mode);
+      this.upperDir.mkdirSync(`${this.upperBasePath}/${path}`, options.mode);
     }
   }
 
@@ -490,14 +514,40 @@ class EncryptedFS {
    */
   private async mkdtempAsync(
     prefix: string,
-    options: { encoding: BufferEncoding } | BufferEncoding | null | undefined = 'utf8',
+    options:
+      | { encoding: BufferEncoding }
+      | BufferEncoding
+      | null
+      | undefined = 'utf8',
   ): Promise<string> {
     try {
-      const _path = await promisify(this.upperDir.mkdtemp)(prefix, options);
-      await promisify(this.lowerDir.mkdtemp)(prefix, options);
+      const mkdtempUAsync = promisify(this.upperDir.mkdtemp).bind(
+        this.upperDir,
+      );
+      const _path = await mkdtempUAsync(
+        `${this.upperBasePath}/${prefix}`,
+        options,
+      );
+      const mkdtempLAsync = promisify(this.lowerDir.mkdtemp).bind(
+        this.lowerDir,
+      );
+      await mkdtempLAsync(`${this.lowerBasePath}/${prefix}`, options);
       return _path;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          prefix,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -508,14 +558,20 @@ class EncryptedFS {
    */
   mkdtemp(
     prefix: string,
-    options: { encoding: BufferEncoding } | BufferEncoding | null | undefined = 'utf8',
-    callback?: (err: Error | null, path: string | null) => void
+    options:
+      | { encoding: BufferEncoding }
+      | BufferEncoding
+      | null
+      | undefined = 'utf8',
+    callback?: (err: Error | null, path: string | null) => void,
   ): void {
-    this.mkdtempAsync(prefix, options).then((path) => {
-      if (callback) callback(null, path)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+    this.mkdtempAsync(prefix, options)
+      .then((path) => {
+        if (callback) callback(null, path);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -525,12 +581,19 @@ class EncryptedFS {
    */
   mkdtempSync(
     prefix: string,
-    options: { encoding: BufferEncoding } | BufferEncoding | null | undefined = 'utf8',
+    options:
+      | { encoding: BufferEncoding }
+      | BufferEncoding
+      | null
+      | undefined = 'utf8',
   ): string {
-    const lowerPath = this.lowerDir.mkdtempSync(prefix, options);
+    const lowerPath = this.lowerDir.mkdtempSync(
+      `${this.lowerBasePath}/${prefix}`,
+      options,
+    );
     const lowerStat = this.lowerDir.statSync(lowerPath);
-    this.upperDir.mkdirpSync(lowerPath, lowerStat.mode);
-    return <string>lowerPath;
+    this.upperDir.mkdirpSync(`${this.upperBasePath}/${prefix}`, lowerStat.mode);
+    return lowerPath as string;
   }
 
   /**
@@ -538,28 +601,48 @@ class EncryptedFS {
    */
   private async statAsync(path: fs.PathLike): Promise<fs.Stats> {
     try {
-      return await promisify(this.upperDir.stat)(path);
+      const statAsync = promisify(this.upperDir.stat).bind(this.upperDir);
+      return await statAsync(`${this.upperBasePath}/${path}`);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.upper,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
   /**
    * Retrieves  in the upper file system directory. Propagates upper fs method.
    */
-  stat(path: fs.PathLike, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
-    this.statAsync(path).then((stats) => {
-      if (callback) callback(null, stats)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  stat(
+    path: fs.PathLike,
+    callback?: (err: Error | null, stats: fs.Stats | null) => void,
+  ): void {
+    this.statAsync(path)
+      .then((stats) => {
+        if (callback) callback(null, stats);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
    * Asynchronously retrieves  in the upper file system directory. Propagates upper fs method.
    */
   statSync(path: fs.PathLike): fs.Stats {
-    return this.upperDir.statSync(path);
+    return this.upperDir.statSync(`${this.upperBasePath}/${path}`);
   }
 
   /**
@@ -567,14 +650,32 @@ class EncryptedFS {
    * @param path Path to create.
    * @param options: { recursive: boolean }.
    */
-  private async rmdirAsync(path: fs.PathLike, options: fs.RmDirAsyncOptions | undefined = undefined): Promise<void> {
+  private async rmdirAsync(
+    path: fs.PathLike,
+    options: fs.RmDirAsyncOptions | undefined = undefined,
+  ): Promise<void> {
     try {
       if (!(options?.recursive ?? false)) {
-        await promisify(this.upperDir.mkdtemp)(path, options);
+        const rmdirUAsync = promisify(this.upperDir.rmdir).bind(this.upperDir);
+        await rmdirUAsync(`${this.upperBasePath}/${path}`, options);
       }
-      await promisify(this.lowerDir.rmdir)(path, options);
+      const rmdirLAsync = promisify(this.lowerDir.mkdtemp).bind(this.lowerDir);
+      await rmdirLAsync(`${this.lowerBasePath}/${path}`, options);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -584,13 +685,15 @@ class EncryptedFS {
   rmdir(
     path: fs.PathLike,
     options: fs.RmDirAsyncOptions | undefined = undefined,
-    callback?: fs.NoParamCallback
+    callback?: fs.NoParamCallback,
   ): void {
-    this.rmdirAsync(path, options).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.rmdirAsync(path, options)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -598,15 +701,31 @@ class EncryptedFS {
    * @param path Path to create.
    * @param options: { recursive: boolean }.
    */
-  rmdirSync(path: fs.PathLike, options: fs.RmDirOptions | undefined = undefined): void {
+  rmdirSync(
+    path: fs.PathLike,
+    options: fs.RmDirOptions | undefined = undefined,
+  ): void {
     // TODO: rmdirSync on VFS doesn't have an option to recusively delete
     try {
       if (!options?.recursive) {
-        this.upperDir.rmdirSync(path);
+        this.upperDir.rmdirSync(`${this.upperBasePath}/${path}`);
       }
-      this.lowerDir.rmdirSync(path, options);
+      this.lowerDir.rmdirSync(`${this.lowerBasePath}/${path}`, options);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -621,10 +740,37 @@ class EncryptedFS {
     type: 'dir' | 'file' | 'junction' | null | undefined,
   ): Promise<void> {
     try {
-      this.upperDir.symlinkSync(target, path, type);
-      await promisify(this.lowerDir.symlink)(target, path, type);
+      const symlinkUAsync = promisify(this.upperDir.symlink).bind(
+        this.upperDir,
+      );
+      await symlinkUAsync(
+        `${this.upperBasePath}/${target}`,
+        `${this.upperBasePath}/${path}`,
+        type,
+      );
+      const symlinkLAsync = promisify(this.lowerDir.symlink).bind(
+        this.lowerDir,
+      );
+      await symlinkLAsync(
+        `${this.lowerBasePath}/${target}`,
+        `${this.lowerBasePath}/${path}`,
+        type,
+      );
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -637,13 +783,15 @@ class EncryptedFS {
     target: fs.PathLike,
     path: fs.PathLike,
     type: 'dir' | 'file' | 'junction' | null | undefined,
-    callback?: fs.NoParamCallback
+    callback?: fs.NoParamCallback,
   ): void {
-    this.symlinkAsync(target, path, type).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.symlinkAsync(target, path, type)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -656,37 +804,68 @@ class EncryptedFS {
     path: fs.PathLike,
     type: 'dir' | 'file' | 'junction' | null | undefined = 'file',
   ): void {
-    this.upperDir.symlinkSync(target, path, type);
-    this.lowerDir.symlinkSync(target, path, type);
+    this.upperDir.symlinkSync(
+      `${this.upperBasePath}/${target}`,
+      `${this.upperBasePath}/${path}`,
+      type,
+    );
+    this.lowerDir.symlinkSync(
+      `${this.lowerBasePath}/${target}`,
+      `${this.lowerBasePath}/${path}`,
+      type,
+    );
   }
 
   /**
    * Asynchronously changes the size of the file by len bytes.
    */
-  private async truncateAsync(file: fs.PathLike | number, len: number = 0): Promise<void> {
+  private async truncateAsync(
+    path: fs.PathLike | number,
+    len: number = 0,
+  ): Promise<void> {
     try {
-      this.upperDir.truncateSync(file, len);
+      this.upperDir.truncateSync(`${this.upperBasePath}/${path}`, len);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.upper,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
   /**
    * Changes the size of the file by len bytes.
    */
-  truncate(file: fs.PathLike | number, len: number = 0, callback?: fs.NoParamCallback): void {
-    this.truncateAsync(file, len).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  truncate(
+    file: fs.PathLike | number,
+    len: number = 0,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.truncateAsync(file, len)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
    * Synchronously changes the size of the file by len bytes.
    */
   truncateSync(file: fs.PathLike | number, len: number = 0): void {
-    return this.upperDir.truncateSync(file, len);
+    return this.upperDir.truncateSync(`${this.upperBasePath}/${file}`, len);
   }
 
   /**
@@ -695,12 +874,27 @@ class EncryptedFS {
    */
   private async unlinkAsync(path: fs.PathLike): Promise<void> {
     try {
-      if (this.upperDir.existsSync(path)) {
-        this.upperDir.unlinkSync(path);
+      const unlinkUAsync = promisify(this.upperDir.unlink).bind(this.upperDir);
+      if (this.upperDir.existsSync(`${this.upperBasePath}/${path}`)) {
+        await unlinkUAsync(`${this.upperBasePath}/${path}`);
       }
-      await promisify(this.lowerDir.unlink)(path);
+      const unlinkLAsync = promisify(this.lowerDir.unlink).bind(this.lowerDir);
+      await unlinkLAsync(`${this.lowerBasePath}/${path}`);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -709,11 +903,13 @@ class EncryptedFS {
    * @param path Path to create.
    */
   unlink(path: fs.PathLike, callback?: fs.NoParamCallback): void {
-    this.unlinkAsync(path).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.unlinkAsync(path)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -721,10 +917,10 @@ class EncryptedFS {
    * @param path Path to create.
    */
   unlinkSync(path: fs.PathLike): void {
-    if (this.upperDir.existsSync(path)) {
-      this.upperDir.unlinkSync(path);
+    if (this.upperDir.existsSync(`${this.upperBasePath}/${path}`)) {
+      this.upperDir.unlinkSync(`${this.upperBasePath}/${path}`);
     }
-    this.lowerDir.unlinkSync(path)
+    this.lowerDir.unlinkSync(`${this.lowerBasePath}/${path}`);
   }
 
   /**
@@ -733,12 +929,30 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  private async utimesAsync(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
+  private async utimesAsync(
+    path: fs.PathLike,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+  ): Promise<void> {
     try {
-      this.upperDir.utimesSync(path, atime, mtime);
-      await promisify(this.lowerDir.utimes)(path, atime, mtime);
+      this.upperDir.utimesSync(`${this.upperBasePath}/${path}`, atime, mtime);
+      const symlinkLAsync = promisify(this.lowerDir.utimes).bind(this.lowerDir);
+      await symlinkLAsync(`${this.lowerBasePath}/${path}`, atime, mtime);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -748,12 +962,19 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  utimes(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date, callback?: fs.NoParamCallback): void {
-    this.utimesAsync(path, atime, mtime).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  utimes(
+    path: fs.PathLike,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.utimesAsync(path, atime, mtime)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -762,9 +983,13 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  utimesSync(path: fs.PathLike, atime: number | string | Date, mtime: number | string | Date): void {
-    this.upperDir.utimesSync(path, atime, mtime);
-    this.lowerDir.utimesSync(path, atime, mtime);
+  utimesSync(
+    path: fs.PathLike,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+  ): void {
+    this.upperDir.utimesSync(`${this.upperBasePath}/${path}`, atime, mtime);
+    this.lowerDir.utimesSync(`${this.lowerBasePath}/${path}`, atime, mtime);
   }
 
   /**
@@ -775,9 +1000,10 @@ class EncryptedFS {
     if (this.isFileDescriptor(fd)) {
       this.upperDir.closeSync(fd);
       const lowerFd = this.getLowerFd(fd);
-      await promisify(this.lowerDir.close)(lowerFd);
+      const closeAsync = promisify(this.lowerDir.close).bind(this.lowerDir);
+      await closeAsync(lowerFd);
     } else {
-      throw new EncryptedFSError(errno.EBADF, null, null, 'close');
+      throw new EncryptedFSError(errno.EBADF, fd, null, 'close', null);
     }
   }
 
@@ -786,11 +1012,13 @@ class EncryptedFS {
    * @param fd number. File descriptor.
    */
   close(fd: number, callback?: fs.NoParamCallback): void {
-    this.closeAsync(fd).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.closeAsync(fd)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -817,9 +1045,24 @@ class EncryptedFS {
     options?: { encoding: BufferEncoding; withFileTypes?: false },
   ): Promise<string[]> {
     try {
-      return await promisify(this.lowerDir.readdir)(path, options);
+      const readdirAsync = promisify(this.lowerDir.readdir).bind(this.lowerDir);
+      return await readdirAsync(`${this.lowerBasePath}/${path}`, options);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -831,13 +1074,15 @@ class EncryptedFS {
   readdir(
     path: fs.PathLike,
     options?: { encoding: BufferEncoding; withFileTypes?: false },
-    callback?: (err: Error | null, contents: string[] | null) => void
+    callback?: (err: Error | null, contents: string[] | null) => void,
   ): void {
-    this.readdirAsync(path, options).then((contents) => {
-      if (callback) callback(null, contents)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+    this.readdirAsync(path, options)
+      .then((contents) => {
+        if (callback) callback(null, contents);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -849,14 +1094,17 @@ class EncryptedFS {
     path: fs.PathLike,
     options?: { encoding: BufferEncoding; withFileTypes?: false },
   ): string[] {
-    return this.lowerDir.readdirSync(path, options);
+    return this.lowerDir.readdirSync(`${this.lowerBasePath}/${path}`, options);
   }
 
   /**
    * Creates a read stream from the given path and options.
    * @param path
    */
-  createReadStream(path: fs.PathLike, options: optionsStream | undefined): ReadStream {
+  createReadStream(
+    path: fs.PathLike,
+    options: optionsStream | undefined,
+  ): ReadStream {
     path = this.getPath(path);
     options = this.getStreamOptions(
       {
@@ -881,7 +1129,10 @@ class EncryptedFS {
    * Creates a write stream from the given path and options.
    * @param path
    */
-  createWriteStream(path: fs.PathLike, options: optionsStream | undefined): WriteStream {
+  createWriteStream(
+    path: fs.PathLike,
+    options: optionsStream | undefined,
+  ): WriteStream {
     path = this.getPath(path);
     options = this.getStreamOptions(
       {
@@ -906,12 +1157,28 @@ class EncryptedFS {
    * @param path
    */
   private async existsAsync(path: fs.PathLike): Promise<boolean> {
-    // TODO: make sure upper and lower directories agree
     try {
-      const existsInLower = await promisify(this.lowerDir.exists)(path);
-      return existsInLower;
+      const existsLAsync = promisify(this.lowerDir.exists).bind(this.lowerDir);
+      const existsInLower = await existsLAsync(`${this.lowerBasePath}/${path}`);
+      const existsUAsync = promisify(this.upperDir.exists).bind(this.upperDir);
+      const existsInUpper = await existsUAsync(`${this.upperBasePath}/${path}`);
+      return existsInLower && existsInUpper;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -919,13 +1186,17 @@ class EncryptedFS {
    * Checks if path exists.
    * @param path
    */
-  exists(path: fs.PathLike, callback?: (err: Error | null, exists: boolean | null) => void): void {
-    // TODO: make sure upper and lower directories agree
-    this.existsAsync(path).then((exists) => {
-      if (callback) callback(null, exists)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  exists(
+    path: fs.PathLike,
+    callback?: (err: Error | null, exists: boolean | null) => void,
+  ): void {
+    this.existsAsync(path)
+      .then((exists) => {
+        if (callback) callback(null, exists);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -933,8 +1204,10 @@ class EncryptedFS {
    * @param path
    */
   existsSync(path: fs.PathLike): boolean {
-    // TODO: make sure upper and lower directories agree
-    return this.lowerDir.existsSync(path);
+    return (
+      this.lowerDir.existsSync(`${this.lowerBasePath}/${path}`) &&
+      this.upperDir.existsSync(`${this.upperBasePath}/${path}`)
+    );
   }
 
   /**
@@ -943,8 +1216,15 @@ class EncryptedFS {
    * @param offset number. Offset to start manipulations from.
    * @param len number. New length for the file.
    */
-  private async fallocateAsync(fdIndex: number, offset: number, len: number): Promise<void> {
-    return await promisify(this.upperDir.fallocate)(fdIndex, offset, len);
+  private async fallocateAsync(
+    fdIndex: number,
+    offset: number,
+    len: number,
+  ): Promise<void> {
+    const fallocateAsync = promisify(this.upperDir.fallocate).bind(
+      this.upperDir,
+    );
+    return await fallocateAsync(fdIndex, offset, len);
   }
 
   /**
@@ -953,12 +1233,19 @@ class EncryptedFS {
    * @param offset number. Offset to start manipulations from.
    * @param len number. New length for the file.
    */
-  fallocate(fdIndex: number, offset: number, len: number, callback?: fs.NoParamCallback): void {
-    this.fallocateAsync(fdIndex, offset, len).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  fallocate(
+    fdIndex: number,
+    offset: number,
+    len: number,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.fallocateAsync(fdIndex, offset, len)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -977,7 +1264,8 @@ class EncryptedFS {
    * @param mode number. New permissions set.
    */
   private async fchmodAsync(fdIndex: number, mode: number = 0): Promise<void> {
-    return await promisify(this.upperDir.fchmod)(fdIndex, mode);
+    const fchmodAsync = promisify(this.upperDir.fchmod).bind(this.upperDir);
+    return await fchmodAsync(fdIndex, mode);
   }
 
   /**
@@ -985,12 +1273,18 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    * @param mode number. New permissions set.
    */
-  fchmod(fdIndex: number, mode: number = 0, callback?: fs.NoParamCallback): void {
-    this.fchmodAsync(fdIndex, mode).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  fchmod(
+    fdIndex: number,
+    mode: number = 0,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.fchmodAsync(fdIndex, mode)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1008,8 +1302,13 @@ class EncryptedFS {
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
    */
-  private async fchownAsync(fdIndex: number, uid: number, gid: number): Promise<void> {
-    return await promisify(this.upperDir.fchown)(fdIndex, uid, gid);
+  private async fchownAsync(
+    fdIndex: number,
+    uid: number,
+    gid: number,
+  ): Promise<void> {
+    const fchownAsync = promisify(this.upperDir.fchown).bind(this.upperDir);
+    return await fchownAsync(fdIndex, uid, gid);
   }
 
   /**
@@ -1018,12 +1317,19 @@ class EncryptedFS {
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
    */
-  fchown(fdIndex: number, uid: number, gid: number, callback?: fs.NoParamCallback): void {
-    this.fchownAsync(fdIndex, uid, gid).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  fchown(
+    fdIndex: number,
+    uid: number,
+    gid: number,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.fchownAsync(fdIndex, uid, gid)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1041,7 +1347,10 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    */
   private async fdatasyncAsync(fdIndex: number): Promise<void> {
-    return await promisify(this.upperDir.fdatasync)(fdIndex);
+    const fdatasyncAsync = promisify(this.upperDir.fdatasync).bind(
+      this.upperDir,
+    );
+    return await fdatasyncAsync(fdIndex);
   }
 
   /**
@@ -1049,11 +1358,13 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    */
   fdatasync(fdIndex: number, callback?: fs.NoParamCallback): void {
-    this.fdatasyncAsync(fdIndex).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.fdatasyncAsync(fdIndex)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1069,19 +1380,25 @@ class EncryptedFS {
    * @param fd number. File descriptor.
    */
   private async fstatAsync(fd: number): Promise<fs.Stats> {
-    return await promisify(this.upperDir.fstat)(fd);
+    const fstatAsync = promisify(this.upperDir.fstat).bind(this.upperDir);
+    return await fstatAsync(fd);
   }
 
   /**
    * Retrieves data about the file described by fdIndex.
    * @param fd number. File descriptor.
    */
-  fstat(fd: number, callback?: (err: Error | null, stats: fs.Stats | null) => void): void {
-    this.fstatAsync(fd).then((stats) => {
-      if (callback) callback(null, stats)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  fstat(
+    fd: number,
+    callback?: (err: Error | null, stats: fs.Stats | null) => void,
+  ): void {
+    this.fstatAsync(fd)
+      .then((stats) => {
+        if (callback) callback(null, stats);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -1097,7 +1414,8 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    */
   private async fsyncAsync(fdIndex: number): Promise<void> {
-    return await promisify(this.upperDir.fsync)(fdIndex);
+    const fsyncAsync = promisify(this.upperDir.fsync).bind(this.upperDir);
+    return await fsyncAsync(fdIndex);
   }
 
   /**
@@ -1105,11 +1423,13 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index.
    */
   fsync(fdIndex: number, callback?: fs.NoParamCallback): void {
-    this.fsyncAsync(fdIndex).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+    this.fsyncAsync(fdIndex)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1125,8 +1445,14 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index
    * @param len number. Length to truncate to.
    */
-  private async ftruncateAsync(fdIndex: number, len: number = 0): Promise<void> {
-    return await promisify(this.upperDir.ftruncate)(fdIndex, len);
+  private async ftruncateAsync(
+    fdIndex: number,
+    len: number = 0,
+  ): Promise<void> {
+    const ftruncateAsync = promisify(this.upperDir.ftruncate).bind(
+      this.upperDir,
+    );
+    return await ftruncateAsync(fdIndex, len);
   }
 
   /**
@@ -1134,12 +1460,18 @@ class EncryptedFS {
    * @param fdIndex number. File descriptor index
    * @param len number. Length to truncate to.
    */
-  ftruncate(fdIndex: number, len: number = 0, callback?: fs.NoParamCallback): void {
-    this.ftruncateAsync(fdIndex, len).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  ftruncate(
+    fdIndex: number,
+    len: number = 0,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.ftruncateAsync(fdIndex, len)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1157,8 +1489,13 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  private async futimesAsync(fdIndex: number, atime: number | string | Date, mtime: number | string | Date): Promise<void> {
-    return await promisify(this.upperDir.futimes)(fdIndex, atime, mtime);
+  private async futimesAsync(
+    fdIndex: number,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+  ): Promise<void> {
+    const futimesAsync = promisify(this.upperDir.futimes).bind(this.upperDir);
+    return await futimesAsync(fdIndex, atime, mtime);
   }
 
   /**
@@ -1167,12 +1504,19 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  futimes(fdIndex: number, atime: number | string | Date, mtime: number | string | Date, callback?: fs.NoParamCallback): void {
-    this.futimesAsync(fdIndex, atime, mtime).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  futimes(
+    fdIndex: number,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.futimesAsync(fdIndex, atime, mtime)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1181,7 +1525,11 @@ class EncryptedFS {
    * @param atime number | string | Date. Access time.
    * @param mtime number | string | Date. Modification time.
    */
-  futimesSync(fdIndex: number, atime: number | string | Date, mtime: number | string | Date): void {
+  futimesSync(
+    fdIndex: number,
+    atime: number | string | Date,
+    mtime: number | string | Date,
+  ): void {
     return this.upperDir.futimesSync(fdIndex, atime, mtime);
   }
 
@@ -1190,9 +1538,20 @@ class EncryptedFS {
    * @param existingPath
    * @param newPath
    */
-  private async linkAsync(existingPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
-    await promisify(this.upperDir.link)(existingPath, newPath);
-    await promisify(this.lowerDir.link)(existingPath, newPath);
+  private async linkAsync(
+    existingPath: fs.PathLike,
+    newPath: fs.PathLike,
+  ): Promise<void> {
+    const linkUAsync = promisify(this.upperDir.link).bind(this.upperDir);
+    await linkUAsync(
+      `${this.upperBasePath}/${existingPath}`,
+      `${this.upperBasePath}/${newPath}`,
+    );
+    const linkLAsync = promisify(this.lowerDir.link).bind(this.lowerDir);
+    await linkLAsync(
+      `${this.lowerBasePath}/${existingPath}`,
+      `${this.lowerBasePath}/${newPath}`,
+    );
   }
 
   /**
@@ -1200,12 +1559,18 @@ class EncryptedFS {
    * @param existingPath
    * @param newPath
    */
-  link(existingPath: fs.PathLike, newPath: fs.PathLike, callback?: fs.NoParamCallback): void {
-    this.linkAsync(existingPath, newPath).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  link(
+    existingPath: fs.PathLike,
+    newPath: fs.PathLike,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.linkAsync(existingPath, newPath)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1214,29 +1579,60 @@ class EncryptedFS {
    * @param newPath
    */
   linkSync(existingPath: fs.PathLike, newPath: fs.PathLike): void {
-    this.lowerDir.linkSync(existingPath, newPath);
-    this.upperDir.linkSync(existingPath, newPath);
+    this.lowerDir.linkSync(
+      `${this.lowerBasePath}/${existingPath}`,
+      `${this.lowerBasePath}/${newPath}`,
+    );
+    this.upperDir.linkSync(
+      `${this.upperBasePath}/${existingPath}`,
+      `${this.upperBasePath}/${newPath}`,
+    );
   }
 
   /**
    * Asynchronously reads data from a file given the path of that file.
    * @param path Path to file.
    */
-  private async readFileAsync(path: fs.PathLike | number, options?: fs.WriteFileOptions): Promise<string | Buffer> {
-    const optionsInternal = this.getFileOptions({ encoding: null, mode: 0o666, flag: 'r' }, options);
+  private async readFileAsync(
+    path: fs.PathLike | number,
+    options?: fs.WriteFileOptions,
+  ): Promise<string | Buffer> {
+    const optionsInternal = this.getFileOptions(
+      { encoding: null, mode: 0o666, flag: 'r' },
+      options,
+    );
     let fd: number | null = null;
     try {
       if (typeof path === 'number') {
-        fd = <number>path;
+        fd = path as number;
       } else {
-        fd = await this.openAsync(path, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(
+          path,
+          optionsInternal.flag,
+          optionsInternal.mode,
+        );
       }
       const size = this.getMetadata(fd).size;
       const readBuffer = Buffer.alloc(size);
       await this.readAsync(fd, readBuffer);
-      return optionsInternal.encoding ? readBuffer.toString(optionsInternal.encoding) : readBuffer;
+      return optionsInternal.encoding
+        ? readBuffer.toString(optionsInternal.encoding)
+        : readBuffer;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     } finally {
       if (fd) {
         await this.closeAsync(fd);
@@ -1248,35 +1644,50 @@ class EncryptedFS {
    * Reads data from a file given the path of that file.
    * @param path Path to file.
    */
-  readFile(path: fs.PathLike | number, options: fs.WriteFileOptions, callback?: (err: Error | null, s: string | Buffer | null) => void): void {
-    this.readFileAsync(path, options).then((data) => {
-      if (callback) callback(null, data)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  readFile(
+    path: fs.PathLike | number,
+    options: fs.WriteFileOptions,
+    callback?: (err: Error | null, s: string | Buffer | null) => void,
+  ): void {
+    this.readFileAsync(path, options)
+      .then((data) => {
+        if (callback) callback(null, data);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
    * Synchronously reads data from a file given the path of that file.
    * @param path Path to file.
    */
-  readFileSync(path: fs.PathLike | number, options?: fs.WriteFileOptions): string | Buffer {
-    const optionsInternal = this.getFileOptions({ encoding: null, mode: 0o666, flag: 'r' }, options);
+  readFileSync(
+    path: fs.PathLike | number,
+    options?: fs.WriteFileOptions,
+  ): string | Buffer {
+    const optionsInternal = this.getFileOptions(
+      { encoding: null, mode: 0o666, flag: 'r' },
+      options,
+    );
     let fd: number | null = null;
     try {
       if (typeof path === 'number') {
-        fd = <number>path;
+        fd = path as number;
       } else {
         fd = this.openSync(path, optionsInternal.flag, optionsInternal.mode);
       }
       // Check if file descriptor points to directory
+
       if (this.fstatSync(fd).isDirectory()) {
-        throw new EncryptedFSError(errno.EISDIR, null, null, 'read');
+        throw new EncryptedFSError(errno.EISDIR, path, null, 'read', null);
       }
       const size = this.getMetadata(fd).size;
       const readBuffer = Buffer.alloc(size);
       this.readSync(fd, readBuffer, 0, size, 0);
-      return optionsInternal.encoding ? readBuffer.toString(optionsInternal.encoding) : readBuffer;
+      return optionsInternal.encoding
+        ? readBuffer.toString(optionsInternal.encoding)
+        : readBuffer;
     } finally {
       if (fd) {
         this.closeSync(fd);
@@ -1289,11 +1700,31 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  private async readlinkAsync(path: fs.PathLike, options: fs.WriteFileOptions): Promise<Buffer | string> {
+  private async readlinkAsync(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions,
+  ): Promise<Buffer | string> {
     try {
-      return this.upperDir.readlinkSync(path, options);
+      return this.upperDir.readlinkSync(
+        `${this.upperBasePath}/${path}`,
+        options,
+      );
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.upper,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1302,12 +1733,18 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  readlink(path: fs.PathLike, options: fs.WriteFileOptions, callback?: (err: Error | null, data: string | Buffer | null) => void): void {
-    this.readlinkAsync(path, options).then((data) => {
-      if (callback) callback(null, data)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  readlink(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions,
+    callback?: (err: Error | null, data: string | Buffer | null) => void,
+  ): void {
+    this.readlinkAsync(path, options)
+      .then((data) => {
+        if (callback) callback(null, data);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -1315,8 +1752,11 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  readlinkSync(path: fs.PathLike, options: fs.WriteFileOptions): string | Buffer {
-    return this.upperDir.readlinkSync(path, options);
+  readlinkSync(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions,
+  ): string | Buffer {
+    return this.upperDir.readlinkSync(`${this.upperBasePath}/${path}`, options);
   }
 
   /**
@@ -1324,11 +1764,31 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  private async realpathAsync(path: fs.PathLike, options: fs.WriteFileOptions): Promise<string> {
+  private async realpathAsync(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions,
+  ): Promise<string> {
     try {
-      return await promisify(this.upperDir.realpath)(path, options);
+      const realpathAsync = promisify(this.upperDir.realpath).bind(
+        this.upperDir,
+      );
+      return await realpathAsync(`${this.upperBasePath}/${path}`, options);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+          EncryptedFSLayers.upper,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1337,12 +1797,18 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  realpath(path: fs.PathLike, options: fs.WriteFileOptions, callback?: (err: Error | null, path: string | null) => void): void {
-    this.realpathAsync(path, options).then((path) => {
-      if (callback) callback(null, path)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  realpath(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions,
+    callback?: (err: Error | null, path: string | null) => void,
+  ): void {
+    this.realpathAsync(path, options)
+      .then((path) => {
+        if (callback) callback(null, path);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -1350,8 +1816,11 @@ class EncryptedFS {
    * @param path Path to file.
    * @param options FileOptions | undefined.
    */
-  realpathSync(path: fs.PathLike, options: fs.WriteFileOptions | undefined = undefined): string | Buffer {
-    return this.upperDir.realpathSync(path, options);
+  realpathSync(
+    path: fs.PathLike,
+    options: fs.WriteFileOptions | undefined = undefined,
+  ): string | Buffer {
+    return this.upperDir.realpathSync(`${this.upperBasePath}/${path}`, options);
   }
 
   /**
@@ -1359,12 +1828,35 @@ class EncryptedFS {
    * @param oldPath Old path.
    * @param newPath New path.
    */
-  private async renameAsync(oldPath: fs.PathLike, newPath: fs.PathLike): Promise<void> {
+  private async renameAsync(
+    oldPath: fs.PathLike,
+    newPath: fs.PathLike,
+  ): Promise<void> {
     try {
-      this.upperDir.renameSync(oldPath, newPath);
-      await promisify(this.lowerDir.rename)(oldPath, newPath);
+      this.upperDir.renameSync(
+        `${this.upperBasePath}/${oldPath}`,
+        `${this.upperBasePath}/${newPath}`,
+      );
+      const renameAsync = promisify(this.lowerDir.rename).bind(this.lowerDir);
+      await renameAsync(
+        `${this.lowerBasePath}/${oldPath}`,
+        `${this.lowerBasePath}/${newPath}`,
+      );
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          oldPath,
+          newPath,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1373,12 +1865,18 @@ class EncryptedFS {
    * @param oldPath Old path.
    * @param newPath New path.
    */
-  rename(oldPath: fs.PathLike, newPath: fs.PathLike, callback?: fs.NoParamCallback): void {
-    this.renameAsync(oldPath, newPath).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  rename(
+    oldPath: fs.PathLike,
+    newPath: fs.PathLike,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.renameAsync(oldPath, newPath)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1387,7 +1885,10 @@ class EncryptedFS {
    * @param newPath New path.
    */
   renameSync(oldPath: fs.PathLike, newPath: fs.PathLike): void {
-    return this.upperDir.renameSync(oldPath, newPath);
+    return this.upperDir.renameSync(
+      `${this.upperBasePath}/${oldPath}`,
+      `${this.upperBasePath}/${newPath}`,
+    );
   }
 
   /**
@@ -1406,17 +1907,17 @@ class EncryptedFS {
     position: number = 0,
   ): Promise<number> {
     if (offset < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'read');
     }
     if (length < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'read');
     }
     if (position < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'read');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'read');
     }
     // Check if file descriptor points to directory
     if (this.fstatSync(fd).isDirectory()) {
-      throw new EncryptedFSError(errno.EISDIR, null, null, 'read');
+      throw new EncryptedFSError(errno.EISDIR, fd, null, 'read');
     }
     try {
       const lowerFd = this.getLowerFd(fd);
@@ -1438,21 +1939,47 @@ class EncryptedFS {
       let blockBufferStart = this.getBoundaryOffset(position);
 
       // Begin reading chunks
-      for (let chunkCtr = startChunkNum; chunkCtr - startChunkNum < numChunksToRead; chunkCtr++) {
+      for (
+        let chunkCtr = startChunkNum;
+        chunkCtr - startChunkNum < numChunksToRead;
+        chunkCtr++
+      ) {
         // Read the current block into chunkBuffer
         const chunkPosition = this.chunkNumToOffset(chunkCtr);
         const chunkBuffer = Buffer.alloc(this.chunkSize);
-        await promisify(this.lowerDir.read)(lowerFd, chunkBuffer, 0, this.chunkSize, chunkPosition);
-
-        // Extract blockBuffer from chukBuffer
-        const blockBuffer = await this.crypto.decryptChunk(chunkBuffer);
+        const readAsync = promisify(this.lowerDir.read).bind(this.lowerDir);
+        await readAsync(lowerFd, chunkBuffer, 0, this.chunkSize, chunkPosition);
+        let blockBuffer;
+        // Encrypt blockBuffer from chunkBuffer
+        if (this.workerManager) {
+          blockBuffer = await this.workerManager.call(async (w) => {
+            const retBuf = await w.decryptChunk(
+              this.masterKey.toString('binary'),
+              chunkBuffer.toString('binary'),
+            );
+            if (retBuf) {
+              return Buffer.from(retBuf);
+            } else {
+              throw Error('Chunk not decrypted');
+            }
+          });
+        } else {
+          blockBuffer = cryptoUtils.decryptChunk(this.masterKey, chunkBuffer);
+        }
 
         // Determine end condition of blockBuffer to write to
         const blockBufferEnd =
-          length > bytesRead + blockBuffer.length ? blockBuffer.length : length - chunkCtr * this.blockSize;
+          length > bytesRead + blockBuffer.length
+            ? blockBuffer.length
+            : length - chunkCtr * this.blockSize;
 
         // Write blockBuffer to buffer
-        const blockBytesRead = blockBuffer.copy(buffer, targetStart, blockBufferStart, blockBufferEnd);
+        const blockBytesRead = blockBuffer.copy(
+          buffer,
+          targetStart,
+          blockBufferStart,
+          blockBufferEnd,
+        );
 
         // Increment boundary variables
         bytesRead += blockBytesRead;
@@ -1461,7 +1988,20 @@ class EncryptedFS {
       }
       return bytesRead;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1479,13 +2019,15 @@ class EncryptedFS {
     offset: number = 0,
     length: number = buffer.length,
     position: number = 0,
-    callback?: (err: Error | null, bytesRead: number | null) => void
+    callback?: (err: Error | null, bytesRead: number | null) => void,
   ): void {
-    this.readAsync(fd, buffer, offset, length, position).then((bytesRead) => {
-      if (callback) callback(null, bytesRead)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+    this.readAsync(fd, buffer, offset, length, position)
+      .then((bytesRead) => {
+        if (callback) callback(null, bytesRead);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -1504,17 +2046,17 @@ class EncryptedFS {
     position: number = 0,
   ): number {
     if (offset < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'readSync');
     }
     if (length < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'readSync');
     }
     if (position < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'readSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'readSync');
     }
     // Check if file descriptor points to directory
     if (this.fstatSync(fd).isDirectory()) {
-      throw new EncryptedFSError(errno.EISDIR, null, null, 'readSync');
+      throw new EncryptedFSError(errno.EISDIR, fd, null, 'readSync');
     }
     try {
       const lowerFd = this.getLowerFd(fd);
@@ -1532,19 +2074,38 @@ class EncryptedFS {
       const startChunkNum = startBlockNum;
 
       // Begin reading chunks
-      for (let chunkCtr = startChunkNum; chunkCtr - startChunkNum < numChunksToRead; chunkCtr++) {
+      for (
+        let chunkCtr = startChunkNum;
+        chunkCtr - startChunkNum < numChunksToRead;
+        chunkCtr++
+      ) {
         // Read the current block into chunkBuffer
         const chunkPosition = this.chunkNumToOffset(chunkCtr);
         const chunkBuffer = Buffer.alloc(this.chunkSize);
-        this.lowerDir.readSync(lowerFd, chunkBuffer, 0, this.chunkSize, chunkPosition);
+        this.lowerDir.readSync(
+          lowerFd,
+          chunkBuffer,
+          0,
+          this.chunkSize,
+          chunkPosition,
+        );
 
-        // Extract blockBuffer from chukBuffer
-        const tempBlockBuffer = this.crypto.decryptChunkSync(chunkBuffer);
+        // Extract blockBuffer from chunkBuffer
+        const tempBlockBuffer = cryptoUtils.decryptChunk(
+          this.masterKey,
+          chunkBuffer,
+        );
+        if (!tempBlockBuffer) {
+          throw Error('Decryption was unsuccessful');
+        }
         blockBuffers.push(tempBlockBuffer);
       }
 
       // Create buffer of all read blockBuffers
-      const blockBuffer = Buffer.concat(blockBuffers, numChunksToRead * this.blockSize);
+      const blockBuffer = Buffer.concat(
+        blockBuffers,
+        numChunksToRead * this.blockSize,
+      );
 
       // Determine end condition of blockBuffer to write to
       const blockBufferStart = this.getBoundaryOffset(position);
@@ -1552,7 +2113,20 @@ class EncryptedFS {
 
       return blockBuffer.copy(buffer, offset, blockBufferStart, blockBufferEnd);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1572,17 +2146,17 @@ class EncryptedFS {
     position: number = 0,
   ): Promise<number> {
     if (offset < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'write');
     }
     if (length < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'write');
     }
     if (position < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'write');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'write');
     }
     // Check if file descriptor points to directory
     if (this.fstatSync(fd).isDirectory()) {
-      throw new EncryptedFSError(errno.EISDIR, null, null, 'write');
+      throw new EncryptedFSError(errno.EISDIR, fd, null, 'write');
     }
     try {
       // Discriminate upper and lower file descriptors
@@ -1591,7 +2165,9 @@ class EncryptedFS {
 
       // Get block boundary conditions
       const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
-      const numBlocksToWrite = Math.ceil((boundaryOffset + length) / this.blockSize);
+      const numBlocksToWrite = Math.ceil(
+        (boundaryOffset + length) / this.blockSize,
+      );
       const startBlockNum = this.offsetToBlockNum(position);
       const startChunkNum = startBlockNum;
       const endBlockNum = startBlockNum + numBlocksToWrite - 1;
@@ -1600,23 +2176,58 @@ class EncryptedFS {
 
       // ================== Handle first block ================== //
       const firstBlockStart = offset;
-      const firstBlockEnd = firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
+      const firstBlockEnd =
+        firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
       const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd);
-      const firstBlock = await this.overlaySegment(upperFd, firstBlockOverlay, position);
-      const firstChunk = await this.crypto.encryptBlock(firstBlock);
+      const firstBlock = await this.overlaySegment(
+        upperFd,
+        firstBlockOverlay,
+        position,
+      );
+      let firstChunk;
+      if (this.workerManager) {
+        firstChunk = await this.workerManager.call(async (w) => {
+          return Buffer.from(
+            await w.encryptBlock(
+              this.masterKey.toString('binary'),
+              firstBlock.toString('binary'),
+            ),
+            'binary',
+          );
+        });
+      } else {
+        firstChunk = cryptoUtils.encryptBlock(this.masterKey, firstBlock);
+      }
       bufferBytesWritten += firstBlockOverlay.length;
 
       // ================== Handle last block if needed ================== //
       const middleBlockLength = (numBlocksToWrite - 2) * this.blockSize;
       const lastBlockStart = firstBlockEnd + middleBlockLength;
-      const lastBlockEnd = lastBlockStart + (length - (bufferBytesWritten + middleBlockLength));
+      const lastBlockEnd =
+        lastBlockStart + (length - (bufferBytesWritten + middleBlockLength));
       let lastBlock: Buffer | null;
       let lastChunk: Buffer | null;
       if (numBlocksToWrite >= 2) {
         const lastBlockOverlay = buffer.slice(lastBlockStart, lastBlockEnd);
         const lastBlockOffset = this.blockNumToOffset(endBlockNum);
-        lastBlock = await this.overlaySegment(upperFd, lastBlockOverlay, lastBlockOffset);
-        lastChunk = await this.crypto.encryptBlock(lastBlock);
+        lastBlock = await this.overlaySegment(
+          upperFd,
+          lastBlockOverlay,
+          lastBlockOffset,
+        );
+        if (this.workerManager) {
+          lastChunk = await this.workerManager.call(async (w) => {
+            return Buffer.from(
+              await w.encryptBlock(
+                this.masterKey.toString('binary'),
+                firstBlock.toString('binary'),
+              ),
+              'binary',
+            );
+          });
+        } else {
+          lastChunk = cryptoUtils.encryptBlock(this.masterKey, firstBlock);
+        }
         bufferBytesWritten += lastBlockOverlay.length;
       } else {
         lastBlock = null;
@@ -1625,17 +2236,34 @@ class EncryptedFS {
 
       // ================== Handle middle blocks if needed ================== //
       // slice out middle blocks if they actually exist
-      let middleBlocks: Buffer[] = [];
-      let middleChunks: Buffer[] = [];
+      const middleBlocks: Buffer[] = [];
+      const middleChunks: Buffer[] = [];
+      let middleChunk;
       if (numBlocksToWrite >= 3) {
         const middleBlockBuffer = buffer.slice(firstBlockEnd, lastBlockStart);
 
         const blockIter = this.blockGenerator(middleBlockBuffer);
         let middleBlockCtr = startBlockNum + 1;
-        for (let block of blockIter) {
+        for (const block of blockIter) {
           const middleBlockOffset = this.blockNumToOffset(middleBlockCtr);
-          const middleBlock = await this.overlaySegment(upperFd, block, middleBlockOffset);
-          const middleChunk = await this.crypto.encryptBlock(middleBlock);
+          const middleBlock = await this.overlaySegment(
+            upperFd,
+            block,
+            middleBlockOffset,
+          );
+          if (this.workerManager) {
+            middleChunk = await this.workerManager.call(async (w) => {
+              return Buffer.from(
+                await w.encryptBlock(
+                  this.masterKey.toString('binary'),
+                  firstBlock.toString('binary'),
+                ),
+                'binary',
+              );
+            });
+          } else {
+            middleChunk = cryptoUtils.encryptBlock(this.masterKey, firstBlock);
+          }
           middleBlocks.push(middleBlock);
           middleChunks.push(middleChunk);
           middleBlockCtr += 1;
@@ -1644,26 +2272,46 @@ class EncryptedFS {
       }
 
       // ================== Concat blocks and write ================== //
-      let totalBlocks: Buffer[] = [];
+      const totalBlocks: Buffer[] = [];
       totalBlocks.push(firstBlock);
       totalBlocks.push(...middleBlocks);
       if (lastBlock) {
         totalBlocks.push(lastBlock);
       }
-      const blocks = Buffer.concat(totalBlocks, this.blockSize * numBlocksToWrite);
+      const blocks = Buffer.concat(
+        totalBlocks,
+        this.blockSize * numBlocksToWrite,
+      );
       // Write to upperDir (unencrypted)
-      await promisify(this.upperDir.write)(upperFd, blocks, 0, blocks.length, this.blockNumToOffset(startBlockNum));
+      const writeUAsync = promisify(this.upperDir.write).bind(this.upperDir);
+      await writeUAsync(
+        upperFd,
+        blocks,
+        0,
+        blocks.length,
+        this.blockNumToOffset(startBlockNum),
+      );
 
       // ================== Concat chunks and write ================== //
-      let totalChunks: Buffer[] = [];
+      const totalChunks: Buffer[] = [];
       totalChunks.push(firstChunk);
       totalChunks.push(...middleChunks);
       if (lastChunk) {
         totalChunks.push(lastChunk);
       }
-      const chunks = Buffer.concat(totalChunks, this.chunkSize * numBlocksToWrite);
+      const chunks = Buffer.concat(
+        totalChunks,
+        this.chunkSize * numBlocksToWrite,
+      );
       // Write to lowerDir (encrypted)
-      await promisify(this.lowerDir.write)(lowerFd, chunks, 0, chunks.length, this.chunkNumToOffset(startChunkNum));
+      const writeLAsync = promisify(this.lowerDir.write).bind(this.lowerDir);
+      await writeLAsync(
+        lowerFd,
+        chunks,
+        0,
+        chunks.length,
+        this.chunkNumToOffset(startChunkNum),
+      );
 
       // ================== Handle and write metadata ================== //
       const newFileSize = position + length;
@@ -1674,7 +2322,20 @@ class EncryptedFS {
 
       return bufferBytesWritten;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1692,13 +2353,15 @@ class EncryptedFS {
     offset: number = 0,
     length: number = buffer.length - offset,
     position: number = 0,
-    callback?: (err: Error | null, bytesWritten: number | null) => void
+    callback?: (err: Error | null, bytesWritten: number | null) => void,
   ): void {
-    this.writeAsync(fd, buffer, offset, length, position).then((bytesWritten) => {
-      if (callback) callback(null, bytesWritten)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+    this.writeAsync(fd, buffer, offset, length, position)
+      .then((bytesWritten) => {
+        if (callback) callback(null, bytesWritten);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
   /**
@@ -1717,17 +2380,17 @@ class EncryptedFS {
     position: number = 0,
   ): number {
     if (offset < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'writeSync');
     }
     if (length < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'writeSync');
     }
     if (position < 0) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'writeSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'writeSync');
     }
     // Check if file descriptor points to directory
     if (this.fstatSync(fd).isDirectory()) {
-      throw new EncryptedFSError(errno.EISDIR, null, null, 'writeSync');
+      throw new EncryptedFSError(errno.EISDIR, fd, null, 'writeSync');
     }
     try {
       // Discriminate upper and lower file descriptors
@@ -1736,7 +2399,9 @@ class EncryptedFS {
 
       // Get block boundary conditions
       const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
-      const numBlocksToWrite = Math.ceil((boundaryOffset + length) / this.blockSize);
+      const numBlocksToWrite = Math.ceil(
+        (boundaryOffset + length) / this.blockSize,
+      );
       const startBlockNum = this.offsetToBlockNum(position);
       const startChunkNum = startBlockNum;
       const endBlockNum = startBlockNum + numBlocksToWrite - 1;
@@ -1745,23 +2410,33 @@ class EncryptedFS {
 
       // ================== Handle first block ================== //
       const firstBlockStart = offset;
-      const firstBlockEnd = firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
+      const firstBlockEnd =
+        firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
       const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd);
-      const firstBlock = this.overlaySegmentSync(upperFd, firstBlockOverlay, position);
-      const firstChunk = this.crypto.encryptBlockSync(firstBlock);
+      const firstBlock = this.overlaySegmentSync(
+        upperFd,
+        firstBlockOverlay,
+        position,
+      );
+      const firstChunk = cryptoUtils.encryptBlock(this.masterKey, firstBlock);
       bufferBytesWritten += firstBlockOverlay.length;
 
       // ================== Handle last block if needed ================== //
       const middleBlockLength = (numBlocksToWrite - 2) * this.blockSize;
       const lastBlockStart = firstBlockEnd + middleBlockLength;
-      const lastBlockEnd = lastBlockStart + (length - (bufferBytesWritten + middleBlockLength));
+      const lastBlockEnd =
+        lastBlockStart + (length - (bufferBytesWritten + middleBlockLength));
       let lastBlock: Buffer | null;
       let lastChunk: Buffer | null;
       if (numBlocksToWrite >= 2) {
         const lastBlockOverlay = buffer.slice(lastBlockStart, lastBlockEnd);
         const lastBlockOffset = this.blockNumToOffset(endBlockNum);
-        lastBlock = this.overlaySegmentSync(upperFd, lastBlockOverlay, lastBlockOffset);
-        lastChunk = this.crypto.encryptBlockSync(lastBlock);
+        lastBlock = this.overlaySegmentSync(
+          upperFd,
+          lastBlockOverlay,
+          lastBlockOffset,
+        );
+        lastChunk = cryptoUtils.encryptBlock(this.masterKey, lastBlock);
         bufferBytesWritten += lastBlockOverlay.length;
       } else {
         lastBlock = null;
@@ -1770,17 +2445,24 @@ class EncryptedFS {
 
       // ================== Handle middle blocks if needed ================== //
       // slice out middle blocks if they actually exist
-      let middleBlocks: Buffer[] = [];
-      let middleChunks: Buffer[] = [];
+      const middleBlocks: Buffer[] = [];
+      const middleChunks: Buffer[] = [];
       if (numBlocksToWrite >= 3) {
         const middleBlockBuffer = buffer.slice(firstBlockEnd, lastBlockStart);
 
         const blockIter = this.blockGenerator(middleBlockBuffer);
         let middleBlockCtr = startBlockNum + 1;
-        for (let block of blockIter) {
+        for (const block of blockIter) {
           const middleBlockOffset = this.blockNumToOffset(middleBlockCtr);
-          const middleBlock = this.overlaySegmentSync(upperFd, block, middleBlockOffset);
-          const middleChunk = this.crypto.encryptBlockSync(middleBlock);
+          const middleBlock = this.overlaySegmentSync(
+            upperFd,
+            block,
+            middleBlockOffset,
+          );
+          const middleChunk = cryptoUtils.encryptBlock(
+            this.masterKey,
+            middleBlock,
+          );
           middleBlocks.push(middleBlock);
           middleChunks.push(middleChunk);
           middleBlockCtr += 1;
@@ -1789,27 +2471,45 @@ class EncryptedFS {
       }
 
       // ================== Concat blocks and write ================== //
-      let totalBlocks: Buffer[] = [];
+      const totalBlocks: Buffer[] = [];
       totalBlocks.push(firstBlock);
       totalBlocks.push(...middleBlocks);
       if (lastBlock) {
         totalBlocks.push(lastBlock);
       }
 
-      const blocks = Buffer.concat(totalBlocks, this.blockSize * numBlocksToWrite);
+      const blocks = Buffer.concat(
+        totalBlocks,
+        this.blockSize * numBlocksToWrite,
+      );
       // Write to upperDir (unencrypted)
-      this.upperDir.writeSync(upperFd, blocks, 0, blocks.length, this.blockNumToOffset(startBlockNum));
+      this.upperDir.writeSync(
+        upperFd,
+        blocks,
+        0,
+        blocks.length,
+        this.blockNumToOffset(startBlockNum),
+      );
 
       // ================== Concat chunks and write ================== //
-      let totalChunks: Buffer[] = [];
+      const totalChunks: Buffer[] = [];
       totalChunks.push(firstChunk);
       totalChunks.push(...middleChunks);
       if (lastChunk) {
         totalChunks.push(lastChunk);
       }
-      const chunks = Buffer.concat(totalChunks, this.chunkSize * numBlocksToWrite);
+      const chunks = Buffer.concat(
+        totalChunks,
+        this.chunkSize * numBlocksToWrite,
+      );
       // Write to lowerDir (encrypted)
-      this.lowerDir.writeSync(lowerFd, chunks, 0, chunks.length, this.chunkNumToOffset(startChunkNum));
+      this.lowerDir.writeSync(
+        lowerFd,
+        chunks,
+        0,
+        chunks.length,
+        this.chunkNumToOffset(startChunkNum),
+      );
 
       // ================== Handle and write metadata ================== //
       const newFileSize = position + length;
@@ -1821,7 +2521,20 @@ class EncryptedFS {
 
       return bufferBytesWritten;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1832,21 +2545,48 @@ class EncryptedFS {
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
    */
-  private async appendFileAsync(file: fs.PathLike | number, data: Buffer, options?: fs.WriteFileOptions): Promise<void> {
-    const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'a' }, options);
+  private async appendFileAsync(
+    file: fs.PathLike | number,
+    data: Buffer,
+    options?: fs.WriteFileOptions,
+  ): Promise<void> {
+    const optionsInternal = this.getFileOptions(
+      { encoding: 'utf8', mode: 0o666, flag: 'a' },
+      options,
+    );
     let fd: number | null = null;
     try {
       // Get file descriptor
       if (typeof file === 'number') {
         fd = file;
       } else {
-        fd = await this.openAsync(file, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(
+          file,
+          optionsInternal.flag,
+          optionsInternal.mode,
+        );
       }
-      const upperFd = this.getUpperFd(fd);
       const lowerFd = this.getLowerFd(fd);
-      await promisify(this.lowerDir.appendFile)(lowerFd, data, optionsInternal);
+      const appendFileAsync = promisify(this.lowerDir.appendFile).bind(
+        this.lowerDir,
+      );
+      await appendFileAsync(lowerFd, data, optionsInternal);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     } finally {
       if (fd) {
         await this.closeAsync(fd);
@@ -1861,12 +2601,19 @@ class EncryptedFS {
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
    */
-  appendFile(file: fs.PathLike | number, data: Buffer, options: fs.WriteFileOptions, callback?: fs.NoParamCallback): void {
-    this.appendFileAsync(file, data, options).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  appendFile(
+    file: fs.PathLike | number,
+    data: Buffer,
+    options: fs.WriteFileOptions,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.appendFileAsync(file, data, options)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1876,8 +2623,15 @@ class EncryptedFS {
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
    */
-  appendFileSync(file: fs.PathLike | number, data: Buffer, options?: fs.WriteFileOptions): void {
-    const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'a' }, options);
+  appendFileSync(
+    file: fs.PathLike | number,
+    data: Buffer,
+    options?: fs.WriteFileOptions,
+  ): void {
+    const optionsInternal = this.getFileOptions(
+      { encoding: 'utf8', mode: 0o666, flag: 'a' },
+      options,
+    );
     let fd: number | null = null;
     try {
       // Get file descriptor
@@ -1886,11 +2640,24 @@ class EncryptedFS {
       } else {
         fd = this.openSync(file, optionsInternal.flag, optionsInternal.mode);
       }
-      const upperFd = this.getUpperFd(fd);
       const lowerFd = this.getLowerFd(fd);
       this.lowerDir.appendFileSync(lowerFd, data, optionsInternal);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          fd,
+          null,
+          err.syscall,
+          EncryptedFSLayers.lower,
+        );
+      } else {
+        throw err;
+      }
     } finally {
       if (fd) {
         this.closeSync(fd);
@@ -1905,10 +2672,25 @@ class EncryptedFS {
    */
   private async chmodAsync(path: fs.PathLike, mode: number = 0): Promise<void> {
     try {
-      await promisify(this.upperDir.chmod)(path, mode);
-      await promisify(this.lowerDir.chmod)(path, mode);
+      const chmodUAsync = promisify(this.upperDir.chmod).bind(this.upperDir);
+      await chmodUAsync(`${this.upperBasePath}/${path}`, mode);
+      const chmodLAsync = promisify(this.lowerDir.chmod).bind(this.lowerDir);
+      await chmodLAsync(`${this.lowerBasePath}/${path}`, mode);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1917,12 +2699,18 @@ class EncryptedFS {
    * @param path Path to the fs object.
    * @param mode number. New permissions set.
    */
-  chmod(path: fs.PathLike, mode: number = 0, callback?: fs.NoParamCallback): void {
-    this.chmodAsync(path, mode).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  chmod(
+    path: fs.PathLike,
+    mode: number = 0,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.chmodAsync(path, mode)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1931,8 +2719,8 @@ class EncryptedFS {
    * @param mode number. New permissions set.
    */
   chmodSync(path: fs.PathLike, mode: number = 0): void {
-    this.upperDir.chmodSync(path, mode);
-    this.lowerDir.chmodSync(path, mode);
+    this.upperDir.chmodSync(`${this.upperBasePath}/${path}`, mode);
+    this.lowerDir.chmodSync(`${this.lowerBasePath}/${path}`, mode);
   }
 
   /**
@@ -1941,12 +2729,31 @@ class EncryptedFS {
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
    */
-  private async chownAsync(path: fs.PathLike, uid: number, gid: number): Promise<void> {
+  private async chownAsync(
+    path: fs.PathLike,
+    uid: number,
+    gid: number,
+  ): Promise<void> {
     try {
-      await promisify(this.upperDir.chown)(path, uid, gid);
-      await promisify(this.lowerDir.chown)(path, uid, gid);
+      const chownUAsync = promisify(this.upperDir.chown).bind(this.upperDir);
+      await chownUAsync(`${this.upperBasePath}/${path}`, uid, gid);
+      const chownLAsync = promisify(this.lowerDir.chown).bind(this.lowerDir);
+      await chownLAsync(`${this.lowerBasePath}/${path}`, uid, gid);
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -1956,12 +2763,19 @@ class EncryptedFS {
    * @param uid number. User identifier.
    * @param gid number. Group identifier.
    */
-  chown(path: fs.PathLike, uid: number, gid: number, callback?: fs.NoParamCallback): void {
-    this.chownAsync(path, uid, gid).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  chown(
+    path: fs.PathLike,
+    uid: number,
+    gid: number,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.chownAsync(path, uid, gid)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -1971,8 +2785,8 @@ class EncryptedFS {
    * @param gid number. Group identifier.
    */
   chownSync(path: fs.PathLike, uid: number, gid: number): void {
-    this.upperDir.chownSync(path, uid, gid);
-    this.lowerDir.chownSync(path, uid, gid);
+    this.upperDir.chownSync(`${this.upperBasePath}/${path}`, uid, gid);
+    this.lowerDir.chownSync(`${this.lowerBasePath}/${path}`, uid, gid);
   }
 
   /**
@@ -1981,17 +2795,28 @@ class EncryptedFS {
    * @param data string | Buffer. The data to be written.
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined } | undefined
    */
-  private async writeFileAsync(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions): Promise<void> {
+  private async writeFileAsync(
+    path: fs.PathLike | number,
+    data: string | Buffer,
+    options: fs.WriteFileOptions,
+  ): Promise<void> {
     try {
-      const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'w' }, options);
+      const optionsInternal = this.getFileOptions(
+        { encoding: 'utf8', mode: 0o666, flag: 'w' },
+        options,
+      );
       const isUserFileDescriptor = this.isFileDescriptor(path);
       let fd: number;
       if (isUserFileDescriptor) {
-        fd = <number>path;
+        fd = path as number;
       } else if (typeof path == 'string') {
-        fd = await this.openAsync(path, optionsInternal.flag, optionsInternal.mode);
+        fd = await this.openAsync(
+          path,
+          optionsInternal.flag,
+          optionsInternal.mode,
+        );
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFile');
+        throw new EncryptedFSError(errno.EBADF, path, null, 'writeFile');
       }
       let offset = 0;
       if (typeof data === 'string') {
@@ -2003,7 +2828,13 @@ class EncryptedFS {
       let position = 0;
 
       while (length > 0) {
-        const written = await this.writeAsync(fd, data, offset, length, position);
+        const written = await this.writeAsync(
+          fd,
+          data,
+          offset,
+          length,
+          position,
+        );
         offset += written;
         length -= written;
         if (position !== null) {
@@ -2011,7 +2842,20 @@ class EncryptedFS {
         }
       }
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -2021,12 +2865,19 @@ class EncryptedFS {
    * @param data string | Buffer. The data to be written.
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined } | undefined
    */
-  writeFile(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions, callback?: fs.NoParamCallback): void {
-    this.writeFileAsync(path, data, options).then(() => {
-      if (callback) callback(null)
-    }).catch((err: Error) => {
-      if (callback) callback(err)
-    })
+  writeFile(
+    path: fs.PathLike | number,
+    data: string | Buffer,
+    options: fs.WriteFileOptions,
+    callback?: fs.NoParamCallback,
+  ): void {
+    this.writeFileAsync(path, data, options)
+      .then(() => {
+        if (callback) callback(null);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err);
+      });
   }
 
   /**
@@ -2036,17 +2887,24 @@ class EncryptedFS {
    * @param options FileOptions: { encoding: CharacterEncodingString mode: number | undefined flag: string | undefined }.
    * Default options are: { encoding: "utf8", mode: 0o666, flag: "w" }.
    */
-  writeFileSync(path: fs.PathLike | number, data: string | Buffer, options: fs.WriteFileOptions = {}): void {
+  writeFileSync(
+    path: fs.PathLike | number,
+    data: string | Buffer,
+    options: fs.WriteFileOptions = {},
+  ): void {
+    const optionsInternal = this.getFileOptions(
+      { encoding: 'utf8', mode: 0o666, flag: 'w' },
+      options,
+    );
+    let fd: number | null = null;
     try {
-      const optionsInternal = this.getFileOptions({ encoding: 'utf8', mode: 0o666, flag: 'w' }, options);
       const isUserFileDescriptor = this.isFileDescriptor(path);
-      let fd: number;
       if (isUserFileDescriptor) {
-        fd = <number>path;
+        fd = path as number;
       } else if (typeof path === 'string') {
-        fd = this.openSync(path, optionsInternal.flag, optionsInternal.mode);
+        fd = this.openSync(path, 'writeonly', optionsInternal.mode);
       } else {
-        throw new EncryptedFSError(errno.EBADF, null, null, 'writeFileSync');
+        throw new EncryptedFSError(errno.EBADF, path, null, 'writeFileSync');
       }
       let offset = 0;
       if (typeof data === 'string') {
@@ -2066,7 +2924,24 @@ class EncryptedFS {
         }
       }
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
+    } finally {
+      if (fd) {
+        this.closeSync(fd);
+      }
     }
   }
 
@@ -2076,29 +2951,64 @@ class EncryptedFS {
    * @param flags Flags for read/write operations. Defaults to 'r'.
    * @param mode number. Read and write permissions. Defaults to 0o666.
    */
-  private async openAsync(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666): Promise<number> {
+  private async openAsync(
+    path: fs.PathLike,
+    flags: number | string = 'r',
+    mode: number | string = 0o666,
+  ): Promise<number> {
+    let decide = false;
+    if (flags === 'writeonly') {
+      flags = 'w';
+      decide = true;
+    }
     try {
       const _path = this.getPath(path);
       // Open on lowerDir
-      let lowerFd = await promisify(this.lowerDir.open)(_path, flags, mode);
+      const openLAsync = promisify(this.lowerDir.open).bind(this.lowerDir);
+      let lowerFd = await openLAsync(
+        `${this.lowerBasePath}/${_path}`,
+        flags,
+        mode,
+      );
+
       // Check if a file
-      if ((await promisify(this.lowerDir.fstat)(lowerFd)).isFile()) {
+      const fstatAsync = promisify(this.lowerDir.fstat).bind(this.lowerDir);
+      if ((await fstatAsync(lowerFd)).isFile()) {
         // Open with write permissions as well
-        await promisify(this.lowerDir.close)(lowerFd);
-        const lowerFlags = flags[0] === 'w' ? 'w+' : 'r+';
-        lowerFd = await promisify(this.lowerDir.open)(_path, lowerFlags, mode);
+        const closeAsync = promisify(this.lowerDir.close).bind(this.lowerDir);
+        await closeAsync(lowerFd);
+
+        if (decide) {
+          lowerFd = await openLAsync(
+            `${this.lowerBasePath}/${_path}`,
+            'w',
+            mode,
+          );
+        } else {
+          const lowerFlags = flags[0] === 'w' ? 'w+' : 'r+';
+          lowerFd = await openLAsync(
+            `${this.lowerBasePath}/${path}`,
+            lowerFlags,
+            mode,
+          );
+        }
       }
-      const upperFilePath = Path.resolve(_path);
+      const openUAsync = promisify(this.upperDir.open).bind(this.upperDir);
+      const upperFilePath = Path.resolve(`${this.upperBasePath}/${_path}`);
       // Need to make path if it doesn't exist already
       if (!this.upperDir.existsSync(upperFilePath)) {
         const upperFilePathDir = Path.dirname(upperFilePath);
         // mkdirp
-        await promisify(this.upperDir.mkdirp)(upperFilePathDir);
+        const mkdirpUAsync = promisify(this.upperDir.mkdirp).bind(
+          this.upperDir,
+        );
+        await mkdirpUAsync(upperFilePathDir);
         // create file if needed
-        await promisify(this.upperDir.close)(await promisify(this.upperDir.open)(upperFilePath, 'w'));
+        const closeUAsync = promisify(this.upperDir.close).bind(this.upperDir);
+        await closeUAsync(await openUAsync(upperFilePath, 'w'));
       }
       // Open on upperDir
-      const upperFd = await promisify(this.upperDir.open)(upperFilePath, flags, mode);
+      const upperFd = await openUAsync(upperFilePath, flags, mode);
       // Create efsFd
       const efsFd = new FileDescriptor(lowerFd, upperFd, flags.toString());
       this.fileDescriptors.set(upperFd, efsFd);
@@ -2109,14 +3019,27 @@ class EncryptedFS {
         if (flags[0] === 'r') {
           await this.loadMetadata(upperFd);
         } else if (flags[0] === 'w') {
-          const hash = this.crypto.hashSync(this.masterKey);
+          const hash = cryptoUtils.hash(this.masterKey);
           this.metadata[upperFd] = { keyHash: hash, size: 0 };
           this.writeMetadataSync(upperFd);
         }
       }
       return upperFd;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
@@ -2126,35 +3049,65 @@ class EncryptedFS {
    * @param flags Flags for read/write operations. Defaults to 'r'.
    * @param mode number. Read and write permissions. Defaults to 0o666.
    */
-  open(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666, callback?: (err: Error | null, fd: number | null) => void): void {
-    this.openAsync(path, flags, mode).then((fd: number) => {
-      if (callback) callback(null, fd)
-    }).catch((err: Error) => {
-      if (callback) callback(err, null)
-    })
+  open(
+    path: fs.PathLike,
+    flags: number | string = 'r',
+    mode: number | string = 0o666,
+    callback?: (err: Error | null, fd: number | null) => void,
+  ): void {
+    this.openAsync(path, flags, mode)
+      .then((fd: number) => {
+        if (callback) callback(null, fd);
+      })
+      .catch((err: Error) => {
+        if (callback) callback(err, null);
+      });
   }
 
-  // TODO: actually implement flags
-  // TODO: w+ should truncate, r+ should not
   /**
    * Synchronously opens a file or directory and returns the file descriptor.
    * @param path Path to the file or directory.
    * @param flags Flags for read/write operations. Defaults to 'r'.
    * @param mode number. Read and write permissions. Defaults to 0o666.
    */
-  openSync(path: fs.PathLike, flags: number | string = 'r', mode: number | string = 0o666): number {
+  openSync(
+    path: fs.PathLike,
+    flags: number | string = 'r',
+    mode: number | string = 0o666,
+  ): number {
+    let decide = false;
+    if (flags === 'writeonly') {
+      flags = 'w';
+      decide = true;
+    }
     try {
       const _path = this.getPath(path);
       // Open on lowerDir
-      let lowerFd = this.lowerDir.openSync(_path, flags, mode);
+      let lowerFd = this.lowerDir.openSync(
+        `${this.lowerBasePath}/${_path}`,
+        flags,
+        mode,
+      );
       // Check if a directory
       if (this.lowerDir.fstatSync(lowerFd).isFile()) {
         // Open with write permissions as well
         this.lowerDir.closeSync(lowerFd);
-        const lowerFlags = flags[0] === 'w' ? 'w+' : 'r+';
-        lowerFd = this.lowerDir.openSync(_path, lowerFlags, mode);
+        if (decide) {
+          lowerFd = this.lowerDir.openSync(
+            `${this.lowerBasePath}/${_path}`,
+            'w',
+            mode,
+          );
+        } else {
+          const lowerFlags = flags[0] === 'w' ? 'w+' : 'r';
+          lowerFd = this.lowerDir.openSync(
+            `${this.lowerBasePath}/${_path}`,
+            lowerFlags,
+            mode,
+          );
+        }
       }
-      const upperFilePath = Path.resolve(_path);
+      const upperFilePath = Path.resolve(`${this.upperBasePath}/${_path}`);
       // Need to make path if it doesn't exist already
       if (!this.upperDir.existsSync(upperFilePath)) {
         const upperFilePathDir = Path.dirname(upperFilePath);
@@ -2175,83 +3128,132 @@ class EncryptedFS {
         if (flags[0] === 'r') {
           this.loadMetadataSync(upperFd);
         } else if (flags[0] === 'w') {
-          const hash = this.crypto.hashSync(this.masterKey);
+          const hash = cryptoUtils.hash(this.masterKey);
           this.metadata[upperFd] = { keyHash: hash, size: 0 };
           this.writeMetadataSync(upperFd);
         }
       }
       return upperFd;
     } catch (err) {
-      throw err;
+      if (err.errno) {
+        throw new EncryptedFSError(
+          {
+            errno: err.errno,
+            code: err.code,
+            description: err.errnoDescription,
+          },
+          path,
+          null,
+          err.syscall,
+        );
+      } else {
+        throw err;
+      }
     }
   }
 
-  lchown(path: fs.PathLike, uid: number, gid: number, callback: fs.NoParamCallback) {
-    throw new Error('Method not implemented')
+  lchown(
+    path: fs.PathLike,
+    uid: number,
+    gid: number,
+    callback: fs.NoParamCallback,
+  ) {
+    throw new Error('Method not implemented');
   }
 
   lchownSync(path: fs.PathLike, uid: number, gid: number) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
-  lchmod(path: fs.PathLike, mode: string | number, callback: fs.NoParamCallback) {
-    throw new Error('Method not implemented')
+  lchmod(
+    path: fs.PathLike,
+    mode: string | number,
+    callback: fs.NoParamCallback,
+  ) {
+    throw new Error('Method not implemented');
   }
 
   lchmodSync(path: fs.PathLike, mode: string | number) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
   watchFile(filename: fs.PathLike, options: any, listener: any) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
   unwatchFile(filename: fs.PathLike, listener?: any) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
   watch(filename: fs.PathLike, options: any, listener: any) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
   copyFile(src: fs.PathLike, dest: fs.PathLike, callback: fs.NoParamCallback) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
   copyFileSync(src: fs.PathLike, dest: fs.PathLike) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
-  writev(fd: number, buffers: NodeJS.ArrayBufferView[], cb: (err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void) {
-    throw new Error('Method not implemented')
+  writev(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    cb: (
+      err: NodeJS.ErrnoException | null,
+      bytesWritten: number,
+      buffers: NodeJS.ArrayBufferView[],
+    ) => void,
+  ) {
+    throw new Error('Method not implemented');
   }
 
-  writevSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | undefined) {
-    throw new Error('Method not implemented')
+  writevSync(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    position?: number | undefined,
+  ) {
+    throw new Error('Method not implemented');
   }
 
-  readv(fd: number, buffers: NodeJS.ArrayBufferView[], cb: (err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void) {
-    throw new Error('Method not implemented')
+  readv(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    cb: (
+      err: NodeJS.ErrnoException | null,
+      bytesRead: number,
+      buffers: NodeJS.ArrayBufferView[],
+    ) => void,
+  ) {
+    throw new Error('Method not implemented');
   }
 
-  readvSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | undefined) {
-    throw new Error('Method not implemented')
+  readvSync(
+    fd: number,
+    buffers: NodeJS.ArrayBufferView[],
+    position?: number | undefined,
+  ) {
+    throw new Error('Method not implemented');
   }
 
   opendirSync(path: string, options?: fs.OpenDirOptions | undefined) {
-    throw new Error('Method not implemented')
+    throw new Error('Method not implemented');
   }
 
-  opendir(path: string, cb: (err: NodeJS.ErrnoException | null, dir: fs.Dir) => void) {
-    throw new Error('Method not implemented')
+  opendir(
+    path: string,
+    cb: (err: NodeJS.ErrnoException | null, dir: fs.Dir) => void,
+  ) {
+    throw new Error('Method not implemented');
   }
 
-  Stats: any
-  Dirent: any
-  Dir: any
-  ReadStream: any
-  WriteStream: any
-  BigIntStats: any
+  Stats: any;
+  Dirent: any;
+  Dir: any;
+  ReadStream: any;
+  WriteStream: any;
+  BigIntStats: any;
 
   /**
    * Get key used for encryption.
@@ -2262,7 +3264,7 @@ class EncryptedFS {
 
   // ============= HELPER FUNCTIONS ============= //
   private getFileOptions(
-    defaultOptions: Object,
+    defaultOptions: Record<string, any>,
     options?: fs.WriteFileOptions,
   ): { encoding?: string | null; mode?: string | number; flag?: string } {
     let optionsFinal: fs.WriteFileOptions = defaultOptions;
@@ -2290,7 +3292,10 @@ class EncryptedFS {
     return optionsFinal;
   }
 
-  private getStreamOptions(defaultOptions: optionsStream, options?: optionsStream): optionsStream {
+  private getStreamOptions(
+    defaultOptions: optionsStream,
+    options?: optionsStream,
+  ): optionsStream {
     let optionsFinal: optionsStream = defaultOptions;
     if (typeof options === 'string') {
       if (!this.isCharacterEncoding(options)) {
@@ -2300,7 +3305,10 @@ class EncryptedFS {
     }
     if (options) {
       if (options.highWaterMark) {
-        optionsFinal = { ...optionsFinal, highWaterMark: options.highWaterMark };
+        optionsFinal = {
+          ...optionsFinal,
+          highWaterMark: options.highWaterMark,
+        };
       }
       if (options.flags) {
         optionsFinal = { ...optionsFinal, flags: options.flags };
@@ -2331,14 +3339,25 @@ class EncryptedFS {
     return optionsFinal;
   }
 
-  private isCharacterEncoding(encoding: string | null | undefined): encoding is BufferEncoding {
+  private isCharacterEncoding(
+    encoding: string | null | undefined,
+  ): encoding is BufferEncoding {
     if (encoding == null || encoding == undefined) {
       return false;
     }
 
-    return ['ascii', 'utf8', 'utf-8', 'utf16le', 'ucs2', 'ucs-2', 'base64', 'latin1', 'binary', 'hex'].includes(
-      encoding,
-    );
+    return [
+      'ascii',
+      'utf8',
+      'utf-8',
+      'utf16le',
+      'ucs2',
+      'ucs-2',
+      'base64',
+      'latin1',
+      'binary',
+      'hex',
+    ].includes(encoding);
   }
 
   /**
@@ -2381,15 +3400,17 @@ class EncryptedFS {
     return blockBuf;
   }
 
-  // #TODO:
-  // TODO: what happens if file is less than block size?
   /**
    * Asynchronously reads from disk the chunk containing the block that needs to be merged with new block
    * @param fd File descriptor.
    * @param newData Buffer containing the new data.
    * @param position Position of the insertion.
    */
-  private async overlaySegment(fd: number, newData: Buffer, position: number): Promise<Buffer> {
+  private async overlaySegment(
+    fd: number,
+    newData: Buffer,
+    position: number,
+  ): Promise<Buffer> {
     // 	case 1:  segment is aligned to start of block and ends at end of block      |<------->|
     // 	case 2:  segment is aligned to start-of-block but end before end-of-block   |<----->--|
     // 	case 3:  segment is not aligned to start and ends before end-of-block       |--<--->--|
@@ -2406,7 +3427,7 @@ class EncryptedFS {
 
     // Make sure newData won't be written over block boundary
     if (writeOffset + newData.length > this.blockSize) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'overlaySegment');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'overlaySegment');
     }
 
     // Read relevant block
@@ -2434,7 +3455,11 @@ class EncryptedFS {
    * @param newData Buffer containing the new data.
    * @param position Position of the insertion.
    */
-  private overlaySegmentSync(fd: number, newData: Buffer, position: number): Buffer {
+  private overlaySegmentSync(
+    fd: number,
+    newData: Buffer,
+    position: number,
+  ): Buffer {
     const writeOffset = this.getBoundaryOffset(position); // byte offset from where to start writing new data in the block
 
     // Optimization: skip read if newData is block aligned and length is blockSize
@@ -2444,7 +3469,7 @@ class EncryptedFS {
 
     // Make sure newData won't be written over block boundary
     if (writeOffset + newData.length > this.blockSize) {
-      throw new EncryptedFSError(errno.EINVAL, null, null, 'overlaySegmentSync');
+      throw new EncryptedFSError(errno.EINVAL, fd, null, 'overlaySegmentSync');
     }
 
     // Read relevant block
@@ -2565,13 +3590,14 @@ class EncryptedFS {
    * @param blocks Buffer containing blocks to be split.
    * @param blockSize Size of an individual block.
    */
-  private *blockGenerator(blocks: Buffer, blockSize: number = this.blockSize): IterableIterator<Buffer> {
-    let iterCount = 0;
+  private *blockGenerator(
+    blocks: Buffer,
+    blockSize: number = this.blockSize,
+  ): IterableIterator<Buffer> {
     let currOffset = 0;
     while (currOffset < blocks.length) {
       yield blocks.slice(currOffset, currOffset + blockSize);
       currOffset += blockSize;
-      iterCount++;
     }
   }
 
@@ -2580,13 +3606,14 @@ class EncryptedFS {
    * @param chunks Buffer containing blocks to be split.
    * @param chunkSize Size of an individual block.
    */
-  private *chunkGenerator(chunks: Buffer, chunkSize: number = this.chunkSize): IterableIterator<Buffer> {
-    let iterCount = 0;
+  private *chunkGenerator(
+    chunks: Buffer,
+    chunkSize: number = this.chunkSize,
+  ): IterableIterator<Buffer> {
     let currOffset = 0;
     while (currOffset < chunks.length) {
       yield chunks.slice(currOffset, currOffset + chunkSize);
       currOffset += chunkSize;
-      iterCount++;
     }
   }
 
@@ -2603,7 +3630,11 @@ class EncryptedFS {
    * Synchronously checks for file size.
    * @param fd File descriptor.
    */
-  private getPostWriteFileSize(fd: number, position: number, length: number): number {
+  private getPostWriteFileSize(
+    fd: number,
+    position: number,
+    length: number,
+  ): number {
     const fileMeta = this.metadata[fd];
     const newSize = position + length;
     const fileSize = fileMeta.size;
@@ -2618,32 +3649,68 @@ class EncryptedFS {
   private writeMetadataSync(fd: number): void {
     const metadata = this.getMetadata(fd);
     const serialMeta = JSON.stringify(metadata);
-    const metadataBockBuffer = Buffer.concat([Buffer.from(serialMeta)], this.blockSize);
-    const metadataChunkBuffer = this.crypto.encryptBlockSync(metadataBockBuffer);
+    const metadataBlockBuffer = Buffer.concat(
+      [Buffer.from(serialMeta)],
+      this.blockSize,
+    );
+    const metadataChunkBuffer = cryptoUtils.encryptBlock(
+      this.masterKey,
+      metadataBlockBuffer,
+    );
     const metadataOffset = this.getMetadataOffsetSync(fd);
-    this.lowerDir.writeSync(this.getLowerFd(fd), metadataChunkBuffer, 0, metadataChunkBuffer.length, metadataOffset);
+    this.lowerDir.writeSync(
+      this.getLowerFd(fd),
+      metadataChunkBuffer,
+      0,
+      metadataChunkBuffer.length,
+      metadataOffset,
+    );
   }
 
   private async loadMetadata(fd: number): Promise<void> {
     const metaChunk = Buffer.alloc(this.chunkSize);
     const metaChunkOffset = this.getMetadataOffsetSync(fd);
-
-    await promisify(this.lowerDir.read)(this.getLowerFd(fd), metaChunk, 0, metaChunk.length, metaChunkOffset);
-
-    const metaBlock = await this.crypto.decryptChunk(metaChunk);
+    const readAsync = promisify(this.lowerDir.read).bind(this.lowerDir);
+    await readAsync(
+      this.getLowerFd(fd),
+      metaChunk,
+      0,
+      metaChunk.length,
+      metaChunkOffset,
+    );
+    let metaBlock;
+    if (this.workerManager) {
+      metaBlock = await this.workerManager.call(async (w) => {
+        const retBuf = await w.decryptChunk(
+          this.masterKey.toString('binary'),
+          metaChunk.toString('binary'),
+        );
+        if (retBuf) {
+          return Buffer.from(retBuf);
+        }
+      });
+    } else {
+      metaBlock = cryptoUtils.decryptChunk(this.masterKey, metaChunk);
+    }
     const metaPlainTrimmed = metaBlock.slice(0, metaBlock.indexOf('\0'));
-
-    const fileMeta = eval('(' + metaPlainTrimmed.toString() + ')');
+    const fileMeta = eval('(' + metaPlainTrimmed.toString('binary') + ')');
     this.metadata[fd] = fileMeta;
   }
 
   private loadMetadataSync(fd: number): void {
     const metaChunk = Buffer.alloc(this.chunkSize);
     const metaChunkOffset = this.getMetadataOffsetSync(fd);
-
-    this.lowerDir.readSync(this.getLowerFd(fd), metaChunk, 0, metaChunk.length, metaChunkOffset);
-
-    const metaBlock = this.crypto.decryptChunkSync(metaChunk);
+    this.lowerDir.readSync(
+      this.getLowerFd(fd),
+      metaChunk,
+      0,
+      metaChunk.length,
+      metaChunkOffset,
+    );
+    const metaBlock = cryptoUtils.decryptChunk(this.masterKey, metaChunk);
+    if (!metaBlock) {
+      throw Error('Metadata decryption unsuccessful');
+    }
     const metaPlainTrimmed = metaBlock.slice(0, metaBlock.indexOf('\0'));
 
     const fileMeta = eval('(' + metaPlainTrimmed.toString() + ')');
@@ -2651,7 +3718,7 @@ class EncryptedFS {
   }
 
   private getMetadata(fd: number): UpperDirectoryMetadata {
-    if (this.metadata.hasOwnProperty(fd)) {
+    if (Object.prototype.hasOwnProperty.call(this.metadata, fd)) {
       const fileMeta = this.metadata[fd];
       if (fileMeta) {
         return fileMeta;
@@ -2659,9 +3726,12 @@ class EncryptedFS {
     }
     throw Error('file descriptor has no metadata stored');
   }
-  private getMetaField(fd: number, fieldName: 'size' | 'keyHash'): number | Buffer {
+  private getMetaField(
+    fd: number,
+    fieldName: 'size' | 'keyHash',
+  ): number | Buffer {
     const fileMeta: UpperDirectoryMetadata = this.getMetadata(fd);
-    if (fileMeta.hasOwnProperty(fieldName)) {
+    if (Object.prototype.hasOwnProperty.call(fileMeta, fieldName)) {
       const fieldVal = fileMeta[fieldName];
       if (fieldVal != null) {
         return fieldVal;
@@ -2714,7 +3784,7 @@ class EncryptedFS {
    * @private
    */
   private getPathFromURL(url: { pathname: string } | URL): string {
-    if (url.hasOwnProperty('hostname')) {
+    if (Object.prototype.hasOwnProperty.call(url, 'hostname')) {
       throw new TypeError('ERR_INVALID_FILE_URL_HOST');
     }
     const pathname = url.pathname;

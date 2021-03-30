@@ -1,18 +1,25 @@
 {
   "compilerOptions": {
     "outDir": "./dist",
+    "sourceMap": false,
     "declaration": true,
-    "sourceMap": true,
+    "allowJs": true,
     "strictNullChecks": true,
     "noImplicitAny": false,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
     "module": "CommonJS",
-    "target": "ES2018",
+    "target": "ES2020",
     "baseUrl": "./src",
-    "strictBindCallApply": true,
+    "paths": {
+      "@": ["index"],
+      "@/*": ["*"]
+    }
   },
   "include": [
     "./src/**/*",
+    "./tests/**/*"
   ]
 }

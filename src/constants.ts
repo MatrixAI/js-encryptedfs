@@ -50,6 +50,11 @@ const constants = Object.freeze({
  * Default file permissions of `rw-rw-rw-`.
  */
 const DEFAULT_FILE_PERM =
-  constants.S_IRUSR | constants.S_IWUSR | constants.S_IRGRP | constants.S_IWGRP | constants.S_IROTH | constants.S_IWOTH;
+  constants.S_IRUSR |
+  constants.S_IWUSR |
+  constants.S_IRGRP |
+  constants.S_IWGRP |
+  constants.S_IROTH |
+  constants.S_IWOTH;
 
 export { constants, DEFAULT_FILE_PERM };

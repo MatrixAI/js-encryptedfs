@@ -1,15 +1,24 @@
+const { pathsToModuleNameMapper } = require('ts-jest/utils');
+const { compilerOptions } = require('./tsconfig');
+
 module.exports = {
+  "verbose": true,
   "roots": [
-    "<rootDir>/tests",
-    "<rootDir>/src"
+    "<rootDir>/tests"
   ],
   "testMatch": [
-    "**/?(*.)+(spec|test|unit.test).+(ts|tsx|js)"
+    "**/?(*.)+(spec|test|.test).+(ts|tsx|js)"
   ],
   "transform": {
-    "^.+\\.(ts|tsx)$": "ts-jest"
+    "^.+\\.tsx?$": "ts-jest"
   },
-  moduleNameMapper: {
-    '@encryptedfs/(.*)$': '<rootDir>/src/$1'
-  }
-}
+  setupFiles: [
+    "<rootDir>/tests/setup.ts"
+  ],
+  globalSetup: "<rootDir>/tests/globalSetup.ts",
+  globalTeardown: "<rootDir>/tests/globalTeardown.ts",
+  moduleNameMapper: pathsToModuleNameMapper(
+    compilerOptions.paths,
+    { prefix: "<rootDir>/src/" }
+  )
+};
