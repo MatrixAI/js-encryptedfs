@@ -8,7 +8,7 @@ describe('EFS crypto', () => {
     key = utils.getRandomBytesSync(16);
   });
 
-  test('Crypto - encrypt sync', () => {
+  test('encrypt - sync', () => {
     const plaintext = Buffer.from('very important secret');
     const chunk1 = cryptoUtils.encryptBlock(key, plaintext);
     const chunk2 = cryptoUtils.encryptBlock(key, plaintext);

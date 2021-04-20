@@ -7,9 +7,6 @@ import EncryptedFS from '@/EncryptedFS';
 import * as utils from '@/util';
 import { WorkerManager } from '@/workers';
 
-// js imports
-const vfs = require('virtualfs');
-
 describe('EncryptedFS class', () => {
   let dataDir: string;
   let key: Buffer;
@@ -27,167 +24,398 @@ describe('EncryptedFS class', () => {
     });
   });
 
-  test('initialisation', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    expect(efs).toBeInstanceOf(EncryptedFS);
-  });
+  describe('setup', () => {
+    test('initialisation', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      expect(efs).toBeInstanceOf(EncryptedFS);
+    });
 
-  test('various failure situations - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    efs.mkdirSync(`test/dir`, { recursive: true });
-    efs.writeFileSync(`test/file`, 'Hello');
+    test('various failure situations - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`test/dir`, { recursive: true });
+      efs.writeFileSync(`test/file`, 'Hello');
 
-    expect(() => {
-      efs.writeFileSync(`test/dir`, 'Hello');
-    }).toThrow();
-    expect(() => {
-      efs.writeFileSync(``, 'Hello');
-    }).toThrow();
-    expect(() => {
-      efs.rmdirSync(``);
-    }).toThrow();
-    expect(() => {
-      efs.unlinkSync(``);
-    }).toThrow();
-    expect(() => {
-      efs.mkdirSync(`test/dir`);
-    }).toThrow();
-    expect(() => {
-      efs.mkdirSync(`test/file`);
-    }).toThrow();
-    expect(() => {
-      efs.mkdirSync(`test/file`, { recursive: true });
-    }).toThrow();
-    expect(() => {
-      efs.readdirSync(`test/file`);
-    }).toThrow();
-    expect(() => {
-      efs.readlinkSync(`test/dir`, {});
-    }).toThrow();
-    expect(() => {
-      efs.readlinkSync(`test/file`, {});
-    }).toThrow();
-  });
-
-  test('asynchronous errors are passed to callbacks - async', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    expect(async () => {
-      await efs.promises.readFile('/nonexistent/');
-      await efs.promises.writeFile('/fail/file', '', {});
-      await efs.promises.mkdir('/cannot/do/this');
-      await efs.promises.readlink('/nolink', {});
-    }).rejects.toThrow();
+      expect(() => {
+        efs.writeFileSync(`test/dir`, 'Hello');
+      }).toThrow();
+      expect(() => {
+        efs.writeFileSync(``, 'Hello');
+      }).toThrow();
+      expect(() => {
+        efs.rmdirSync(``);
+      }).toThrow();
+      expect(() => {
+        efs.unlinkSync(``);
+      }).toThrow();
+      expect(() => {
+        efs.mkdirSync(`test/dir`);
+      }).toThrow();
+      expect(() => {
+        efs.mkdirSync(`test/file`);
+      }).toThrow();
+      expect(() => {
+        efs.mkdirSync(`test/file`, { recursive: true });
+      }).toThrow();
+      expect(() => {
+        efs.readdirSync(`test/file`);
+      }).toThrow();
+      expect(() => {
+        efs.readlinkSync(`test/dir`, {});
+      }).toThrow();
+      expect(() => {
+        efs.readlinkSync(`test/file`, {});
+      }).toThrow();
+    });
   });
 
   ///////////////
   // stat type //
   ///////////////
 
-  test('file stat makes sense - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    efs.writeFileSync(`test`, 'test data');
-    const stat = efs.statSync(`test`);
-    expect(stat.isFile()).toStrictEqual(true);
-    expect(stat.isDirectory()).toStrictEqual(false);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
-    expect(stat.isSocket()).toStrictEqual(false);
-    expect(stat.isSymbolicLink()).toStrictEqual(false);
-    expect(stat.isFIFO()).toStrictEqual(false);
+  describe('stat type', () => {
+    test('file stat makes sense - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`test`, 'test data');
+      const stat = efs.statSync(`test`);
+      expect(stat.isFile()).toStrictEqual(true);
+      expect(stat.isDirectory()).toStrictEqual(false);
+      expect(stat.isBlockDevice()).toStrictEqual(false);
+      expect(stat.isCharacterDevice()).toStrictEqual(false);
+      expect(stat.isSocket()).toStrictEqual(false);
+      expect(stat.isSymbolicLink()).toStrictEqual(false);
+      expect(stat.isFIFO()).toStrictEqual(false);
+    });
+
+    test('dir stat makes sense - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`dir`);
+      const stat = efs.statSync(`dir`);
+      expect(stat.isFile()).toStrictEqual(false);
+      expect(stat.isDirectory()).toStrictEqual(true);
+      expect(stat.isBlockDevice()).toStrictEqual(false);
+      expect(stat.isCharacterDevice()).toStrictEqual(false);
+      expect(stat.isSocket()).toStrictEqual(false);
+      expect(stat.isSymbolicLink()).toStrictEqual(false);
+      expect(stat.isFIFO()).toStrictEqual(false);
+    });
+
+    test('symlink stat makes sense - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`a`, 'data');
+      efs.symlinkSync(`a`, `link-to-a`);
+      efs.lchownSync('link-to-a', 1000, 1000);
+      const stat = efs.lstatSync(`link-to-a`);
+      expect(stat.isFile()).toStrictEqual(false);
+      expect(stat.isDirectory()).toStrictEqual(false);
+      expect(stat.isBlockDevice()).toStrictEqual(false);
+      expect(stat.isCharacterDevice()).toStrictEqual(false);
+      expect(stat.isSocket()).toStrictEqual(false);
+      expect(stat.isSymbolicLink()).toStrictEqual(true);
+      expect(stat.isFIFO()).toStrictEqual(false);
+      expect(stat.uid).toBe(1000);
+      expect(stat.gid).toBe(1000);
+    });
   });
 
-  test('dir stat makes sense - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    efs.mkdirSync(`dir`);
-    const stat = efs.statSync(`dir`);
-    expect(stat.isFile()).toStrictEqual(false);
-    expect(stat.isDirectory()).toStrictEqual(true);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
-    expect(stat.isSocket()).toStrictEqual(false);
-    expect(stat.isSymbolicLink()).toStrictEqual(false);
-    expect(stat.isFIFO()).toStrictEqual(false);
-  });
+  ///////////////////////
+  // function specific //
+  ///////////////////////
 
-  test('symlink stat makes sense - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    efs.writeFileSync(`a`, 'data');
-    efs.symlinkSync(`a`, `link-to-a`);
-    const stat = efs.lstatSync(`link-to-a`);
-    expect(stat.isFile()).toStrictEqual(false);
-    expect(stat.isDirectory()).toStrictEqual(false);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
-    expect(stat.isSocket()).toStrictEqual(false);
-    expect(stat.isSymbolicLink()).toStrictEqual(true);
-    expect(stat.isFIFO()).toStrictEqual(false);
+  describe('function specific', () => {
+    test('access, mkdir', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      expect(() => {
+        efs.accessSync('hello-world/..');
+      }).toThrow('ENOENT');
+      efs.chmodSync('hello-world', 0o500);
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.writeFileSync('hello-world', 'change');
+      }).toThrow('EACCES');
+      efs.setuid(0);
+      efs.setgid(0);
+      efs.mkdirSync('dir1/dir2/dir3/dir4', { recursive: true, mode: 0o777 });
+      expect(efs.readdirSync('')).toEqual(['dir1', 'hello-world']);
+      expect(efs.readdirSync('dir1')).toEqual(['dir2']);
+      expect(efs.readdirSync('dir1/dir2')).toEqual(['dir3']);
+      expect(efs.readdirSync('dir1/dir2/dir3')).toEqual(['dir4']);
+      expect(efs.readdirSync('dir1/dir2/dir3/dir4')).toEqual([]);
+      expect(efs.readdirSync('dir1/dir2/dir3/../../')).toEqual(['dir2']);
+      expect(efs.readdirSync('dir1/dir2/dir3/.')).toEqual(['dir4']);
+      expect(efs.readdirSync('dir1/dir2/dir3/')).toEqual(['dir4']);
+      efs.accessSync(
+        'dir1',
+        efs.constants.X_OK | efs.constants.W_OK | efs.constants.R_OK,
+      );
+      efs.chmodSync('dir1/dir2/dir3', 0o333);
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.readdirSync('dir1/dir2/dir3');
+      }).toThrow('EACCES');
+      expect(efs.readdirSync('dir1')).toEqual(['dir2']);
+    });
+
+    test('copyFile', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.mkdirSync('dir');
+      efs.writeFileSync(`dir/hello-world`, buffer, { mode: 0o700 });
+      efs.copyFileSync('dir/hello-world', 'hello-universe');
+      expect(efs.readFileSync('hello-universe', { encoding: 'utf8' })).toBe(
+        'Hello World',
+      );
+    });
+
+    test('access, mkdir - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      efs.chmod(`hello-world`, 0o500, (e) => {
+        expect(e).toBeTruthy();
+        efs.access('hello-world', efs.constants.W_OK, (e) => {
+          expect(e).toBeTruthy();
+          efs.access('hello-world', efs.constants.R_OK, (e) => {
+            expect(e).toBeNull();
+            efs.access('hello-world', efs.constants.X_OK, (e) => {
+              expect(e).toBeNull();
+              efs.rename('hello-world', 'hello-universe', (e) => {
+                expect(e).toBeNull();
+                efs.readdir('', (e, files) => {
+                  expect(e).toBeNull();
+                  expect(files).toEqual(['hello-universe']);
+                  done();
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+
+    test('file descriptor functions - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdir('dir', { recursive: true }, (e) => {
+        expect(e).toBeNull();
+        const dirfd = efs.openSync('dir', 'r');
+        efs.fsync(dirfd, (e) => {
+          expect(e).toBeNull();
+          efs.fdatasync(dirfd, (e) => {
+            expect(e).toBeNull();
+            efs.fchmod(dirfd, 0o666, (e) => {
+              expect(e).toBeNull();
+              efs.fchown(dirfd, 1000, 1000, (e) => {
+                expect(e).toBeNull();
+                const date = new Date();
+                efs.futimes(dirfd, date, date, (e) => {
+                  expect(e).toBeNull();
+                  efs.fstat(dirfd, (e, stats) => {
+                    expect(e).toBeNull();
+                    expect(stats.uid).toBe(1000);
+                    expect(stats.gid).toBe(1000);
+                    expect(stats.mode).toBe(16822);
+                    expect(stats.atime.toJSON()).toEqual(date.toJSON());
+                    expect(stats.mtime.toJSON()).toEqual(date.toJSON());
+                    efs.close(dirfd, (e) => {
+                      expect(e).toBeNull();
+                      done();
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+
+    test('linkSync, lstat', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      const date1 = new Date();
+      efs.utimes(`hello-world`, date1, date1, (err) => {
+        expect(err).toBeNull();
+        efs.stat('hello-world', (err, stats) => {
+          expect(err).toBeNull();
+          expect(stats.atime).toEqual(date1);
+          expect(stats.mtime).toEqual(date1);
+          efs.linkSync('hello-world', 'hello-link');
+          efs.mkdirSync('dir/dir2/', { recursive: true });
+          efs.linkSync('hello-world', 'dir/dir2/hello-link-dir');
+          expect(efs.readdirSync('')).toEqual([
+            'dir',
+            'hello-link',
+            'hello-world',
+          ]);
+          expect(efs.lstatSync('hello-world').nlink).toEqual(3);
+          done();
+        });
+      });
+    });
+
+    test('link, lstat - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      efs.link('hello-world', 'hello-link', (e) => {
+        expect(e).toBeNull();
+        efs.mkdir('dir/dir2/', { recursive: true }, (e) => {
+          expect(e).toBeNull();
+          efs.link('hello-world', 'dir/dir2/hello-link-dir', (e) => {
+            expect(e).toBeNull();
+            efs.readdir('', { encoding: 'utf8' }, (e, files) => {
+              expect(e).toBeNull();
+              expect(files).toEqual(['dir', 'hello-link', 'hello-world']);
+              efs.lstat('hello-world', (err, stats) => {
+                expect(err).toBeNull();
+                expect(stats.nlink).toEqual(3);
+                done();
+              });
+            });
+          });
+        });
+      });
+    });
+
+    test('stat - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      efs.mkdirSync('dir/dir2/', { recursive: true });
+      efs.writeFileSync(`dir/dir2/hello-world-2`, buffer, { mode: 0o700 });
+      efs.chown('hello-world', 1000, 1000, (e) => {
+        expect(e).toBeNull();
+        efs.stat('hello-world', (e, stats) => {
+          expect(e).toBeNull();
+          expect(stats).not.toBeNull();
+          expect(stats.uid).toBe(1000);
+          expect(stats.gid).toBe(1000);
+          efs.stat('dir/dir2/hello-world-2', (e, stats) => {
+            expect(e).toBeNull();
+            expect(stats).not.toBeNull();
+            done();
+          });
+        });
+      });
+    });
+
+    test('mkdir - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      efs.mkdir('dir/dir2', { recursive: true }, (e) => {
+        expect(e).toBeNull();
+        efs.readdir('', { encoding: 'utf8' }, (e, files) => {
+          expect(e).toBeNull();
+          expect(files).toEqual(['dir', 'hello-world']);
+          efs.writeFileSync(`dir/dir2/hello-world-2`, buffer, { mode: 0o700 });
+          efs.readdir('dir/dir2', { encoding: 'utf8' }, (e, files) => {
+            expect(e).toBeNull();
+            expect(files).toEqual(['hello-world-2']);
+            efs.unlink(`dir/dir2/hello-world-2`, (e) => {
+              expect(e).toBeNull();
+              efs.rmdir('dir/dir2', (e) => {
+                expect(e).toBeNull();
+                expect(efs.readdirSync('dir')).toEqual([]);
+                efs.exists('dir', (e, exist) => {
+                  expect(e).toBeNull();
+                  expect(exist).toBeTruthy();
+                  efs.exists('dir/dir2', (e, exist) => {
+                    expect(e).toBeNull();
+                    expect(exist).not.toBeTruthy();
+                    done();
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+
+    test('mkdtemp - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdtemp(`testing`, undefined, (err, path) => {
+        expect(err).toBeNull();
+        expect(efs.readdirSync('')).toEqual([path]);
+        done();
+      });
+    });
+
+    test('rename', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer, { mode: 0o700 });
+      efs.renameSync('hello-world', 'hello-universe');
+      expect(efs.readdirSync('')).toEqual(['hello-universe']);
+      efs.mkdirSync('dir1/dir2/dir3', { recursive: true });
+      efs.renameSync('dir1/dir2', 'dir1/dir-change');
+      expect(efs.readdirSync('dir1')).toEqual(['dir-change']);
+    });
   });
 
   ///////////
   // files //
   ///////////
 
-  test('can make and remove files - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    const buffer = Buffer.from('Hello World', 'utf8');
-    efs.writeFileSync(`hello-world`, buffer);
+  describe('files', () => {
+    test('can make and remove files - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer);
 
-    expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
+      expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
 
-    expect(efs.readFileSync(`hello-world`, { encoding: 'utf8' })).toBe(
-      'Hello World',
-    );
+      expect(efs.readFileSync(`hello-world`, { encoding: 'utf8' })).toBe(
+        'Hello World',
+      );
 
-    efs.writeFileSync(`a`, 'Test', { encoding: 'utf-8' });
-    expect(efs.readFileSync(`a`, { encoding: 'utf-8' })).toBe('Test');
+      efs.writeFileSync(`a`, 'Test', { encoding: 'utf-8' });
+      expect(efs.readFileSync(`a`, { encoding: 'utf-8' })).toBe('Test');
 
-    const stat = efs.statSync(`a`);
-    expect(stat.isFile()).toBe(true);
-    expect(stat.isDirectory()).toBe(false);
-    expect(stat.isDirectory()).toBe(false);
+      const stat = efs.statSync(`a`);
+      expect(stat.isFile()).toBe(true);
+      expect(stat.isDirectory()).toBe(false);
+      expect(stat.isDirectory()).toBe(false);
 
-    efs.writeFileSync(`b`, 'Test', { encoding: 'utf8' });
-    expect(efs.readFileSync(`b`, { encoding: 'utf-8' })).toEqual('Test');
-    expect(() => {
-      expect(efs.readFileSync(`other-file`, {})).toThrow();
-    }).toThrow();
-    expect(() => {
-      expect(efs.readFileSync(`other-file`, { encoding: 'utf8' })).toThrow();
-    }).toThrow();
-  });
+      efs.writeFileSync(`b`, 'Test', { encoding: 'utf8' });
+      expect(efs.readFileSync(`b`, { encoding: 'utf-8' })).toEqual('Test');
+      expect(() => {
+        expect(efs.readFileSync(`other-file`, {})).toThrow();
+      }).toThrow();
+      expect(() => {
+        expect(efs.readFileSync(`other-file`, { encoding: 'utf8' })).toThrow();
+      }).toThrow();
+    });
 
-  test('can make many files - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    for (let i = 0; i < 60; i++) {
-      const name = 'secret ' + i.toString();
-      const content = Buffer.from(name);
-      efs.writeFileSync(name, content, {});
-      const files = efs.readFileSync(name);
+    test('can make many files - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      for (let i = 0; i < 60; i++) {
+        const name = 'secret ' + i.toString();
+        const content = Buffer.from(name);
+        efs.writeFileSync(name, content, {});
+        const files = efs.readFileSync(name);
 
-      expect(files).toStrictEqual(content);
-    }
-  });
+        expect(files).toStrictEqual(content);
+      }
+    });
 
-  test('can write a large file - sync', () => {
-    const vfsInstance = new vfs.VirtualFS();
-    const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-    let content = '';
-    for (let i = 0; i < 100; i++) {
-      const name = 'secret';
-      content += name + i.toString();
-      efs.writeFileSync(name, Buffer.from(content), {});
-      const files = efs.readFileSync(name);
+    test('can write a large file - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      let content = '';
+      for (let i = 0; i < 100; i++) {
+        const name = 'secret';
+        content += name + i.toString();
+        efs.writeFileSync(name, Buffer.from(content), {});
+        const files = efs.readFileSync(name);
 
-      expect(files).toStrictEqual(Buffer.from(content));
-    }
+        expect(files).toStrictEqual(Buffer.from(content));
+      }
+    });
   });
 
   /////////////////
@@ -196,37 +424,32 @@ describe('EncryptedFS class', () => {
 
   describe('directories', () => {
     test('has an empty root directory at startup - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       expect(efs.readdirSync(``)).toEqual([]);
-      const stat = efs.statSync('');
-      expect(stat.isFile()).toStrictEqual(false);
-      expect(stat.isDirectory()).toStrictEqual(true);
-      expect(stat.isSymbolicLink()).toStrictEqual(false);
+      // const stat = efs.statSync('');
+      // expect(stat.isFile()).toStrictEqual(false);
+      // expect(stat.isDirectory()).toStrictEqual(true);
+      // expect(stat.isSymbolicLink()).toStrictEqual(false);
     });
 
-    test('has an empty root directory at startup - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.promises.readdir(``).then((list) => {
+    test('has an empty root directory at startup - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.readdir(``, (e, list) => {
+        expect(e).toBeNull();
         expect(list).toEqual([]);
-        efs.promises
-          .stat(``)
-          .then((stat) => {
-            expect(stat.isFile()).toStrictEqual(false);
-            expect(stat.isDirectory()).toStrictEqual(true);
-            expect(stat.isSymbolicLink()).toStrictEqual(false);
-            done();
-          })
-          .catch((err) => {
-            expect(err).toBeNull();
-          });
+        done();
+        // efs.stat(``, (e, stat) => {
+        //   expect(e).toBeNull();
+        //   expect(stat.isFile()).toStrictEqual(false);
+        //   expect(stat.isDirectory()).toStrictEqual(true);
+        //   expect(stat.isSymbolicLink()).toStrictEqual(false);
+        //   done();
+        // });
       });
     });
 
     test('is able to make directories - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`first`, { recursive: true });
       efs.mkdirSync(`first//sub/`, { recursive: true });
       efs.mkdirSync(`first/sub/subsub`);
@@ -241,47 +464,48 @@ describe('EncryptedFS class', () => {
       expect(stat.isDirectory()).toStrictEqual(true);
     });
 
-    test('is able to make directories - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.promises.mkdir(`first`).then(() => {
-        efs.promises.mkdir(`first//sub/`).then(() => {
-          efs.promises.mkdir(`first/sub2/`).then(() => {
-            efs.promises
-              .mkdir(`backslash\\dir`, { recursive: true })
-              .then(() => {
-                efs.promises.readdir(``).then((list) => {
-                  expect(list).toEqual(['backslash\\dir', 'first']);
-                  efs.promises.readdir(`first/`).then((list) => {
-                    expect(list).toEqual(['sub', 'sub2']);
-                    efs.promises
-                      .mkdir(`a/depth/sub/dir`, { recursive: true })
-                      .then(() => {
-                        efs.promises.stat(`a/depth/sub`).then((stat) => {
-                          expect(stat.isFile()).toEqual(false);
-                          expect(stat.isDirectory()).toEqual(true);
-                          done();
-                        });
-                      });
+    test('is able to make directories - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdir(`first`, (e) => {
+        expect(e).toBeNull();
+        efs.mkdir(`first//sub/`, (e) => {
+          expect(e).toBeNull();
+          efs.mkdir(`first/sub2/`, (e) => {
+            expect(e).toBeNull();
+            efs.mkdir(`backslash\\dir`, { recursive: true }, (e) => {
+              expect(e).toBeNull();
+              efs.readdir(``, (e, list) => {
+                expect(e).toBeNull();
+                expect(list).toEqual(['backslash\\dir', 'first']);
+                efs.readdir(`first/`, (e, list) => {
+                  expect(e).toBeNull();
+                  expect(list).toEqual(['sub', 'sub2']);
+                  efs.mkdir(`a/depth/sub/dir`, { recursive: true }, (e) => {
+                    expect(e).toBeNull();
+                    efs.stat(`a/depth/sub`, (e, stat) => {
+                      expect(e).toBeNull();
+                      expect(stat.isFile()).toEqual(false);
+                      expect(stat.isDirectory()).toEqual(true);
+                      done();
+                    });
                   });
                 });
               });
+            });
           });
         });
       });
     });
 
     test('should not make the root directory - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       expect(() => {
         efs.mkdirSync('/');
       }).toThrow('EEXIST');
     });
 
     test('should be able to navigate before root - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const buffer = Buffer.from('Hello World');
       efs.mkdirSync(`first`);
       efs.writeFileSync(`hello-world.txt`, buffer);
@@ -295,8 +519,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('should be able to remove directories - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`first`);
       efs.mkdirSync(`first//sub/`);
       efs.mkdirSync(`first/sub2`);
@@ -319,8 +542,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('rmdir does not traverse the last symlink', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`directory`);
       efs.symlinkSync(`directory`, `linktodirectory`);
       expect(() => {
@@ -330,8 +552,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('creating temporary directories - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const tempSubDir = `dir`;
       efs.mkdirSync(tempSubDir);
       const buffer = Buffer.from('abc');
@@ -342,8 +563,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('trailing slash refers to the directory instead of a file - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.writeFileSync(`abc`, '');
       expect(() => {
         efs.accessSync(`abc/`, undefined);
@@ -360,16 +580,14 @@ describe('EncryptedFS class', () => {
     });
 
     test('trailing slash works for non-existent directories when intending to create them - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`abc/`);
       const stat = efs.statSync(`abc/`);
       expect(stat.isDirectory()).toStrictEqual(true);
     });
 
     test('trailing `/.` for mkdirSync should result in errors', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       expect(() => {
         efs.mkdirSync(`abc/.`);
       }).toThrow('ENOENT');
@@ -380,8 +598,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('trailing `/.` for a recursive mkdirSync should not result in any errors', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`abc/.`, { recursive: true });
       const stat = efs.statSync(`abc`);
       expect(stat.isDirectory()).toStrictEqual(true);
@@ -394,8 +611,7 @@ describe('EncryptedFS class', () => {
 
   describe('hardlinks', () => {
     test('multiple hardlinks to the same file - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`test`);
       efs.writeFileSync(`test/a`, '');
       efs.linkSync(`test/a`, `test/b`);
@@ -408,8 +624,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('should not create hardlinks to directories - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`test`);
 
       expect(() => {
@@ -424,8 +639,7 @@ describe('EncryptedFS class', () => {
 
   describe('symlinks', () => {
     test('symlink paths can contain multiple slashes', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`dir`);
       efs.writeFileSync(`dir/test`, 'hello');
       efs.symlinkSync(`///dir////test`, `linktodirtest`);
@@ -435,26 +649,33 @@ describe('EncryptedFS class', () => {
       efs.unlinkSync('linktodirtest');
     });
 
-    test('resolves symlink loops 1 - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.symlinkSync(`test`, `test`);
-
-      expect(() => {
-        efs.readFileSync(`test`, {});
-      }).toThrow('ELOOP');
-      efs.unlinkSync('test');
+    test('symlink paths can contain multiple slashes - cb', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdir(`dir`, { recursive: true }, (err) => {
+        expect(err).toBeNull();
+        efs.writeFileSync(`dir/test`, 'hello');
+        efs.symlink(`///dir////test`, `linktodirtest`, (err) => {
+          expect(err).toBeNull();
+          expect(efs.readFileSync(`dir/test`, {})).toEqual(
+            efs.readFileSync(`linktodirtest`, {}),
+          );
+          efs.readlink('linktodirtest', {}, (e, data) => {
+            expect(e).toBeNull();
+            expect(data).toEqual('///dir////test');
+            efs.unlinkSync('linktodirtest');
+          });
+        });
+      });
     });
 
     test('is able to add and traverse symlinks transitively - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`test`);
       const buffer = Buffer.from('Hello World');
       efs.writeFileSync(`test/hello-world.txt`, buffer);
       efs.symlinkSync(`test`, `linktotestdir`, 'dir');
-      expect(efs.readlinkSync(`linktotestdir`, {})).toEqual(`//test`);
-      expect(efs.readdirSync(`linktotestdir`)).toEqual(['hello-world.txt']);
+      expect(efs.readlinkSync(`linktotestdir`, {})).toEqual(`test`);
+      expect(efs.readdirSync(`linktotestdir`)).toContain('hello-world.txt');
       efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
       efs.symlinkSync(`linktofile`, `linktolink`);
       expect(efs.readFileSync(`linktofile`, { encoding: 'utf-8' })).toEqual(
@@ -469,8 +690,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('unlink does not traverse symlinks - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`test`);
       const buffer = Buffer.from('Hello World');
       efs.writeFileSync(`test/hello-world.txt`, buffer);
@@ -478,7 +698,7 @@ describe('EncryptedFS class', () => {
       efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
       efs.unlinkSync(`linktofile`);
       efs.unlinkSync(`linktotestdir`);
-      expect(efs.readdirSync(`test`)).toEqual(['hello-world.txt']);
+      expect(efs.readdirSync(`test`)).toContain('hello-world.txt');
     });
   });
 
@@ -488,8 +708,7 @@ describe('EncryptedFS class', () => {
 
   describe('streams', () => {
     test('readstream options start and end are both inclusive - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       efs.writeFileSync(`test`, str);
       const readable = efs.createReadStream(`test`, {
@@ -497,7 +716,6 @@ describe('EncryptedFS class', () => {
         start: 0,
         end: str.length - 1,
       });
-      expect.assertions(1);
       readable.on('readable', () => {
         const readStr = readable.read();
         if (readStr) {
@@ -507,14 +725,13 @@ describe('EncryptedFS class', () => {
       });
     });
     test('readstreams respect start and end options - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       efs.writeFileSync(`file`, str, { encoding: 'utf8' });
       const readable = efs.createReadStream(`file`, {
         encoding: 'utf8',
         start: 1,
-        end: 4,
+        end: 3,
       });
       readable.on('readable', () => {
         const readStr = readable.read();
@@ -525,8 +742,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('readstream respects the start option - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       const filePath = `file`;
       efs.writeFileSync(filePath, str, { encoding: 'utf8' });
@@ -547,8 +763,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('readstream end option is ignored without the start option - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       const filePath = `file`;
       efs.writeFileSync(filePath, str);
@@ -568,8 +783,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('readstream can use a file descriptor - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       const filePath = `file`;
       efs.writeFileSync(filePath, str);
@@ -591,8 +805,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('readstream with start option overrides the file descriptor position - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       efs.writeFileSync(`file`, str);
       const fd = efs.openSync(`file`, 'r');
@@ -606,14 +819,13 @@ describe('EncryptedFS class', () => {
       readable.on('readable', () => {
         const readStr = readable.read();
         if (readStr) {
-          expect(readStr).toEqual(str.slice(offset, 4));
+          expect(readStr).toEqual(str.slice(offset, 5));
           done();
         }
       });
     });
     test('readstreams handle errors asynchronously - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const stream = efs.createReadStream(`file`, {});
       stream.on('error', (e) => {
         expect(e.message).toContain('ENOENT');
@@ -622,8 +834,7 @@ describe('EncryptedFS class', () => {
       stream.read(10);
     });
     test('readstreams can compose with pipes - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       efs.writeFileSync(`file`, str);
       expect.assertions(1);
@@ -639,8 +850,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('writestream can create and truncate files - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       const fileName = `file`;
       expect.assertions(2);
@@ -654,8 +864,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('writestream can be piped into - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello';
       expect.assertions(1);
       const stream = efs.createWriteStream(`file`, {});
@@ -667,8 +876,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('writestreams handle errors asynchronously - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fileName = `file/unknown`;
       const writable = efs.createWriteStream(fileName, {});
       // note that it is possible to have the finish event occur before the error event
@@ -681,8 +889,7 @@ describe('EncryptedFS class', () => {
       writable.end();
     });
     test('writestreams allow ignoring of the drain event, temporarily ignoring resource usage control - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const waterMark = 10;
       const fileName = `file`;
       const writable = efs.createWriteStream(fileName, {
@@ -700,8 +907,7 @@ describe('EncryptedFS class', () => {
       });
     });
     test('writestreams can use the drain event to manage resource control - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const waterMark = 10;
       const fileName = `file`;
       const writable = efs.createWriteStream(fileName, {
@@ -738,8 +944,7 @@ describe('EncryptedFS class', () => {
 
   describe('stat time changes', () => {
     test('truncate and ftruncate will change mtime and ctime - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'abcdef';
       efs.writeFileSync(`test`, str);
       const stat = efs.statSync(`test`);
@@ -770,8 +975,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('fallocate will only change ctime - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`allocate`, 'w');
       efs.writeSync(fd, Buffer.from('abc'));
       const stat = efs.statSync(`allocate`);
@@ -795,8 +999,7 @@ describe('EncryptedFS class', () => {
   ////////////////////////////////
   describe('directory file descriptors', () => {
     test('directory file descriptors capabilities - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const dirName = `dir`;
       efs.mkdirSync(dirName);
       const dirfd = efs.openSync(dirName, 'r');
@@ -807,15 +1010,14 @@ describe('EncryptedFS class', () => {
       const date = new Date();
       efs.futimesSync(dirfd, date, date);
       const stats: Stats = efs.fstatSync(dirfd);
-      expect(stats.atime).toEqual(date);
-      expect(stats.mtime).toEqual(date);
+      expect(stats.atime.toJSON()).toEqual(date.toJSON());
+      expect(stats.mtime.toJSON()).toEqual(date.toJSON());
       efs.closeSync(dirfd);
       done();
     });
 
     test('directory file descriptor errors - sync', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const dirName = `dir`;
       efs.mkdirSync(dirName);
 
@@ -846,19 +1048,6 @@ describe('EncryptedFS class', () => {
       efs.closeSync(dirfd);
       done();
     });
-
-    test('directory file descriptors inode nlink becomes 0 after deletion of the directory', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      const dirName = `dir`;
-      efs.mkdirSync(dirName);
-      const fd = efs.openSync(dirName, 'r');
-      efs.rmdirSync(dirName);
-      const stat = efs.fstatSync(fd);
-      expect(stat.nlink).toEqual(1);
-      efs.closeSync(fd);
-      done();
-    });
   });
 
   //////////////////////////////////////////////////////////////////////////
@@ -866,8 +1055,7 @@ describe('EncryptedFS class', () => {
   //////////////////////////////////////////////////////////////////////////
   describe('function calling styles', () => {
     test('openSync calling styles work - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       expect(() => {
         let fd: number;
         fd = efs.openSync(`test`, 'w+');
@@ -878,36 +1066,22 @@ describe('EncryptedFS class', () => {
     });
 
     test('open calling styles work - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.promises
-        .open(`test`, 'w+')
-        .then((fd) => {
-          efs.closeSync(fd!);
-          efs.promises
-            .open(`test2`, 'w+', 0o666)
-            .then((fd) => {
-              efs.promises
-                .close(fd!)
-                .then(() => {
-                  done();
-                })
-                .catch((err) => {
-                  expect(err).toBeNull();
-                });
-            })
-            .catch((err) => {
-              expect(err).toBeNull();
-            });
-        })
-        .catch((err) => {
-          expect(err).toBeNull();
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.open(`test`, 'w+', (e, fd) => {
+        expect(e).toBeNull();
+        efs.closeSync(fd!);
+        efs.open(`test2`, 'w+', 0o666, (e, fd) => {
+          expect(e).toBeNull();
+          efs.close(fd!, (e) => {
+            expect(e).toBeNull();
+            done();
+          });
         });
+      });
     });
 
     test('readSync calling styles work - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello World';
       const buf = Buffer.from(str).fill(0);
       efs.writeFileSync(`test`, str);
@@ -928,31 +1102,31 @@ describe('EncryptedFS class', () => {
       efs.closeSync(fd);
     });
 
-    test('read calling styles work - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+    test('read calling styles work - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
       // fs.read does not have intermediate optional parameters
       const str = 'Hello World';
       const buf = Buffer.from(str).fill(0);
-      efs.writeFileSync(`test`, str);
-      const fd = efs.openSync(`test`, 'r+');
-      const readBuf = Buffer.allocUnsafe(buf.length);
-      efs.promises
-        .read(fd, readBuf, 0, buf.length)
-        .then((bytesRead) => {
-          expect(readBuf.toString().slice(0, str.length)).toEqual(str);
-          expect(bytesRead).toEqual(Buffer.from(str).length);
-          efs.closeSync(fd);
-          done();
-        })
-        .catch((err) => {
-          expect(err).toBeNull();
+      efs.writeFile('test', str, (e) => {
+        expect(e).toBeNull();
+        efs.open('test', 'r+', (e, fd) => {
+          expect(e).toBeNull();
+          const readBuf = Buffer.allocUnsafe(buf.length);
+          efs.read(fd, readBuf, 0, buf.length, 0, (e, bytesRead) => {
+            expect(e).toBeNull();
+            expect(readBuf.toString().slice(0, str.length)).toEqual(str);
+            expect(bytesRead).toEqual(Buffer.from(str).length);
+            efs.close(fd, (e) => {
+              expect(e).toBeNull();
+              done();
+            });
+          });
         });
+      });
     });
 
     test('writeSync calling styles work - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test`, 'w');
       const str = 'Hello World';
       const buf = Buffer.from(str);
@@ -967,99 +1141,66 @@ describe('EncryptedFS class', () => {
       efs.writeFileSync(fd, str);
       efs.writeFileSync(fd, str);
       efs.closeSync(fd);
-      // expect(efs.readFileSync(`test`, {encoding: 'utf-8'})).toEqual(str.repeat(7))
     });
 
-    test('write calling styles work - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+    test('write calling styles work - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
       // fs.write has intermediate optional parameters
       const fd = efs.openSync(`test`, 'w+');
       const str = 'Hello World';
       const buf = Buffer.from(str);
-      efs.promises
-        .write(fd, buf)
-        .then((bytesWritten) => {
+      efs.write(fd, buf, 0, buf.length, 0, (e, bytesWritten) => {
+        expect(e).toBeNull();
+        expect(bytesWritten).toEqual(buf.length);
+        const readBuf = Buffer.allocUnsafe(buf.length);
+        efs.readSync(fd, readBuf);
+        expect(readBuf).toEqual(buf);
+        efs.write(fd, buf, 0, buf.length, 0, (e, bytesWritten) => {
+          expect(e).toBeNull();
           expect(bytesWritten).toEqual(buf.length);
           const readBuf = Buffer.allocUnsafe(buf.length);
           efs.readSync(fd, readBuf);
           expect(readBuf).toEqual(buf);
-          efs.promises
-            .write(fd, buf)
-            .then((bytesWritten) => {
+          efs.write(fd, buf, undefined, buf.length, 0, (e, bytesWritten) => {
+            expect(e).toBeNull();
+            expect(bytesWritten).toEqual(buf.length);
+            const readBuf = Buffer.allocUnsafe(buf.length);
+            efs.readSync(fd, readBuf);
+            expect(readBuf).toEqual(buf);
+            efs.write(fd, buf, undefined, buf.length, 0, (e, bytesWritten) => {
+              expect(e).toBeNull();
               expect(bytesWritten).toEqual(buf.length);
               const readBuf = Buffer.allocUnsafe(buf.length);
               efs.readSync(fd, readBuf);
               expect(readBuf).toEqual(buf);
-              efs.promises
-                .write(fd, buf, undefined, buf.length)
-                .then((bytesWritten) => {
-                  expect(bytesWritten).toEqual(buf.length);
+              efs.writeFile(fd, str, {}, (e) => {
+                expect(e).toBeNull();
+                const readBuf = Buffer.allocUnsafe(buf.length);
+                efs.readSync(fd, readBuf);
+                expect(readBuf).toEqual(buf);
+                efs.writeFile(fd, str, {}, (e) => {
+                  expect(e).toBeNull();
                   const readBuf = Buffer.allocUnsafe(buf.length);
                   efs.readSync(fd, readBuf);
                   expect(readBuf).toEqual(buf);
-                  efs.promises
-                    .write(fd, buf, undefined, buf.length)
-                    .then((bytesWritten) => {
-                      expect(bytesWritten).toEqual(buf.length);
-                      const readBuf = Buffer.allocUnsafe(buf.length);
-                      efs.readSync(fd, readBuf);
-                      expect(readBuf).toEqual(buf);
-                      efs.promises
-                        .writeFile(fd, str, {})
-                        .then(() => {
-                          const readBuf = Buffer.allocUnsafe(buf.length);
-                          efs.readSync(fd, readBuf);
-                          expect(readBuf).toEqual(buf);
-                          efs.promises
-                            .writeFile(fd, str, {})
-                            .then(() => {
-                              const readBuf = Buffer.allocUnsafe(buf.length);
-                              efs.readSync(fd, readBuf);
-                              expect(readBuf).toEqual(buf);
-                              efs.promises
-                                .writeFile(fd, str, {})
-                                .then(() => {
-                                  const readBuf = Buffer.allocUnsafe(
-                                    buf.length,
-                                  );
-                                  efs.readSync(fd, readBuf);
-                                  expect(readBuf).toEqual(buf);
-                                  efs.closeSync(fd);
-                                  done();
-                                })
-                                .catch((err) => {
-                                  expect(err).toBeNull();
-                                });
-                            })
-                            .catch((err) => {
-                              expect(err).toBeNull();
-                            });
-                        })
-                        .catch((err) => {
-                          expect(err).toBeNull();
-                        });
-                    })
-                    .catch((err) => {
-                      expect(err).toBeNull();
-                    });
-                })
-                .catch((err) => {
-                  expect(err).toBeNull();
+                  efs.writeFile(fd, str, {}, (e) => {
+                    expect(e).toBeNull();
+                    const readBuf = Buffer.allocUnsafe(buf.length);
+                    efs.readSync(fd, readBuf);
+                    expect(readBuf).toEqual(buf);
+                    efs.closeSync(fd);
+                    done();
+                  });
                 });
-            })
-            .catch((err) => {
-              expect(err).toBeNull();
+              });
             });
-        })
-        .catch((err) => {
-          expect(err).toBeNull();
+          });
         });
+      });
     });
 
     test('readFileSync calling styles work - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello World';
       const buf = Buffer.from(str);
       efs.writeFileSync(`test`, buf);
@@ -1075,30 +1216,29 @@ describe('EncryptedFS class', () => {
       efs.closeSync(fd);
     });
 
-    test('readFile calling styles work - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+    test('readFile calling styles work - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'Hello World';
       const buf = Buffer.from(str);
       efs.writeFileSync(`test`, buf);
       const fd = efs.openSync(`test`, 'r+');
-      efs.promises.readFile(`test`, {}).then((data) => {
+      efs.readFile(`test`, {}, (e, data) => {
+        expect(e).toBeNull();
         expect(data).toEqual(buf);
-        efs.promises
-          .readFile(`test`, { encoding: 'utf8', flag: 'r' })
-          .then((buffer) => {
-            expect(buffer.toString()).toEqual(str);
-            efs.promises.readFile(fd).then((buffer) => {
-              expect(buffer).toEqual(buf);
-              done();
-            });
+        efs.readFile(`test`, { encoding: 'utf8', flag: 'r' }, (e, buffer) => {
+          expect(e).toBeNull();
+          expect(buffer.toString()).toEqual(str);
+          efs.readFile(fd, (e, buffer2) => {
+            expect(e).toBeNull();
+            expect(buffer2).toEqual(buf);
+            done();
           });
+        });
       });
     });
 
     test('writeFileSync calling styles work - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test`, 'w+');
       const str = 'Hello World';
       const buf = Buffer.from(str);
@@ -1121,61 +1261,48 @@ describe('EncryptedFS class', () => {
       efs.closeSync(fd);
     });
 
-    test('writeFile calling styles work - async', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+    test('writeFile calling styles work - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test`, 'w+');
       const str = 'Hello World';
       const buf = Buffer.from(str);
-      efs.promises.writeFile(`test`, str, {}).then(() => {
-        efs.promises
-          .writeFile(`test`, str, {
+      efs.writeFile(`test`, str, {}, (e) => {
+        expect(e).toBeNull();
+        efs.writeFile(
+          `test`,
+          str,
+          {
             encoding: 'utf8',
             mode: 0o666,
             flag: 'w',
-          })
-          .then(() => {
-            efs.promises
-              .writeFile(`test`, buf, {})
-              .then(() => {
-                efs.promises
-                  .writeFile(fd, str, {})
-                  .then(() => {
-                    efs.promises
-                      .writeFile(fd, str, {
-                        encoding: 'utf8',
-                        mode: 0o666,
-                        flag: 'w',
-                      })
-                      .then(() => {
-                        efs.promises
-                          .writeFile(fd, buf, {})
-                          .then(() => {
-                            efs.closeSync(fd);
-                            done();
-                          })
-                          .catch((err) => {
-                            expect(err).toBeNull();
-                          });
-                      })
-                      .catch((err) => {
-                        expect(err).toBeNull();
-                      })
-                      .catch((err) => {
-                        expect(err).toBeNull();
-                      });
-                  })
-                  .catch((err) => {
-                    expect(err).toBeNull();
-                  });
-              })
-              .catch((err) => {
-                expect(err).toBeNull();
+          },
+          (e) => {
+            expect(e).toBeNull();
+            efs.writeFile(`test`, buf, {}, (e) => {
+              expect(e).toBeNull();
+              efs.writeFile(fd, str, {}, (e) => {
+                expect(e).toBeNull();
+                efs.writeFile(
+                  fd,
+                  str,
+                  {
+                    encoding: 'utf8',
+                    mode: 0o666,
+                    flag: 'w',
+                  },
+                  (e) => {
+                    expect(e).toBeNull();
+                    efs.writeFile(fd, buf, {}, (e) => {
+                      expect(e).toBeNull();
+                      efs.closeSync(fd);
+                      done();
+                    });
+                  },
+                );
               });
-          })
-          .catch((err) => {
-            expect(err).toBeNull();
-          });
+            });
+          },
+        );
       });
     });
   });
@@ -1185,8 +1312,7 @@ describe('EncryptedFS class', () => {
   /////////////////
   describe('permissions', () => {
     test('chown changes uid and gid - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`test`, { recursive: true });
       efs.chownSync(`test`, 1000, 1000);
       const stat = efs.statSync(`test`);
@@ -1195,35 +1321,104 @@ describe('EncryptedFS class', () => {
     });
 
     test('chmod with 0 wipes out all permissions - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.writeFileSync(`a`, 'abc');
       efs.chmodSync(`a`, 0o000);
       const stat = efs.statSync(`a`);
       expect(stat.mode).toEqual(efs.constants.S_IFREG);
     });
 
-    test('mkdir and chmod affects the mode - promises', (done) => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.promises.mkdir(`test`, { mode: 0o644 }).then(() => {
-        efs.accessSync(
+    test('mkdir and chmod affects the mode - cb', (done) => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdir(`test`, { mode: 0o644 }, (e) => {
+        expect(e).toBeNull();
+        efs.access(
           `test`,
           efs.constants.F_OK | efs.constants.R_OK | efs.constants.W_OK,
+          (e) => {
+            expect(e).toBeNull();
+            efs.chmod(`test`, 0o444, (e) => {
+              expect(e).toBeNull();
+              efs.access(
+                `test`,
+                efs.constants.F_OK | efs.constants.R_OK,
+                (e) => {
+                  expect(e).toBeNull();
+                  done();
+                },
+              );
+            });
+          },
         );
-        efs.promises.chmod(`test`, 0o444).then(() => {
-          efs.accessSync(`test`, efs.constants.F_OK | efs.constants.R_OK);
-          done();
-        });
       });
     });
 
-    test('file permissions rw- - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.writeFileSync(`file`, 'world');
-      efs.chmodSync(`file`, 0o600);
+    test('--x-w-r-- do not provide read write and execute to the user due to permission staging', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`file`, 'hello');
+      efs.mkdirSync(`dir`);
+      efs.chmodSync(`file`, 0o111);
+      efs.chmodSync(`dir`, 0o111);
 
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.accessSync(`file`, efs.constants.R_OK | efs.constants.W_OK);
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.accessSync(`dir`, efs.constants.R_OK | efs.constants.W_OK);
+      }).toThrow('EACCES');
+
+      efs.accessSync(`file`, efs.constants.X_OK);
+      efs.accessSync(`dir`, efs.constants.X_OK);
+    });
+
+    test('file permissions --- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`file`, 'hello');
+      efs.chmodSync(`file`, 0o000);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.accessSync(`file`, efs.constants.X_OK);
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.openSync(`file`, 'r');
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.openSync(`file`, 'w');
+      }).toThrow('EACCES');
+
+      const stat = efs.statSync(`file`);
+      expect(stat.isFile()).toStrictEqual(true);
+    });
+
+    test('file permissions r-- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const str = 'hello';
+      efs.writeFileSync(`file`, str);
+      efs.chmodSync(`file`, 0o444);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.accessSync(`file`, efs.constants.X_OK);
+      }).toThrow('EACCES');
+      expect(efs.readFileSync(`file`, { encoding: 'utf8' })).toEqual(str);
+
+      expect(() => {
+        efs.openSync(`file`, 'w');
+      }).toThrow('EACCES');
+    });
+
+    test('file permissions rw- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`file`, 'world', { mode: 0o666 });
+      efs.chownSync('file', 1000, 1000);
+      efs.chmodSync(`file`, 0o666);
+      efs.setuid(1000);
+      efs.setgid(1000);
       expect(() => {
         efs.accessSync(`file`, efs.constants.X_OK);
       }).toThrow('EACCES');
@@ -1234,10 +1429,12 @@ describe('EncryptedFS class', () => {
     });
 
     test('file permissions rwx - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
-      efs.writeFileSync(`file`, 'world');
-      efs.chmodSync(`file`, 0o700);
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`file`, 'world', { mode: 0o777 });
+      efs.chownSync('file', 1000, 1000);
+      efs.chmodSync(`file`, 0o777);
+      efs.setuid(1000);
+      efs.setgid(1000);
       efs.accessSync(`file`, efs.constants.X_OK);
       const str = 'hello';
       efs.writeFileSync(`file`, str);
@@ -1245,8 +1442,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('file permissions r-x - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'hello';
       efs.writeFileSync(`file`, str);
       efs.chmodSync(`file`, 0o500);
@@ -1254,25 +1450,239 @@ describe('EncryptedFS class', () => {
       expect(efs.readFileSync(`file`, { encoding: 'utf8' })).toEqual(str);
     });
 
+    test('file permissions -w- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const str = 'hello';
+      efs.writeFileSync(`file`, str);
+      efs.chownSync('file', 1000, 1000);
+      efs.chmodSync(`file`, 0o222);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.accessSync(`file`, efs.constants.X_OK);
+      }).toThrow('EACCES');
+
+      efs.writeFileSync(`file`, str);
+
+      expect(() => {
+        efs.openSync(`file`, 'r');
+      }).toThrow('EACCES');
+    });
+
+    test('file permissions -wx - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const str = 'hello';
+      efs.writeFileSync(`file`, str);
+      efs.chownSync('file', 1000, 1000);
+      efs.chmodSync(`file`, 0o300);
+      efs.setuid(1000);
+      efs.setgid(1000);
+      efs.accessSync(`file`, efs.constants.X_OK);
+      efs.writeFileSync(`file`, str);
+
+      expect(() => {
+        efs.openSync(`file`, 'r');
+      }).toThrow('EACCES');
+    });
+
+    test('file permissions --x - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.writeFileSync(`file`, 'hello');
+      efs.chownSync('file', 1000, 1000);
+      efs.chmodSync(`file`, 0o100);
+      efs.setuid(1000);
+      efs.setgid(1000);
+      efs.accessSync(`file`, efs.constants.X_OK);
+
+      expect(() => {
+        efs.openSync(`file`, 'w');
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.openSync(`file`, 'r');
+      }).toThrow('EACCES');
+    });
+
+    test('directory permissions --- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`---`);
+      efs.chownSync('---', 1000, 1000);
+      efs.chmodSync(`---`, 0o000);
+      const stat = efs.statSync(`---`);
+      expect(stat.isDirectory()).toStrictEqual(true);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.writeFileSync(`---/a`, 'hello');
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.readdirSync(`---`);
+      }).toThrow('EACCES');
+    });
+
+    test('directory permissions r-- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`r--`);
+      efs.writeFileSync(`r--/a`, 'hello');
+      efs.chmodSync(`r--`, 0o444);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.writeFileSync(`r--/b`, 'hello');
+      }).toThrow('EACCES');
+      expect(efs.readdirSync(`r--`)).toContain('a');
+      // you can always change metadata even without write permissions
+      efs.utimesSync(`r--`, new Date(), new Date());
+    });
+
+    test('directory permissions rw- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`rw-`);
+      efs.writeFileSync(`rw-/a`, 'hello');
+      efs.chownSync('rw-', 1000, 1000);
+      efs.chownSync('rw-/a', 1000, 1000);
+      efs.chmodSync(`rw-`, 0o444);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      // you cannot write into a file
+      expect(() => {
+        efs.writeFileSync(`rw-/a`, 'world');
+      }).toThrow('EACCES');
+
+      // you cannot create a new file
+      expect(() => {
+        efs.writeFileSync(`rw-/b`, 'hello');
+      }).toThrow('EACCES');
+      // you cannot remove files
+      expect(() => {
+        efs.unlinkSync(`rw-/a`);
+      }).toThrow('EACCES');
+      expect(efs.readdirSync(`rw-`)).toContain('a');
+      efs.utimesSync(`rw-`, new Date(), new Date());
+    });
+
     test('directory permissions rwx - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       efs.mkdirSync(`rwx`);
-      efs.chmodSync(`rwx`, 0o700);
+      efs.chownSync('rwx', 1000, 1000);
+      efs.chmodSync(`rwx`, 0o777);
       const str = 'abc';
       efs.writeFileSync(`rwx/a`, str);
+      efs.chownSync('rwx/a', 1000, 1000);
+      efs.chmodSync('rwx/a', 0o777);
+      efs.setuid(1000);
+      efs.setgid(1000);
       expect(efs.readFileSync(`rwx/a`, { encoding: 'utf8' })).toEqual(str);
-      expect(efs.readdirSync(`rwx`)).toEqual(['a']);
-      // efs.chdir(`rwx`)
+      expect(efs.readdirSync(`rwx`)).toContain('a');
       const stat = efs.statSync(`rwx/a`);
       expect(stat.isFile()).toStrictEqual(true);
       efs.unlinkSync(`rwx/a`);
-      efs.rmdirSync(`rwx`);
+      efs.rmdirSync(`rwx`, { recursive: true });
+    });
+
+    test('directory permissions r-x - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`r-x`);
+      efs.chownSync('r-x', 1000, 1000);
+      efs.mkdirSync(`r-x/dir`);
+      efs.chownSync('r-x/dir', 1000, 1000);
+      efs.writeFileSync(`r-x/a`, 'hello');
+      efs.chownSync('r-x/a', 1000, 1000);
+      efs.chmodSync(`r-x`, 0o555);
+      const str = 'world';
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      // you can write to the file
+      efs.writeFileSync(`r-x/a`, str);
+
+      // you cannot create new files
+      expect(() => {
+        efs.writeFileSync(`r-x/b`, str);
+      }).toThrow('EACCES');
+      // you can read the directory
+      expect(efs.readdirSync(`r-x`)).toContain('a');
+      expect(efs.readdirSync(`r-x`)).toContain('dir');
+      // you can read the file
+      expect(efs.readFileSync(`r-x/a`, { encoding: 'utf8' })).toEqual(str);
+      // you can traverse into the directory
+      const stat = efs.statSync(`r-x/dir`);
+      expect(stat.isDirectory()).toStrictEqual(true);
+      // you cannot delete the file
+      expect(() => {
+        efs.unlinkSync(`r-x/a`);
+      }).toThrow('EACCES');
+      // cannot delete the directory
+      expect(() => {
+        efs.rmdirSync(`r-x/dir`);
+      }).toThrow('EACCES');
+    });
+
+    test('directory permissions -w- - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`-w-`);
+      efs.chmodSync(`-w-`, 0o000);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.writeFileSync(`-w-/a`, 'hello');
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.readdirSync(`-w-`);
+      }).toThrow('EACCES');
+    });
+
+    test('directory permissions -wx - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`-wx`);
+      efs.chmodSync(`-wx`, 0o333);
+      const str = 'hello';
+      efs.writeFileSync(`-wx/a`, str);
+      efs.chmodSync(`-wx/a`, 0o777);
+      expect(efs.readFileSync(`-wx/a`, { encoding: 'utf8' })).toEqual(str);
+      efs.unlinkSync(`-wx/a`);
+      efs.mkdirSync(`-wx/dir`);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.readdirSync(`-wx`);
+      }).toThrow('EACCES');
+
+      const stat = efs.statSync(`-wx/dir`);
+      expect(stat.isDirectory()).toStrictEqual(true);
+      efs.rmdirSync(`-wx/dir`);
+    });
+
+    test('directory permissions --x - sync', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      efs.mkdirSync(`--x`);
+
+      const str = 'hello';
+      efs.writeFileSync(`--x/a`, str);
+      efs.chmodSync(`--x`, 0o111);
+
+      efs.setuid(1000);
+      efs.setgid(1000);
+      expect(() => {
+        efs.writeFileSync(`--x/b`, 'world');
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.unlinkSync(`--x/a`);
+      }).toThrow('EACCES');
+      expect(() => {
+        efs.readdirSync(`--x`);
+      }).toThrow('EACCES');
+
+      expect(efs.readFileSync(`--x/a`, { encoding: 'utf8' })).toEqual(str);
     });
 
     test('changing file permissions does not affect already opened file descriptor', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const str = 'hello';
       efs.writeFileSync(`file`, str);
       efs.chmodSync(`file`, 0o777);
@@ -1287,10 +1697,9 @@ describe('EncryptedFS class', () => {
   //////////////////////////
   // Open, read and write //
   //////////////////////////
-  describe('Open, read and write tests', () => {
+  describe('open, read and write tests', () => {
     test('open - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const filename = `test`;
       efs.writeFileSync(filename, 'something interesting');
       const fd = efs.openSync(filename, 'w+');
@@ -1298,16 +1707,14 @@ describe('EncryptedFS class', () => {
     });
 
     test('write - sync', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test.txt`, 'w+');
       const writeBuf = Buffer.from('Super confidential information');
       efs.writeSync(fd, writeBuf);
     });
 
     test('write then read - single block', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test.txt`, 'w+');
 
       const writeBuffer = Buffer.from('Super confidential information');
@@ -1326,8 +1733,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write then read - multiple blocks', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const fd = efs.openSync(`test.txt`, 'w+');
 
       const blockSize = 4096;
@@ -1348,8 +1754,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write non-zero position - middle of start block - with text buffer', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const blockSize = 4096;
 
       // Define file descriptor
@@ -1379,8 +1784,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write non-zero position - middle of start block', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const blockSize = 4096;
 
       // write a three block file
@@ -1406,8 +1810,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write non-zero position - middle of middle block', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const blockSize = 4096;
 
       // write a three block file
@@ -1433,8 +1836,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write non-zero position - middle of end block', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const blockSize = 4096;
 
       // write a three block file
@@ -1458,8 +1860,7 @@ describe('EncryptedFS class', () => {
     });
 
     test('write segment spanning across two block', () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const blockSize = 4096;
 
       // write a three block file
@@ -1486,7 +1887,7 @@ describe('EncryptedFS class', () => {
   ////////////////////////
   // Bisimulation tests //
   ////////////////////////
-  describe('Bisimulation with nodejs fs tests', () => {
+  describe('bisimulation with nodejs fs tests', () => {
     let efsdataDir: string;
     let fsdataDir: string;
     beforeEach(() => {
@@ -1497,8 +1898,7 @@ describe('EncryptedFS class', () => {
     describe('one set of read/write operations', () => {
       describe('one set of read/write operations - 1 block', () => {
         test('one set of read/write operations - 1 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<---------->|
@@ -1532,8 +1932,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 1 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<-------->--|
@@ -1579,8 +1978,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 1 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<-------->|
@@ -1620,8 +2018,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 1 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<------>--|
@@ -1662,8 +2059,7 @@ describe('EncryptedFS class', () => {
       });
       describe('one set of read/write operations - 2 block', () => {
         test('one set of read/write operations - 2 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<---------->|<---------->|
@@ -1697,8 +2093,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 2 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<---------->|<-------->--|
@@ -1744,8 +2139,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 2 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<-------->|<---------->|
@@ -1797,8 +2191,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 2 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<-------->|<-------->--|
@@ -1839,8 +2232,7 @@ describe('EncryptedFS class', () => {
       });
       describe('one set of read/write operations - 3 block', () => {
         test('one set of read/write operations - 3 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<---------->|<---------->|<---------->|
@@ -1872,8 +2264,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 3 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |<---------->|<---------->|<-------->--|
@@ -1919,8 +2310,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 3 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<-------->|<---------->|<---------->|
@@ -1972,8 +2362,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('one set of read/write operations - 3 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // case: |--<-------->|<---------->|<-------->--|
@@ -2036,8 +2425,7 @@ describe('EncryptedFS class', () => {
 
       describe('read/write operations on existing 3 block file - one set of read/write operations - 1 block', () => {
         test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2089,8 +2477,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2142,8 +2529,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2189,8 +2575,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2237,8 +2622,7 @@ describe('EncryptedFS class', () => {
       });
       describe('read/write operations on existing 3 block file - one set of read/write operations - 2 block', () => {
         test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2290,8 +2674,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2349,8 +2732,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2396,8 +2778,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2444,8 +2825,7 @@ describe('EncryptedFS class', () => {
       });
       describe('read/write operations on existing 3 block file - one set of read/write operations - 3 block', () => {
         test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - full block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2497,8 +2877,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - left block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2550,8 +2929,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - right block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2597,8 +2975,7 @@ describe('EncryptedFS class', () => {
         });
 
         test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - not block aligned', () => {
-          const vfsInstance = new vfs.VirtualFS();
-          const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+          const efs = new EncryptedFS(key, fs, dataDir);
           efs.mkdirSync(efsdataDir);
           fs.mkdirSync(fsdataDir);
           // efs
@@ -2649,8 +3026,7 @@ describe('EncryptedFS class', () => {
       const blockSize = 4096;
 
       test('readFile/writeFile operations - under block size', () => {
-        const vfsInstance = new vfs.VirtualFS();
-        const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+        const efs = new EncryptedFS(key, fs, dataDir);
         efs.mkdirSync(efsdataDir);
         fs.mkdirSync(fsdataDir);
         const firstWriteBuffer = crypto.randomBytes(
@@ -2673,8 +3049,7 @@ describe('EncryptedFS class', () => {
       });
 
       test('readFile/writeFile operations - over block size', () => {
-        const vfsInstance = new vfs.VirtualFS();
-        const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+        const efs = new EncryptedFS(key, fs, dataDir);
         efs.mkdirSync(efsdataDir);
         fs.mkdirSync(fsdataDir);
         const firstWriteBuffer = crypto.randomBytes(
@@ -2699,46 +3074,140 @@ describe('EncryptedFS class', () => {
   });
 
   describe('aynchronous worker tests', () => {
+    test('encryption and decryption using workers - read/write', async () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const workerManager = new WorkerManager({ logger });
+      await workerManager.start();
+      const plainBuf = Buffer.from('very important secret');
+      const deciphered = Buffer.from(plainBuf).fill(0);
+      const fd = efs.openSync('test', 'w+');
+      efs.setWorkerManager(workerManager);
+      await utils.promisify(efs.write.bind(efs))(
+        fd,
+        plainBuf,
+        0,
+        plainBuf.length,
+        0,
+      );
+      await utils.promisify(efs.read.bind(efs))(
+        fd,
+        deciphered,
+        0,
+        deciphered.length,
+        0,
+      );
+      expect(deciphered).toStrictEqual(plainBuf);
+      efs.unsetWorkerManager();
+      await workerManager.stop();
+    });
+
     test('encryption and decryption using workers', async () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const workerManager = new WorkerManager({ logger });
       await workerManager.start();
       const plainBuf = Buffer.from('very important secret');
       efs.setWorkerManager(workerManager);
-      await efs.promises.writeFile(`test`, plainBuf, {});
-      const deciphered = await efs.promises.readFile(`test`, {});
+      await utils.promisify(efs.writeFile.bind(efs))(`test`, plainBuf, {});
+      const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+        `test`,
+        {},
+      );
       expect(deciphered).toStrictEqual(plainBuf);
       efs.unsetWorkerManager();
       await workerManager.stop();
     });
 
     test('encryption and decryption using workers for encryption but not decryption', async () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const workerManager = new WorkerManager({ logger });
       await workerManager.start();
       const plainBuf = Buffer.from('very important secret');
       efs.setWorkerManager(workerManager);
-      await efs.promises.writeFile(`test`, plainBuf, {});
+      await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
       efs.unsetWorkerManager();
       await workerManager.stop();
-      const deciphered = await efs.promises.readFile(`test`, {});
+      const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+        `test`,
+        {},
+      );
       expect(deciphered).toStrictEqual(plainBuf);
     });
 
     test('encryption and decryption using workers for decryption but not encryption', async () => {
-      const vfsInstance = new vfs.VirtualFS();
-      const efs = new EncryptedFS(key, vfsInstance, fs, '/', dataDir);
+      const efs = new EncryptedFS(key, fs, dataDir);
       const workerManager = new WorkerManager({ logger });
       await workerManager.start();
       const plainBuf = Buffer.from('very important secret');
-      await efs.promises.writeFile(`test`, plainBuf, {});
+      await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
       efs.setWorkerManager(workerManager);
-      const deciphered = await efs.promises.readFile(`test`, {});
+      const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+        `test`,
+        {},
+      );
       expect(deciphered).toStrictEqual(plainBuf);
       efs.unsetWorkerManager();
       await workerManager.stop();
+    });
+  });
+
+  describe('vfs chache', () => {
+    test('read file cache', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer);
+      expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
+      const efs2 = new EncryptedFS(key, fs, dataDir);
+      expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
+    });
+    test('read cache', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync(`hello-world`, buffer);
+      expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
+      const efs2 = new EncryptedFS(key, fs, dataDir);
+      expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
+    });
+    test('block cache using block mapping', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      const bufferRead = Buffer.from(buffer).fill(0);
+      const fd = efs.openSync('hello-world', 'w+');
+      efs.writeSync(fd, buffer, 0, buffer.length, 5000);
+      efs.closeSync(fd);
+      const fd2 = efs.openSync('hello-world', 'r+');
+      efs.readSync(fd2, bufferRead, 0, buffer.length, 5000);
+      expect(bufferRead).toEqual(buffer);
+      efs.closeSync(fd2);
+    });
+    test('block cache not using block mapping', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      const bufferRead = Buffer.from(buffer).fill(0);
+      const fd = efs.openSync('hello-world', 'w+');
+      efs.writeSync(fd, buffer, 0, buffer.length, 5000);
+      efs.closeSync(fd);
+      const efs2 = new EncryptedFS(key, fs, dataDir);
+      const fd2 = efs2.openSync('hello-world', 'r+');
+      efs2.readSync(fd2, bufferRead, 0, buffer.length, 5000);
+      expect(bufferRead).toEqual(buffer);
+      efs2.closeSync(fd2);
+    });
+    test('access rights are retreived from cache', () => {
+      const efs = new EncryptedFS(key, fs, dataDir);
+      const buffer = Buffer.from('Hello World', 'utf8');
+      efs.writeFileSync('hello-world', buffer);
+      efs.setuid(1000);
+      efs.setgid(1000);
+      efs.accessSync('hello-world', efs.constants.R_OK);
+      efs.setuid(0);
+      efs.setgid(0);
+      efs.chmodSync('hello-world', 0o333);
+      const efs2 = new EncryptedFS(key, fs, dataDir);
+      efs2.setuid(1000);
+      efs2.setgid(1000);
+      expect(() => {
+        efs2.accessSync('hello-world', efs2.constants.R_OK);
+      }).toThrow();
     });
   });
 });

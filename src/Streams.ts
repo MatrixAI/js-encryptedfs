@@ -2,6 +2,7 @@ import type { BufferEncoding } from './types';
 import { Readable, Writable } from 'readable-stream';
 import EncryptedFS from './EncryptedFS';
 import { DEFAULT_FILE_PERM } from './constants';
+import { promisify } from 'util';
 
 type optionsStream = {
   highWaterMark?: number;
@@ -66,20 +67,19 @@ class ReadStream extends Readable {
    * @private
    */
   _open() {
-    this.efs.promises
-      .open(this.path, this.flags, this.mode)
-      .then((fd) => {
-        this.fd = fd;
-        super.emit('open', fd);
-        super.read();
-      })
-      .catch((err) => {
+    this.efs.open(this.path, this.flags, this.mode, (e, fd) => {
+      if (e) {
         if (this.autoClose) {
           this.destroy();
         }
-        super.emit('error', err);
+        super.emit('error', e);
         return;
-      });
+      } else {
+        this.fd = fd;
+        super.emit('open', fd);
+        super.read();
+      }
+    });
   }
 
   /**
@@ -109,8 +109,8 @@ class ReadStream extends Readable {
     }
 
     const buffer = Buffer.allocUnsafe(size);
-    this.efs.promises
-      .read(this.fd, buffer, 0, size, this.pos)
+    const read = promisify(this.efs.read.bind(this.efs));
+    read(this.fd, buffer, 0, size, this.pos)
       .then((bytesRead) => {
         if (bytesRead! > 0) {
           this.bytesRead += bytesRead!;
@@ -158,14 +158,13 @@ class ReadStream extends Readable {
       return new Promise(() => super.emit('close'));
     }
     this.closed = true;
-    this.efs.promises
-      .close(this.fd)
-      .then(() => {
+    this.efs.close(this.fd, (e) => {
+      if (e) {
+        this.emit('error', e);
+      } else {
         this.emit('close');
-      })
-      .catch((err) => {
-        this.emit('error', err);
-      });
+      }
+    });
     this.fd = null;
   }
 }
@@ -220,20 +219,18 @@ class WriteStream extends Writable {
    * @private
    */
   _open() {
-    this.efs.promises
-      .open(this.path, this.flags, this.mode)
-      .then((fd) => {
-        this.fd = fd;
-        super.emit('open', fd);
-        // super.read();
-      })
-      .catch((err) => {
+    this.efs.open(this.path, this.flags, this.mode, (e, fd) => {
+      if (e) {
         if (this.autoClose) {
           this.destroy();
         }
-        super.emit('error', err);
+        super.emit('error', e);
         return;
-      });
+      } else {
+        this.fd = fd;
+        super.emit('open', fd);
+      }
+    });
   }
 
   /**
@@ -253,8 +250,8 @@ class WriteStream extends Writable {
     } else {
       internalData = data;
     }
-    this.efs.promises
-      .write(this.fd, internalData, 0, data.length, this.pos)
+    const write = promisify(this.efs.write.bind(this.efs));
+    write(this.fd, internalData, 0, data.length, this.pos)
       .then((bytesWritten) => {
         this.bytesWritten += bytesWritten;
         cb();
@@ -311,14 +308,13 @@ class WriteStream extends Writable {
       return new Promise(() => super.emit('close'));
     }
     this.closed = true;
-    this.efs.promises
-      .close(this.fd)
-      .then(() => {
+    this.efs.close(this.fd, (e) => {
+      if (e) {
+        this.emit('error', e);
+      } else {
         this.emit('close');
-      })
-      .catch((err) => {
-        this.emit('error', err);
-      });
+      }
+    });
     this.fd = null;
   }
 
