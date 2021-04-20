@@ -1,3 +1,6 @@
+import type { EncryptedFSLayers } from './types';
+import fs from 'fs';
+
 /**
  * Class representing an encrypted file system error.
  * @extends Error
@@ -7,17 +10,22 @@ class EncryptedFSError extends Error {
   code: string;
   errnoDescription: string;
   syscall?: string;
+  layer: EncryptedFSLayers;
 
   /**
    * Creates EncryptedFSError.
    */
   constructor(
     errnoObj: { errno: number; code: string; description: string },
-    path?: string | null,
-    dest?: string | null,
+    path?: fs.PathLike | number | null,
+    dest?: fs.PathLike | number | null,
     syscall?: string | null,
+    layer?: EncryptedFSLayers | null,
   ) {
     let message = errnoObj.code + ': ' + errnoObj.description;
+    if (layer != null) {
+      message += ', ' + layer;
+    }
     if (path != null) {
       message += ', ' + path;
       if (dest != null) message += ' -> ' + dest;

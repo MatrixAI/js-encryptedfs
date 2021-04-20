@@ -1,5 +1,6 @@
-import EncryptedFS from './EncryptedFS';
+import type { BufferEncoding } from './types';
 import { Readable, Writable } from 'readable-stream';
+import EncryptedFS from './EncryptedFS';
 import { DEFAULT_FILE_PERM } from './constants';
 
 type optionsStream = {
@@ -133,7 +134,7 @@ class ReadStream extends Readable {
    * Destroy hook for stream implementation.
    * @private
    */
-  _destroy(e: Error, cb: Function) {
+  _destroy(e: Error, cb: any) {
     this._close((e_) => {
       cb(e || e_);
     });
@@ -240,7 +241,7 @@ class WriteStream extends Writable {
    * @private
    */
   // $FlowFixMe: _write hook adapted from Node `lib/internal/fs/streams.js`
-  _write(data: Buffer | string, encoding: string | undefined, cb: Function) {
+  _write(data: Buffer | string, encoding: string | undefined, cb: any) {
     if (typeof this.fd !== 'number') {
       return super.once('open', () => {
         this._write(data, encoding, cb);
@@ -273,8 +274,12 @@ class WriteStream extends Writable {
    * Vectorised write hook for stream implementation.
    * @private
    */
-  _writev(chunks: Array<{ chunk: Buffer }>, cb: Function) {
-    this._write(Buffer.concat(chunks.map((chunk) => chunk.chunk)), undefined, cb);
+  _writev(chunks: Array<{ chunk: Buffer }>, cb: any) {
+    this._write(
+      Buffer.concat(chunks.map((chunk) => chunk.chunk)),
+      undefined,
+      cb,
+    );
     return;
   }
 
@@ -282,7 +287,7 @@ class WriteStream extends Writable {
    * Destroy hook for stream implementation.
    * @private
    */
-  _destroy(e: Error, cb: Function) {
+  _destroy(e: Error, cb: any) {
     this._close((e_) => {
       cb(e || e_);
     });
@@ -321,7 +326,7 @@ class WriteStream extends Writable {
    * Final hook for stream implementation.
    * @private
    */
-  _final(cb: Function) {
+  _final(cb: any) {
     cb();
     return;
   }

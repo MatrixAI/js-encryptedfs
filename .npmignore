@@ -1,9 +1,9 @@
 .*
-/*.nix
-/nix
-/webpack.config.js
+/pkgs.nix
+/default.nix
+/shell.nix
+/release.nix
 /tsconfig.json
-/doc
 /src
 /tests
-/jest.config.js
+/tmp
