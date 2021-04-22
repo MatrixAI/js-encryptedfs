@@ -1,7 +1,7 @@
 import { CustomError } from 'ts-custom-error';
 
-class ErrorWorkers extends CustomError {}
+class EncryptedFSWorkerError extends CustomError {}
 
-class ErrorNotRunning extends ErrorWorkers {}
+class EncryptedFSWorkerNotRunningError extends EncryptedFSWorkerError {}
 
-export { ErrorWorkers, ErrorNotRunning };
+export { EncryptedFSWorkerError, EncryptedFSWorkerNotRunningError };

@@ -1,11 +1,12 @@
-import type { EncryptedFSLayers } from './types';
-import fs from 'fs';
+import type { PathLike } from 'fs';
+
+import { CustomError } from 'ts-custom-error';
+import { EncryptedFSLayers } from './util';
 
 /**
  * Class representing an encrypted file system error.
- * @extends Error
  */
-class EncryptedFSError extends Error {
+class EncryptedFSError extends CustomError {
   errno: number;
   code: string;
   errnoDescription: string;
@@ -17,8 +18,8 @@ class EncryptedFSError extends Error {
    */
   constructor(
     errnoObj: { errno: number; code: string; description: string },
-    path?: fs.PathLike | number | null,
-    dest?: fs.PathLike | number | null,
+    path?: PathLike | number | null,
+    dest?: PathLike | number | null,
     syscall?: string | null,
     layer?: EncryptedFSLayers | null,
   ) {
