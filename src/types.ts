@@ -15,10 +15,4 @@ type BufferEncoding =
   | 'binary'
   | 'hex';
 
-enum EncryptedFSLayers {
-  upper = 'upper',
-  lower = 'lower',
-}
-
 export type { UpperDirectoryMetadata, BufferEncoding };
-export { EncryptedFSLayers };

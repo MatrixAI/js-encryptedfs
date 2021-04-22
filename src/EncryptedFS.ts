@@ -1,15 +1,14 @@
 import type { UpperDirectoryMetadata, BufferEncoding } from './types';
 import fs from 'fs';
 import Path from 'path';
-import { promisify } from './util';
 import autoBind from 'auto-bind';
+import { promisify } from './util';
 import FileDescriptor from './FileDescriptor';
 import { constants, DEFAULT_FILE_PERM } from './constants';
 import { EncryptedFSError, errno } from './EncryptedFSError';
-import { cryptoConstants } from './util';
+import { EncryptedFSLayers, cryptoConstants } from './util';
 import { optionsStream, ReadStream, WriteStream } from './Streams';
 import * as cryptoUtils from './crypto';
-import { EncryptedFSLayers } from './types';
 import { WorkerManager } from './workers';
 
 /* TODO: we need to maintain seperate permission for the lower directory vs the upper director

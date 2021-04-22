@@ -1,7 +1,7 @@
 import process from 'process';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import WorkerManager from '../../src/workers/WorkerManager';
-import * as workersErrors from '../../src/workers/errors';
+import WorkerManager from '@/workers/WorkerManager';
+import * as workersErrors from '@/workers/errors';
 
 describe('WorkerManager', () => {
   const logger = new Logger('WorkerManager Test', LogLevel.WARN, [
@@ -10,7 +10,7 @@ describe('WorkerManager', () => {
   test('construction has no side effects', async () => {
     const workerManager = new WorkerManager({ logger });
     expect(workerManager.call(async () => undefined)).rejects.toThrow(
-      workersErrors.ErrorNotRunning,
+      workersErrors.EncryptedFSWorkerNotRunningError,
     );
   });
   test('async start and async stop', async () => {
@@ -19,7 +19,7 @@ describe('WorkerManager', () => {
     expect(await workerManager.call(async () => 1)).toBe(1);
     await workerManager.stop();
     expect(workerManager.call(async () => 1)).rejects.toThrow(
-      workersErrors.ErrorNotRunning,
+      workersErrors.EncryptedFSWorkerNotRunningError,
     );
   });
   test('call runs in the main thread', async () => {

@@ -1,5 +1,5 @@
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import WorkerManager from '../../src/workers/WorkerManager';
+import WorkerManager from '@/workers/WorkerManager';
 import { getRandomBytesSync } from '@/util';
 import * as cryptoUtils from '@/crypto';
 

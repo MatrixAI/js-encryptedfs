@@ -1,5 +1,10 @@
 import { pbkdf2, random } from 'node-forge';
 
+enum EncryptedFSLayers {
+  upper = 'upper',
+  lower = 'lower',
+}
+
 const cryptoConstants = Object.freeze({
   SALT_LEN: 64,
   INIT_VECTOR_LEN: 16,
@@ -38,4 +43,10 @@ function promisify<T>(f): (...args: any[]) => Promise<T> {
   };
 }
 
-export { cryptoConstants, generateMasterKey, getRandomBytesSync, promisify };
+export {
+  EncryptedFSLayers,
+  cryptoConstants,
+  generateMasterKey,
+  getRandomBytesSync,
+  promisify,
+};

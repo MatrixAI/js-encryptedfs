@@ -36,7 +36,7 @@ class WorkerManager {
     f: (worker: ModuleThread<EFSWorker>) => Promise<T>,
   ): Promise<T> {
     if (!this.pool) {
-      throw new workersErrors.ErrorNotRunning();
+      throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return await this.pool.queue(f);
   }
@@ -45,21 +45,21 @@ class WorkerManager {
     f: (worker: ModuleThread<EFSWorker>) => Promise<T>,
   ): QueuedTask<ModuleThread<EFSWorker>, T> {
     if (!this.pool) {
-      throw new workersErrors.ErrorNotRunning();
+      throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return this.pool.queue(f);
   }
 
   public async completed(): Promise<void> {
     if (!this.pool) {
-      throw new workersErrors.ErrorNotRunning();
+      throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return await this.pool.completed();
   }
 
   public async settled() {
     if (!this.pool) {
-      throw new workersErrors.ErrorNotRunning();
+      throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return await this.pool.settled();
   }
