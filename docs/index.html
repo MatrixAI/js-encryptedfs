@@ -1,0 +1,248 @@
+<!doctype html>
+<html class="default no-js">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>encryptedfs</title>
+	<meta name="description" content="Documentation for encryptedfs">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="stylesheet" href="assets/css/main.css">
+	<script async src="assets/js/search.js" id="search-script"></script>
+</head>
+<body>
+<header>
+	<div class="tsd-page-toolbar">
+		<div class="container">
+			<div class="table-wrap">
+				<div class="table-cell" id="tsd-search" data-index="assets/js/search.json" data-base=".">
+					<div class="field">
+						<label for="tsd-search-field" class="tsd-widget search no-caption">Search</label>
+						<input id="tsd-search-field" type="text" />
+					</div>
+					<ul class="results">
+						<li class="state loading">Preparing search index...</li>
+						<li class="state failure">The search index is not available</li>
+					</ul>
+					<a href="index.html" class="title">encryptedfs</a>
+				</div>
+				<div class="table-cell" id="tsd-widgets">
+					<div id="tsd-filter">
+						<a href="#" class="tsd-widget options no-caption" data-toggle="options">Options</a>
+						<div class="tsd-filter-group">
+							<div class="tsd-select" id="tsd-filter-visibility">
+								<span class="tsd-select-label">All</span>
+								<ul class="tsd-select-list">
+									<li data-value="public">Public</li>
+									<li data-value="protected">Public/Protected</li>
+									<li data-value="private" class="selected">All</li>
+								</ul>
+							</div>
+							<input type="checkbox" id="tsd-filter-inherited" checked />
+							<label class="tsd-widget" for="tsd-filter-inherited">Inherited</label>
+							<input type="checkbox" id="tsd-filter-externals" checked />
+							<label class="tsd-widget" for="tsd-filter-externals">Externals</label>
+						</div>
+					</div>
+					<a href="#" class="tsd-widget menu no-caption" data-toggle="menu">Menu</a>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="tsd-page-title">
+		<div class="container">
+			<h1>encryptedfs</h1>
+		</div>
+	</div>
+</header>
+<div class="container container-main">
+	<div class="row">
+		<div class="col-8 col-content">
+			<div class="tsd-panel tsd-typography">
+				<a href="#js-encryptedfs" id="js-encryptedfs" style="color: inherit; text-decoration: none;">
+					<h1>js-encryptedfs</h1>
+				</a>
+				<p>This library provides an Encrypted File System (EFS)</p>
+				<p><a href="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master"><img src="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg" alt="pipeline status"></a></p>
+				<a href="#installation" id="installation" style="color: inherit; text-decoration: none;">
+					<h2>Installation</h2>
+				</a>
+				<pre><code class="language-sh"><span style="color: #000000">npm install --save encryptedfs</span>
+</code></pre>
+				<a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
+					<h2>Usage</h2>
+				</a>
+				<pre><code class="language-sh"><span style="color: #000000">const vfs = require(</span><span style="color: #A31515">&#039;virtualfs&#039;</span><span style="color: #000000">);</span>
+
+<span style="color: #000000">const vfsInstance = new </span><span style="color: #795E26">vfs.VirtualFS</span><span style="color: #000000">();</span>
+<span style="color: #000000">const efs = new EncryptedFS(key, vfsInstance, fs, </span><span style="color: #A31515">&#039;/&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">`./tmp`</span><span style="color: #000000">);</span>
+
+<span style="color: #008000"># create a new directory</span>
+<span style="color: #000000">newDir = </span><span style="color: #A31515">`test`</span><span style="color: #000000">;</span>
+<span style="color: #000000">efs.mkdirSync(newDir);</span>
+
+<span style="color: #008000"># write out to a file</span>
+<span style="color: #000000">efs.writeFileSync(</span><span style="color: #A31515">`</span><span style="color: #001080">${newDir}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;output&#039;</span><span style="color: #000000">);</span>
+
+<span style="color: #008000"># read in the file (contents = &#039;output&#039;)</span>
+<span style="color: #000000">const conentes = efs.readFileSync(</span><span style="color: #A31515">`</span><span style="color: #001080">${newDir}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">);</span>
+</code></pre>
+				<a href="#development" id="development" style="color: inherit; text-decoration: none;">
+					<h2>Development</h2>
+				</a>
+				<p>Run <code>nix-shell</code>, and once you&#39;re inside, you can use:</p>
+				<pre><code class="language-sh"><span style="color: #008000"># install (or reinstall packages from package.json)</span>
+<span style="color: #000000">npm install</span>
+<span style="color: #008000"># run the repl (this allows you to import from ./src)</span>
+<span style="color: #000000">npm run ts-node</span>
+<span style="color: #008000"># run the tests</span>
+<span style="color: #000000">npm run </span><span style="color: #795E26">test</span>
+<span style="color: #008000"># lint the source code</span>
+<span style="color: #000000">npm run lint</span>
+<span style="color: #008000"># automatically fix the source</span>
+<span style="color: #000000">npm run lintfix</span>
+<span style="color: #008000"># build the docs</span>
+<span style="color: #000000">npm run docs</span>
+</code></pre>
+				<a href="#publishing" id="publishing" style="color: inherit; text-decoration: none;">
+					<h3>Publishing</h3>
+				</a>
+				<pre><code class="language-sh"><span style="color: #000000">npm login</span>
+<span style="color: #000000">npm version patch </span><span style="color: #008000"># major/minor/patch</span>
+<span style="color: #000000">npm run build</span>
+<span style="color: #000000">npm publish --access public</span>
+<span style="color: #000000">git push</span>
+<span style="color: #000000">git push --tags</span>
+</code></pre>
+				<a href="#chunks" id="chunks" style="color: inherit; text-decoration: none;">
+					<h2>Chunks</h2>
+				</a>
+				<p>Chunks consist of a an acutal data &#39;block&#39; that is encrypted. It is also prepended with the initialization vector and authorisation tag used to encrypt the data.</p>
+				<p>Below is a diagram showing the layout of the encrypted chunks.</p>
+				<pre style="white-space:pre !important; overflow-x:scroll !important">
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+||                       ||                   ||                        ||
+|| Initialization Vector || Authorisation Tag || Encrypted Block ... -> ||
+||                       ||                   ||                        ||
+||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+</pre>
+				<a href="#blocks" id="blocks" style="color: inherit; text-decoration: none;">
+					<h2>Blocks</h2>
+				</a>
+				<p>This is a constant sized amount (optionally user-specified) of business data.
+					A large file is split into several blocks of <em>block_size</em> (generall 4k).
+					This is to to allow random access reads and writies.
+					For example to read a small section of a file, the entire file does not need to be decrpted
+					Only the block(s) that contain the section you want to read.
+					This does mean however, that there needs to be an IV for each block.
+				This is because reusing IVs, or having predictable IVs is a security threat.</p>
+				<a href="#segments" id="segments" style="color: inherit; text-decoration: none;">
+					<h2>Segments</h2>
+				</a>
+				<p>Some amount of data equal or smaller than a block.</p>
+				<a href="#encryption-scheme" id="encryption-scheme" style="color: inherit; text-decoration: none;">
+					<h2>Encryption scheme</h2>
+				</a>
+				<p>EFS uses AES-GCM symmetric encryption with a master key that is 16 bytes. This master key can be provided or can be generated using an internal function:</p>
+				<pre><code class="language-sh"><span style="color: #000000">const masterKey = generateMasterKey(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">)</span>
+</code></pre>
+				<p>This function derives a symmetric encryption key using <code>pbkdf</code> from <code>node-forge</code>. The key generated from this function will be 16 bytes.</p>
+				<p>An authorisation tag based on chunk encryption is stored along side the init vector. This provides a basic chunk level integrity gurantee that can be verified upon decryption in accordance with the AES-GCM algorithm.</p>
+				<a href="#functionality" id="functionality" style="color: inherit; text-decoration: none;">
+					<h2>Functionality</h2>
+				</a>
+				<ul>
+					<li>Keys are never decrypted on disk, they are in fact decrypted in an in-memory file system</li>
+					<li>Uses Symmetric Encryption</li>
+					<li>Encryption keys are transparent to the user</li>
+				</ul>
+			</div>
+		</div>
+		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
+			<nav class="tsd-navigation primary">
+				<ul>
+					<li class=" ">
+						<a href="modules.html">Exports</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/encryptedfs.html">EncryptedFS</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/encryptedfserror.html">EncryptedFSError</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/filedescriptor.html">File<wbr>Descriptor</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/streams.html">Streams</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/constants.html">constants</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/crypto.html">crypto</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/index.html">index</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/types.html">types</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/util.html">util</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers.html">workers</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers_workermanager.html">workers/<wbr>Worker<wbr>Manager</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers_efsworker.html">workers/efs<wbr>Worker</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers_efsworkermodule.html">workers/efs<wbr>Worker<wbr>Module</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers_errors.html">workers/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/workers_types.html">workers/types</a>
+					</li>
+				</ul>
+			</nav>
+			<nav class="tsd-navigation secondary menu-sticky">
+				<ul class="before-current">
+				</ul>
+			</nav>
+		</div>
+	</div>
+</div>
+<footer class="with-border-bottom">
+	<div class="container">
+		<h2>Legend</h2>
+		<div class="tsd-legend-group">
+			<ul class="tsd-legend">
+				<li class="tsd-kind-variable"><span class="tsd-kind-icon">Variable</span></li>
+				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
+				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
+				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+			</ul>
+			<ul class="tsd-legend">
+				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>
+			</ul>
+		</div>
+	</div>
+</footer>
+<div class="container tsd-generator">
+	<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p>
+</div>
+<div class="overlay"></div>
+<script src="assets/js/main.js"></script>
+</body>
+</html>
