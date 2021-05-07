@@ -27,4 +27,29 @@ describe('main', () => {
       expect(buf1).not.toStrictEqual(buf2);
     });
   });
+  describe('block array functions', () => {
+    test('various get block cases', () => {
+      expect(util.getBlocksToWrite(2000, 100, 4096)).toEqual([0]);
+      expect(util.getBlocksToWrite(13000, 100, 4096)).toEqual([3]);
+      expect(util.getBlocksToWrite(0, 100, 4096)).toEqual([0]);
+      expect(util.getBlocksToWrite(0, 8000, 4096)).toEqual([0, 1]);
+      expect(util.getBlocksToWrite(0, 4096, 4096)).toEqual([0]);
+      expect(util.getBlocksToWrite(0, 4097, 4096)).toEqual([0, 1]);
+      expect(util.getBlocksToWrite(8000, 8000, 4096)).toEqual([1, 2, 3]);
+    });
+    test('various block compare cases', () => {
+      expect(util.compareBlockArrays([2], [1, 2, 3, 4, 5, 6])).toBeTruthy();
+      expect(
+        util.compareBlockArrays([2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]),
+      ).toBeTruthy();
+      expect(
+        util.compareBlockArrays([1, 2, 3, 4, 5, 6], [1, 2, 3, 4, 5, 6]),
+      ).toBeTruthy();
+      expect(
+        util.compareBlockArrays([2, 3, 4, 5, 6, 7], [1, 2, 3, 4, 5, 6]),
+      ).toBeFalsy();
+      expect(util.compareBlockArrays([10], [1, 2, 3, 4, 5, 6])).toBeFalsy();
+      expect(util.compareBlockArrays([1], [1])).toBeTruthy();
+    });
+  });
 });

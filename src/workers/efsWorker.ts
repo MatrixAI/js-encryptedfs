@@ -1,8 +1,8 @@
 import type { EFSWorker } from './efsWorkerModule';
 import { expose } from 'threads/worker';
 
-import polykeyWorker from './efsWorkerModule';
+import efsWorker from './efsWorkerModule';
 
-expose(polykeyWorker);
+expose(efsWorker);
 
 export type { EFSWorker };
