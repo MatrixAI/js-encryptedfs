@@ -5,12 +5,12 @@ import type { EFSWorker } from './efsWorker';
 import os from 'os';
 import { spawn, Pool, Worker } from 'threads';
 import Logger from '@matrixai/logger';
-import { WorkerManagerInterface } from './types';
+import { WorkerManagerInterface } from './';
 import * as workersErrors from './errors';
 
 class WorkerManager implements WorkerManagerInterface<ModuleThread<EFSWorker>> {
-  protected pool?: Pool<ModuleThread<EFSWorker>>;
-  protected logger: Logger;
+  pool?;
+  logger: Logger;
 
   constructor({
     logger,
