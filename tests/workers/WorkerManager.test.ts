@@ -64,24 +64,4 @@ describe('WorkerManager', () => {
     expect(r).toBeUndefined();
     await workerManager.stop();
   });
-  test('queueing up tasks', async () => {
-    const workerManager = new WorkerManager({ logger });
-    await workerManager.start();
-    const t1 = workerManager.queue(async (w) => await w.sleep(500));
-    const t2 = workerManager.queue(async (w) => await w.sleep(500));
-    const t3 = workerManager.queue(async (w) => await w.sleep(500));
-    const t4 = workerManager.queue(async (w) => await w.sleep(500));
-    await workerManager.completed();
-    expect(await t1).toBeUndefined();
-    expect(await t2).toBeUndefined();
-    expect(await t3).toBeUndefined();
-    expect(await t4).toBeUndefined();
-    workerManager.queue(async (w) => await w.sleep(500));
-    workerManager.queue(async (w) => await w.sleep(500));
-    workerManager.queue(async (w) => await w.sleep(500));
-    workerManager.queue(async (w) => await w.sleep(500));
-    const es = await workerManager.settled();
-    expect(es.length).toBe(0);
-    await workerManager.stop();
-  });
 });
