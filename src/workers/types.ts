@@ -1,12 +1,13 @@
 import Logger from '@matrixai/logger';
+import type { ModuleThread } from 'threads';
+import type { ModuleMethods } from 'threads/dist/types/master';
 
-interface WorkerManagerInterface<T> {
+interface WorkerManagerInterface<T extends ModuleMethods> {
   pool?;
   logger: Logger;
   start(): Promise<void>;
   stop(): Promise<void>;
-  call<R>(f: (worker: T) => Promise<R>): Promise<R>;
-  queue<R>(f: (worker: T) => Promise<R>);
+  call<R>(f: (worker: ModuleThread<T>) => Promise<R>): Promise<R>;
   completed(): Promise<void>;
   settled(): Promise<Error[]>;
 }

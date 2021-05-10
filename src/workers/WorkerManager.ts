@@ -1,5 +1,4 @@
 import type { ModuleThread } from 'threads';
-import type { QueuedTask } from 'threads/dist/master/pool-types';
 import type { EFSWorker } from './efsWorker';
 
 import os from 'os';
@@ -8,7 +7,7 @@ import Logger from '@matrixai/logger';
 import { WorkerManagerInterface } from './';
 import * as workersErrors from './errors';
 
-class WorkerManager implements WorkerManagerInterface<ModuleThread<EFSWorker>> {
+class WorkerManager implements WorkerManagerInterface<EFSWorker> {
   pool?;
   logger: Logger;
 
@@ -40,15 +39,6 @@ class WorkerManager implements WorkerManagerInterface<ModuleThread<EFSWorker>> {
       throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return await this.pool.queue(f);
-  }
-
-  public queue<T>(
-    f: (worker: ModuleThread<EFSWorker>) => Promise<T>,
-  ): QueuedTask<ModuleThread<EFSWorker>, T> {
-    if (!this.pool) {
-      throw new workersErrors.EncryptedFSWorkerNotRunningError();
-    }
-    return this.pool.queue(f);
   }
 
   public async completed(): Promise<void> {
