@@ -6,23 +6,8 @@ import {
   INodeManager,
   DeviceManager,
 } from 'virtualfs';
-
+import { WorkerManager } from './workers';
 import constants from './constants';
-
-// encryptedfs has an upper and lower
-// the upper is basically VirtualFS
-// the lower is always fs
-// in this case we can wrap it by extending VirtualFS
-// also umask?
-
-// when you open and close this
-// you have to consider that the VirtualFS is holding it all in memory
-// so once you open you have to later close it
-// unless there arem ultiple ones
-
-// you pass in a lowerFS
-// we expect this to normal fs
-// so we need to start at  a lower base path
 
 class EncryptedFS extends VirtualFS {
   public readonly lowerFSRoot: string;
@@ -32,6 +17,7 @@ class EncryptedFS extends VirtualFS {
 
   protected key: Buffer;
   protected lowerFS: typeof fs;
+  protected workerManager?: WorkerManager;
 
   constructor (
     key: Buffer,
@@ -55,6 +41,19 @@ class EncryptedFS extends VirtualFS {
       constants.INIT_VECTOR_LEN +
       constants.AUTH_TAG_LEN;
   }
+
+  public setWorkerManager(workerManager: WorkerManager) {
+    this.workerManager = workerManager;
+  }
+
+  public unsetWorkerManager() {
+    delete this.workerManager;
+  }
+
+  // no need to get umask, getuid, setuid, getgid, setgid
+  // all of it is extended from super
+
+
 
 
 

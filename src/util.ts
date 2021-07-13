@@ -2,18 +2,18 @@ import type { PathLike } from 'fs';
 import { pbkdf2, random } from 'node-forge';
 import pathNode from 'path';
 
-enum EncryptedFSLayers {
+enum EncryptedFSLayer {
   upper = 'upper',
   lower = 'lower',
 }
 
-const cryptoConstants = Object.freeze({
-  SALT_LEN: 64,
-  INIT_VECTOR_LEN: 16,
-  AUTH_TAG_LEN: 16,
-  KEY_LEN: 16,
-  PBKDF_NUM_ITERATIONS: 9816,
-});
+// const cryptoConstants = Object.freeze({
+//   SALT_LEN: 64,
+//   INIT_VECTOR_LEN: 16,
+//   AUTH_TAG_LEN: 16,
+//   KEY_LEN: 16,
+//   PBKDF_NUM_ITERATIONS: 9816,
+// });
 
 function generateMasterKey(password: string): Buffer {
   const salt = getRandomBytesSync(cryptoConstants.SALT_LEN);
@@ -120,8 +120,7 @@ function compareBlockArrays(
 }
 
 export {
-  EncryptedFSLayers,
-  cryptoConstants,
+  EncryptedFSLayer,
   generateMasterKey,
   getRandomBytesSync,
   promisify,
