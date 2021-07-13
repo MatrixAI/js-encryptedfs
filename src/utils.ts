@@ -9,7 +9,7 @@ const cryptoConstants = Object.freeze({
   SALT_LEN: 16,
   INIT_VECTOR_LEN: 16,
   AUTH_TAG_LEN: 16,
-  KEY_LEN: 16,
+  KEY_LEN: 32,
   PBKDF_NUM_ITERATIONS: 2048,
 });
 
@@ -29,7 +29,6 @@ async function generateKey(password: string, salt?: string): Promise<Buffer> {
     password,
     salt,
     cryptoConstants.PBKDF_NUM_ITERATIONS,
-    10000,
     cryptoConstants.KEY_LEN,
     md.sha512.create()
   );
