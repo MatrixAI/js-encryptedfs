@@ -1,5 +1,6 @@
 import fs from 'fs';
 import pathNode from 'path';
+import canonicalize from 'canonicalize';
 import {
   VirtualFS,
   Stat,
@@ -10,6 +11,7 @@ import {
 } from 'virtualfs';
 import { WorkerManager } from './workers';
 import * as utils from './utils';
+import { EncryptedFSError, errno } from './EncryptedFSError';
 
   // we have to override the synchronous version versions
   // of each function in order to use the lower directory
@@ -59,6 +61,15 @@ class EncryptedFS extends VirtualFS {
     delete this.workerManager;
   }
 
+  public access (path: string, ...args: Array<any>): void {
+
+    // this is asynchronous
+    // this calls the access sync bind
+    // with the cb index
+    // but we really need to do things asynchronously
+
+  }
+
   // this would have to load
   // from the lower fs
   // then run it
@@ -78,31 +89,85 @@ class EncryptedFS extends VirtualFS {
 
   // this is a string
   // that we are working against
+  // the access sync
+  // is performing synchronous multiple times
+  // so the whole thing is running in the background?
+  // well that only makes sense if its all in-memory ops anyway
+  // but here when we run readFileSync that's going to block the entire thread
+
+  // we need async and sync versions of this
+  // otherwise the sync version is going to do something weird
+
+  // sync vs async
+  // we will need an async version of this function
 
   protected loadMetaSync (path: string): void {
-
-
-    // what is this doing?
-
-    let dir = pathNode.dirname(path.toString());
-
-    dir = utils.addSuffix(dir);
-
-
-    const file = pathNode.basename(path.toString());
-    const metaChunkBuffer = this.lowerDir.readFileSync(
-      `${this.lowerBasePath}/${dir}/.${file}.meta`,
-    );
-    const metaBlock = cryptoUtils.decryptChunk(this.masterKey, metaChunkBuffer);
-    if (!metaBlock) {
-      throw Error('Metadata decryption unsuccessful');
+    const pathLower = utils.translatePathMeta(path);
+    let metaCipher: Buffer;
+    try {
+      metaCipher = this.lowerFS.readFileSync(
+        utils.pathJoin(this.lowerFSRoot, pathLower)
+      );
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
     }
+    const metaPlain = utils.decryptWithKey(this.key, metaCipher);
+    if (metaPlain == null) {
+      throw new EncryptedFSError(
+        {
+          errno: -1,
+          code: 'UNKNOWN',
+          description: 'Metadata decryption failed'
+        },
+        pathLower,
+      );
+    }
+    const metaValue = JSON.parse(metaPlain.toString('utf-8'));
 
-    const metaPlainTrimmed = metaBlock.slice(0, metaBlock.indexOf('\0'));
-    const fileMeta = JSON.parse(metaPlainTrimmed.toString());
-    this.meta[this.getMetaName(path)] = fileMeta;
-
+    // here we are storing the meta the meta map!
+    this.metaMap[this.getMetaName(pathLower)] = metaValue;
   }
+
+  protected saveMetaSync(path: string): void {
+    const pathLower = utils.translatePathMeta(path);
+    // use an ES6 map for better perf
+    const metaValue = this.metaMap[this.getMetaName(pathLower)];
+    const metaPlain = Buffer.from(canonicalize(metaValue), 'utf-8');
+    const metaCipher = utils.encryptWithKey(
+      this.key,
+      metaPlain,
+    );
+    try {
+      // if 2 things do this at the same time we may get clobbering here
+      // we need to ensure that our way of life here is not clobbered
+      this.lowerFS.writeFileSync(
+        utils.pathJoin(this.lowerFSRoot, pathLower),
+        metaCipher
+      );
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+  }
+
+
 
 
   // public accessSync(path: string, ) {

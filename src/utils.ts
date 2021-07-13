@@ -2,15 +2,17 @@ import pathNode from 'path';
 import {
   md,
   random,
-  pkcs5
+  pkcs5,
+  cipher,
+  util as forgeUtil,
 } from 'node-forge';
 
 const cryptoConstants = Object.freeze({
+  KEY_LEN: 32,
   SALT_LEN: 16,
+  PBKDF_NUM_ITERATIONS: 2048,
   INIT_VECTOR_LEN: 16,
   AUTH_TAG_LEN: 16,
-  KEY_LEN: 32,
-  PBKDF_NUM_ITERATIONS: 2048,
 });
 
 const pathJoin = (pathNode.posix) ? pathNode.posix.join : pathNode.join;
@@ -121,6 +123,46 @@ function translatePathMeta(pathUpper: string): string {
   );
 }
 
+function encryptWithKey(key: Buffer, plainText: Buffer): Buffer {
+  const iv = getRandomBytesSync(cryptoConstants.INIT_VECTOR_LEN);
+  const c = cipher.createCipher('AES-GCM', key.toString('binary'));
+  c.start({ iv: iv.toString('binary'), tagLength: cryptoConstants.AUTH_TAG_LEN * 8 });
+  c.update(forgeUtil.createBuffer(plainText));
+  c.finish();
+  const cipherText = Buffer.from(c.output.getBytes(), 'binary');
+  const authTag = Buffer.from(c.mode.tag.getBytes(), 'binary');
+  const data = Buffer.concat([iv, authTag, cipherText]);
+  return data;
+}
+
+function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
+  if (cipherText.length <= 32) {
+    return;
+  }
+  const iv = cipherText.subarray(0, cryptoConstants.INIT_VECTOR_LEN);
+  const authTag = cipherText.subarray(
+    cryptoConstants.INIT_VECTOR_LEN,
+    cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN
+  );
+  const cipherText_ = cipherText.subarray(
+    cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN
+  );
+  const d = cipher.createDecipher('AES-GCM', key.toString('binary'));
+  d.start({
+    iv: iv.toString('binary'),
+    tagLength: cryptoConstants.AUTH_TAG_LEN * 8,
+    tag: forgeUtil.createBuffer(authTag),
+  });
+  d.update(forgeUtil.createBuffer(cipherText_));
+  if (!d.finish()) {
+    return;
+  }
+  return Buffer.from(d.output.getBytes(), 'binary');
+}
+
+
+
+
 // function resolvePath(path: PathLike): string {
 //   const _path = path.toString();
 //   let addition = '';
@@ -197,6 +239,8 @@ export {
   translatePath,
   translatePathData,
   translatePathMeta,
+  encryptWithKey,
+  decryptWithKey,
   generateKey,
   generateKeySync,
   generateKeyFromPass,
