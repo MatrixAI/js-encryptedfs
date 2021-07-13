@@ -1,31 +1,37 @@
+import pathNode from 'path';
 import {
   md,
   random,
   pkcs5
 } from 'node-forge';
-
 import * as utils from './src/utils';
 
 async function main () {
 
-  // now the salt has to be returned unless the user wants to provide the salt
+  // why is it turning it into a dirname?
+  // OH because it's a directory?
 
-  // the user password as a "phrase"
-  // and from here we stretch it into a key
-  // this is not a the bip39 standard
-  // the salt must be returned to the end user
-  // if they intend to make use of it
+  // it's asking for the directory
+  // and adding the suffix
 
-  // const salt = (await utils.getRandomBytes(utils.cryptoConstants.SALT_LEN)).toString('binary');
-  // const output = pkcs5.pbkdf2('abc', salt, 2048, 100, md.sha512.create());
-  // const b = Buffer.from(output, 'binary');
-  // console.log(b);
+  const path = './abc////../a';
 
-  const b = await utils.generateKey('abc');
-  console.log(b.length);
 
-  // const b2 = utils.generateKeySync('abc sdfijs ofijs oifjs oidfj wefj soidfjso fjsdofi sdf sdf sdfsd fsuf osidufj oisdf sodif usd');
-  // console.log(b2);
+  // let dir = pathNode.dirname(path);
+
+  // const dir_ = utils.addSuffix(dir);
+
+  // console.log(dir_);
+
+  // const file = pathNode.basename(path.toString());
+
+  // console.log(file);
+
+  console.log(utils.translatePath(path));
+
+  // basepath / dir / .file.meta
+
+  // dir itself is abc.data/.file.meta
 
 
 

@@ -13,6 +13,8 @@ const cryptoConstants = Object.freeze({
   PBKDF_NUM_ITERATIONS: 2048,
 });
 
+const pathJoin = (pathNode.posix) ? pathNode.posix.join : pathNode.join;
+
 async function getRandomBytes(size: number): Promise<Buffer> {
   return Buffer.from(await random.getBytes(size), 'binary');
 }
@@ -61,18 +63,63 @@ function generateKeyFromPassSync(password: string, salt?: string): [Buffer, Buff
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
+function translatePath(pathUpper: string): [string, string] {
+  const pathUpper_ = pathNode.normalize(pathUpper);
+  const partsUpper = pathUpper_.split('/')
+  if (!partsUpper.length) {
+    return ['', ''];
+  }
+  const partsUpperLast = partsUpper.pop();
+  const partsLower = partsUpper.map((p) => {
+    if (p == '') {
+      return '/';
+    }
+    return p + '.data';
+  });
+  const pathData = pathJoin(
+    ...partsLower,
+    `${partsUpperLast}.data`
+  );
+  const pathMeta = pathJoin(
+    ...partsLower,
+    `.${partsUpperLast}.meta`
+  );
+  return [pathData, pathMeta];
+}
 
-// function addSuffix(path: PathLike): string {
-//   const _path = pathNode.normalize(path.toString());
-//   const dirs = _path.split(pathNode.sep);
-//   let navPath = '';
-//   for (const dir of dirs) {
-//     if (dir != '.' && dir != '' && dir != '..') {
-//       navPath = pathNode.join(navPath, `${dir}.data`);
-//     }
-//   }
-//   return navPath;
-// }
+function translatePathData(pathUpper: string): string {
+  const pathUpper_ = pathNode.normalize(pathUpper);
+  const partsUpper = pathUpper_.split('/')
+  if (!partsUpper.length) {
+    return '';
+  }
+  const partsLower = partsUpper.map((p) => {
+    if (p == '') {
+      return '/';
+    }
+    return p + '.data';
+  });
+  return pathNode.join(...partsLower);
+}
+
+function translatePathMeta(pathUpper: string): string {
+  const pathUpper_ = pathNode.normalize(pathUpper);
+  const partsUpper = pathUpper_.split('/')
+  if (!partsUpper.length) {
+    return '';
+  }
+  const partsUpperLast = partsUpper.pop();
+  const partsLower = partsUpper.map((p) => {
+    if (p == '') {
+      return '/';
+    }
+    return p + '.data';
+  });
+  return pathNode.join(
+    ...partsLower,
+    `.${partsUpperLast}.meta`
+  );
+}
 
 // function resolvePath(path: PathLike): string {
 //   const _path = path.toString();
@@ -95,13 +142,6 @@ function generateKeyFromPassSync(password: string, salt?: string): [Buffer, Buff
 //     }
 //   }
 //   return navPath;
-// }
-
-// function getPathToMeta(path: PathLike): string {
-//   const _path = path.toString();
-//   const dir = addSuffix(pathNode.dirname(_path));
-//   const base = pathNode.basename(_path);
-//   return pathNode.join(dir, `.${base}.meta`);
 // }
 
 // function getBlocksToWrite(
@@ -153,6 +193,10 @@ function promisify<T>(f): (...args: any[]) => Promise<T> {
 
 export {
   cryptoConstants,
+  pathJoin,
+  translatePath,
+  translatePathData,
+  translatePathMeta,
   generateKey,
   generateKeySync,
   generateKeyFromPass,
@@ -160,7 +204,6 @@ export {
   getRandomBytes,
   getRandomBytesSync,
   promisify,
-  // addSuffix,
   // resolvePath,
   // getDirsRecursive,
   // getPathToMeta,
