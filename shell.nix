@@ -7,7 +7,7 @@ pkgs.mkShell {
     nodePackages.node2nix
   ];
   shellHook = ''
-    echo 'Entering Encrypted FS'
+    echo 'Entering js-encryptedfs'
     set -o allexport
     . ./.env
     set +o allexport

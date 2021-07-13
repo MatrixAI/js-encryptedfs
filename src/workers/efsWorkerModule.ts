@@ -1,5 +1,7 @@
-import { isWorkerRuntime } from 'threads/worker';
-import * as cryptoUtils from '../crypto';
+import type { TransferDescriptor } from 'threads';
+
+import { isWorkerRuntime, Transfer } from 'threads';
+import * as utils from '../utils';
 
 /**
  * Worker object that contains all functions that will be executed in parallel
@@ -25,24 +27,66 @@ const efsWorker = {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
     return;
   },
-  encryptBlock(key: string, blockBuffer: string): string {
-    const block = cryptoUtils.encryptBlock(
-      Buffer.from(key, 'binary'),
-      Buffer.from(blockBuffer, 'binary'),
+  /**
+   * Zero copy encryption of plain text to cipher text
+   */
+  encryptWithKey(
+    key: ArrayBuffer,
+    keyOffset: number,
+    keyLength: number,
+    plainText: ArrayBuffer,
+    plainTextOffset: number,
+    plainTextLength: number
+  ): TransferDescriptor<[ArrayBuffer, number, number]> {
+    const key_ = Buffer.from(key, keyOffset, keyLength);
+    const plainText_ = Buffer.from(plainText, plainTextOffset, plainTextLength);
+    const cipherText = utils.encryptWithKey(
+      key_,
+      plainText_
     );
-    return block.toString('binary');
+    return Transfer(
+      [
+        cipherText.buffer,
+        cipherText.byteOffset,
+        cipherText.byteLength
+      ],
+      [
+        cipherText.buffer
+      ]
+    );
   },
-  decryptChunk(key: string, chunkBuffer: string): string | undefined {
-    const chunk = cryptoUtils.decryptChunk(
-      Buffer.from(key, 'binary'),
-      Buffer.from(chunkBuffer, 'binary'),
+  /**
+   * Zero copy decryption of cipher text to plain text
+   */
+  decryptWithKey(
+    key: ArrayBuffer,
+    keyOffset: number,
+    keyLength: number,
+    cipherText: ArrayBuffer,
+    cipherTextOffset: number,
+    cipherTextLength: number
+  ): TransferDescriptor<[ArrayBuffer, number, number]> | undefined {
+    const key_ = Buffer.from(key, keyOffset, keyLength);
+    const cipherText_ = Buffer.from(cipherText, cipherTextOffset, cipherTextLength);
+    const plainText = utils.decryptWithKey(
+      key_,
+      cipherText_
     );
-    if (chunk) {
-      return chunk.toString();
+    if (plainText != null) {
+      return Transfer(
+        [
+          plainText.buffer,
+          plainText.byteOffset,
+          plainText.byteLength
+        ],
+        [
+          plainText.buffer
+        ]
+      );
     } else {
       return;
     }
-  },
+  }
 };
 
 type EFSWorker = typeof efsWorker;
