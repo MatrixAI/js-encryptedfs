@@ -21,7 +21,19 @@ function getRandomBytesSync(size: number): Buffer {
   return Buffer.from(random.getBytesSync(size), 'binary');
 }
 
-async function generateKey(password: string, salt?: string): Promise<Buffer> {
+async function generateKey(bits: number = 256): Promise<Buffer> {
+  const len = Math.floor(bits / 8);
+  const key = await getRandomBytes(len);
+  return key;
+}
+
+function generateKeySync(bits: number = 256): Buffer {
+  const len = Math.floor(bits / 8);
+  const key = getRandomBytesSync(len);
+  return key;
+}
+
+async function generateKeyFromPass(password: string, salt?: string): Promise<[Buffer, Buffer]> {
   if (salt == null) {
     salt = (await getRandomBytes(cryptoConstants.SALT_LEN)).toString('binary');
   }
@@ -32,10 +44,10 @@ async function generateKey(password: string, salt?: string): Promise<Buffer> {
     cryptoConstants.KEY_LEN,
     md.sha512.create()
   );
-  return Buffer.from(key, 'binary');
+  return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
-function generateKeySync(password: string, salt?: string): Buffer {
+function generateKeyFromPassSync(password: string, salt?: string): [Buffer, Buffer] {
   if (salt == null) {
     salt = getRandomBytesSync(cryptoConstants.SALT_LEN).toString('binary');
   }
@@ -46,7 +58,7 @@ function generateKeySync(password: string, salt?: string): Buffer {
     cryptoConstants.KEY_LEN,
     md.sha512.create()
   );
-  return Buffer.from(key, 'binary');
+  return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
 
@@ -143,6 +155,8 @@ export {
   cryptoConstants,
   generateKey,
   generateKeySync,
+  generateKeyFromPass,
+  generateKeyFromPassSync,
   getRandomBytes,
   getRandomBytesSync,
   promisify,
