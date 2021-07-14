@@ -1,4 +1,5 @@
 import type { PathLike } from 'fs';
+import type { POJO } from './types';
 
 import fs from 'fs';
 import pathNode from 'path';
@@ -38,7 +39,7 @@ class EncryptedFS extends VirtualFS {
   // least recently used
   // and least frequently used
 
-  protected metaMap: Map<any, any> = new Map();
+  protected metaMap: Map<any, POJO> = new Map();
   protected dataMap: Map<any, any> = new Map();
 
   constructor (
@@ -72,27 +73,17 @@ class EncryptedFS extends VirtualFS {
     delete this.workerManager;
   }
 
-  // /**
-  //  * It is not supported to change directories on EFS
-  //  * The upper FS will always be at the root.
-  //  * This can be supported in the future, but requires
-  //  * changes to the path translation between upper and lower.
-  //  */
-  // public chdir (path: string): void {
-  //   throw new EncryptedFSError(
-  //     errno.ENOTSUP,
-  //     path,
-  //   );
-  // }
 
-  // public access (path: string, ...args: Array<any>): void {
+  // needs to be asynchronous
+  // which means even meta loading and saving has to be used
+  public access (path: string, ...args: Array<any>): void {
 
-  //   // this is asynchronous
-  //   // this calls the access sync bind
-  //   // with the cb index
-  //   // but we really need to do things asynchronously
+    // this is asynchronous
+    // this calls the access sync bind
+    // with the cb index
+    // but we really need to do things asynchronously
 
-  // }
+  }
 
   // // this would have to load
   // // from the lower fs
@@ -125,112 +116,77 @@ class EncryptedFS extends VirtualFS {
   // // sync vs async
   // // we will need an async version of this function
 
-  // protected loadMetaSync (pathUpper: string): void {
+  protected loadMetaSync (pathUpper: string): void {
+    const pathLower = this.translatePathMeta(pathUpper);
+    let metaCipher: Buffer;
+    try {
+      metaCipher = this.fsLower.readFileSync(pathLower);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+    const metaPlain = utils.decryptWithKey(this.key, metaCipher);
+    if (metaPlain == null) {
+      throw new EncryptedFSError(
+        {
+          errno: -1,
+          code: 'UNKNOWN',
+          description: 'Metadata decryption failed'
+        },
+        pathLower,
+      );
+    }
+    const metaValue = JSON.parse(metaPlain.toString('utf-8'));
+    this.metaMap.set(pathLower, metaValue);
+  }
 
-  //   // suppose the path upper referred to some file
-  //   // it's always in reference to root
-  //   // right?
-  //   // we don't have a CWD for upper
+  protected saveMetaSync(pathUpper: string): void {
+    const pathLower = this.translatePathMeta(pathUpper);
+    const metaValue = this.metaMap.get(pathLower);
+    if (!metaValue) {
+      return;
+    }
+    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
+    const metaCipher = utils.encryptWithKey(
+      this.key,
+      metaPlain,
+    );
+    try {
+      this.fsLower.writeFileSync(pathLower, metaCipher);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+  }
 
-  //   const pathLower = utils.translatePathMeta(pathUpper);
-  //   let metaCipher: Buffer;
-  //   try {
-  //     metaCipher = this.lowerFS.readFileSync(
-  //       utils.pathJoin(this.lowerFSRoot, pathLower)
-  //     );
-  //   } catch (e) {
-  //     if (e.code in errno) {
-  //       throw new EncryptedFSError(
-  //         errno[e.code],
-  //         e.path,
-  //         e.dest,
-  //         e.syscall
-  //       );
-  //     } else {
-  //       throw e;
-  //     }
-  //   }
-  //   const metaPlain = utils.decryptWithKey(this.key, metaCipher);
-  //   if (metaPlain == null) {
-  //     throw new EncryptedFSError(
-  //       {
-  //         errno: -1,
-  //         code: 'UNKNOWN',
-  //         description: 'Metadata decryption failed'
-  //       },
-  //       pathLower,
-  //     );
-  //   }
-  //   const metaValue = JSON.parse(metaPlain.toString('utf-8'));
-  //   this.metaMap.set(
-  //     this.getMetaName(pathLower),
-  //     metaValue
-  //   );
-  // }
+  // the callback pattern will need to get the promise
+  // and then use .then(() => ....)
+  // before finally calling the callback!
 
-  // protected saveMetaSync(pathUpper: string): void {
+  protected async loadMeta (): Promise<void> {
+    // these return promises
+  }
 
-  //   // this assumes that the path exists in the uppper fs?
-  //   // and what if it doesn't exist?
+  protected async saveMeta (): Promise<void> {
+    // these return promises
 
-  //   const pathLower = utils.translatePathMeta(pathUpper);
-  //   // use an ES6 map for better perf
-  //   // const metaValue = this.metaMap[this.getMetaName(pathLower)];
-
-  //   const metaValue = this.metaMap.get(this.getMetaName(pathLower));
-
-  //   if (!metaValue) {
-  //     return;
-  //   }
-
-  //   const metaPlain = Buffer.from(canonicalize(metaValue), 'utf-8');
-  //   const metaCipher = utils.encryptWithKey(
-  //     this.key,
-  //     metaPlain,
-  //   );
-  //   try {
-  //     // if 2 things do this at the same time we may get clobbering here
-  //     // we need to ensure that our way of life here is not clobbered
-  //     this.lowerFS.writeFileSync(
-  //       utils.pathJoin(this.lowerFSRoot, pathLower),
-  //       metaCipher
-  //     );
-  //   } catch (e) {
-  //     if (e.code in errno) {
-  //       throw new EncryptedFSError(
-  //         errno[e.code],
-  //         e.path,
-  //         e.dest,
-  //         e.syscall
-  //       );
-  //     } else {
-  //       throw e;
-  //     }
-  //   }
-  // }
-
-  // private getMetaName(path: string): string {
-  //   const normalPath = pathNode.normalize(path);
-  //   let dir = pathNode.dirname(normalPath);
-  //   const base = pathNode.basename(normalPath);
-  //   if (dir == '.') {
-  //     dir = '';
-  //   } else {
-  //     dir += '/';
-  //   }
-  //   if (base == '.') {
-  //     if (dir == '') {
-  //       throw new EncryptedFSError(errno.ENOENT, path, null, 'getmeta');
-  //     } else {
-  //       return dir;
-  //     }
-  //   }
-  //   let ret = pathNode.normalize(`${dir}${base}`);
-  //   if (ret[0] == '/') {
-  //     ret = ret.substring(1);
-  //   }
-  //   return ret;
-  // }
+  }
 
   public translatePathData (pathUpper: PathLike): string {
     return this.translatePath(pathUpper)[0];

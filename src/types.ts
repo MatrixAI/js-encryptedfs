@@ -1,3 +1,8 @@
+/**
+ * Plain data dictionary
+ */
+type POJO = { [key: string]: any };
+
 type UpperDirectoryMetadata = {
   size: number;
   keyHash: Buffer;
@@ -15,4 +20,4 @@ type BufferEncoding =
   | 'binary'
   | 'hex';
 
-export type { UpperDirectoryMetadata, BufferEncoding };
+export type { POJO, UpperDirectoryMetadata, BufferEncoding };
