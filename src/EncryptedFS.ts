@@ -234,74 +234,11 @@ class EncryptedFS extends VirtualFS {
 
   public translatePathData (pathUpper: PathLike): string {
     return this.translatePath(pathUpper)[0];
-    // pathUpper = super._getPath(pathUpper) as string;
-    // if (pathUpper === '') {
-    //   // empty paths should stay empty
-    //   return '';
-    // }
-    // const cwdUpper = super.getCwd();
-    // pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
-    // // this array will always have parts because of cwdUpper
-    // const partsUpper = pathUpper.split('/');
-    // // remove the upper root part
-    // // the lower fs has its own root from cwdLower
-    // if (partsUpper[0] === '') {
-    //   partsUpper.shift();
-    // }
-    // let partsLower;
-    // if (partsUpper[0] === '') {
-    //   // a part that is '' means it still at upper root
-    //   // this can happen with a upper path that is just `/`
-    //   // in this case, '' is preserved, so we use cwdLower
-    //   partsLower = partsUpper;
-    // } else {
-    //   partsLower = partsUpper.map((p) => {
-    //     return p + '.data';
-    //   });
-    // }
-    // let pathLower = pathNode.posix.join(
-    //   ...partsLower
-    // );
-    // pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
-    // return pathLower;
   }
 
   public translatePathMeta (pathUpper: PathLike): string {
     return this.translatePath(pathUpper)[1];
-
-    // pathUpper = super._getPath(pathUpper) as string;
-    // if (pathUpper === '') {
-    //   // empty paths should stay empty
-    //   return '';
-    // }
-    // const cwdUpper = super.getCwd();
-    // pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
-    // // this array will always have parts because of cwdUpper
-    // const partsUpper = pathUpper.split('/');
-    // // remove the upper root part
-    // // the lower fs has its own root from cwdLower
-    // if (partsUpper[0] === '') {
-    //   partsUpper.shift();
-    // }
-    // let partsLower;
-    // if (partsUpper[0] === '') {
-    //   // a part that is '' means it still at upper root
-    //   // this can happen with a upper path that is just `/`
-    //   // in this case, '' is preserved, so we use cwdLower
-    //   partsLower = partsUpper;
-    // } else {
-    //   partsLower = partsUpper.slice(0, partsUpper.length - 1).map((p) => {
-    //     return p + '.data';
-    //   });
-    //   partsLower.push('.' + partsUpper[partsUpper.length - 1] + '.meta');
-    // }
-    // let pathLower = pathNode.posix.join(
-    //   ...partsLower
-    // );
-    // pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
-    // return pathLower;
   }
-
 
   public translatePath (pathUpper: PathLike): [string, string] {
     pathUpper = super._getPath(pathUpper) as string;
@@ -347,29 +284,6 @@ class EncryptedFS extends VirtualFS {
     }
     return [pathLowerData, pathLowerMeta];
   }
-
-
-
-
-
-
-  // public accessSync(path: string, ) {
-
-  // }
-
-  // no need to get umask, getuid, setuid, getgid, setgid
-  // all of it is extended from super
-  // any error that occurs from VirtualFS
-  // should also be extended?
-  // or should it come from EncryptedFSError?
-  // to do so
-  // we have throw new VirtualFSError
-  // wrap all methods
-
-
-
-
-
 
 }
 

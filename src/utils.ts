@@ -66,64 +66,6 @@ function generateKeyFromPassSync(password: string, salt?: string): [Buffer, Buff
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
-function translatePath(pathUpper: string): [string, string] {
-  const pathUpper_ = pathNode.normalize(pathUpper);
-  const partsUpper = pathUpper_.split('/')
-  if (!partsUpper.length) {
-    return ['', ''];
-  }
-  const partsUpperLast = partsUpper.pop();
-  const partsLower = partsUpper.map((p) => {
-    if (p == '') {
-      return '/';
-    }
-    return p + '.data';
-  });
-  const pathData = pathJoin(
-    ...partsLower,
-    `${partsUpperLast}.data`
-  );
-  const pathMeta = pathJoin(
-    ...partsLower,
-    `.${partsUpperLast}.meta`
-  );
-  return [pathData, pathMeta];
-}
-
-function translatePathData(pathUpper: string): string {
-  const pathUpper_ = pathNode.normalize(pathUpper);
-  const partsUpper = pathUpper_.split('/')
-  if (!partsUpper.length) {
-    return '';
-  }
-  const partsLower = partsUpper.map((p) => {
-    if (p == '') {
-      return '/';
-    }
-    return p + '.data';
-  });
-  return pathNode.join(...partsLower);
-}
-
-function translatePathMeta(pathUpper: string): string {
-  const pathUpper_ = pathNode.normalize(pathUpper);
-  const partsUpper = pathUpper_.split('/')
-  if (!partsUpper.length) {
-    return '';
-  }
-  const partsUpperLast = partsUpper.pop();
-  const partsLower = partsUpper.map((p) => {
-    if (p == '') {
-      return '/';
-    }
-    return p + '.data';
-  });
-  return pathNode.join(
-    ...partsLower,
-    `.${partsUpperLast}.meta`
-  );
-}
-
 function encryptWithKey(key: Buffer, plainText: Buffer): Buffer {
   const iv = getRandomBytesSync(cryptoConstants.INIT_VECTOR_LEN);
   const c = cipher.createCipher('AES-GCM', key.toString('binary'));
@@ -237,9 +179,6 @@ function promisify<T>(f): (...args: any[]) => Promise<T> {
 export {
   cryptoConstants,
   pathJoin,
-  translatePath,
-  translatePathData,
-  translatePathMeta,
   encryptWithKey,
   decryptWithKey,
   generateKey,
