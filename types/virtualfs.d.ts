@@ -10,6 +10,7 @@ declare module 'virtualfs' {
       fdMgr?: FileDescriptorManager
     );
     public getCwd(): string;
+    public chdir (path: string): void;
     public _getPath(p: PathLike): string;
   }
   class Stat {}
