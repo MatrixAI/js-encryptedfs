@@ -232,11 +232,82 @@ class EncryptedFS extends VirtualFS {
   //   return ret;
   // }
 
-  public translatePathData (pathUpper: PathLike) {
+  public translatePathData (pathUpper: PathLike): string {
+    return this.translatePath(pathUpper)[0];
+    // pathUpper = super._getPath(pathUpper) as string;
+    // if (pathUpper === '') {
+    //   // empty paths should stay empty
+    //   return '';
+    // }
+    // const cwdUpper = super.getCwd();
+    // pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
+    // // this array will always have parts because of cwdUpper
+    // const partsUpper = pathUpper.split('/');
+    // // remove the upper root part
+    // // the lower fs has its own root from cwdLower
+    // if (partsUpper[0] === '') {
+    //   partsUpper.shift();
+    // }
+    // let partsLower;
+    // if (partsUpper[0] === '') {
+    //   // a part that is '' means it still at upper root
+    //   // this can happen with a upper path that is just `/`
+    //   // in this case, '' is preserved, so we use cwdLower
+    //   partsLower = partsUpper;
+    // } else {
+    //   partsLower = partsUpper.map((p) => {
+    //     return p + '.data';
+    //   });
+    // }
+    // let pathLower = pathNode.posix.join(
+    //   ...partsLower
+    // );
+    // pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
+    // return pathLower;
+  }
+
+  public translatePathMeta (pathUpper: PathLike): string {
+    return this.translatePath(pathUpper)[1];
+
+    // pathUpper = super._getPath(pathUpper) as string;
+    // if (pathUpper === '') {
+    //   // empty paths should stay empty
+    //   return '';
+    // }
+    // const cwdUpper = super.getCwd();
+    // pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
+    // // this array will always have parts because of cwdUpper
+    // const partsUpper = pathUpper.split('/');
+    // // remove the upper root part
+    // // the lower fs has its own root from cwdLower
+    // if (partsUpper[0] === '') {
+    //   partsUpper.shift();
+    // }
+    // let partsLower;
+    // if (partsUpper[0] === '') {
+    //   // a part that is '' means it still at upper root
+    //   // this can happen with a upper path that is just `/`
+    //   // in this case, '' is preserved, so we use cwdLower
+    //   partsLower = partsUpper;
+    // } else {
+    //   partsLower = partsUpper.slice(0, partsUpper.length - 1).map((p) => {
+    //     return p + '.data';
+    //   });
+    //   partsLower.push('.' + partsUpper[partsUpper.length - 1] + '.meta');
+    // }
+    // let pathLower = pathNode.posix.join(
+    //   ...partsLower
+    // );
+    // pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
+    // return pathLower;
+  }
+
+
+  public translatePath (pathUpper: PathLike): [string, string] {
     pathUpper = super._getPath(pathUpper) as string;
     if (pathUpper === '') {
       // empty paths should stay empty
-      return '';
+      return ['', ''];
     }
     const cwdUpper = super.getCwd();
     pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
@@ -247,47 +318,36 @@ class EncryptedFS extends VirtualFS {
     if (partsUpper[0] === '') {
       partsUpper.shift();
     }
-    let partsLower;
+    let pathLowerData;
+    let pathLowerMeta;
     if (partsUpper[0] === '') {
       // a part that is '' means it still at upper root
       // this can happen with a upper path that is just `/`
       // in this case, '' is preserved, so we use cwdLower
-      partsLower = partsUpper;
+      // partsLower = partsUpper;
+      pathLowerData = this.cwdLower;
+      pathLowerMeta = this.cwdLower;
     } else {
-      partsLower = partsUpper.map((p) => {
+      const partsLower = partsUpper.slice(0, partsUpper.length - 1).map((p) => {
         return p + '.data';
       });
+      const partsLowerLastData = partsUpper[partsUpper.length - 1] + '.data';
+      const partsLowerLastMeta = '.' + partsUpper[partsUpper.length - 1] + '.meta';
+      const pathLower = pathNode.posix.join(...partsLower);
+      pathLowerData = pathNode.posix.resolve(
+        this.cwdLower,
+        pathLower,
+        partsLowerLastData
+      );
+      pathLowerMeta = pathNode.posix.resolve(
+        this.cwdLower,
+        pathLower,
+        partsLowerLastMeta
+      );
     }
-    let pathLower = pathNode.posix.join(
-      ...partsLower
-    );
-    pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
-    return pathLower;
+    return [pathLowerData, pathLowerMeta];
   }
 
-  public translatePathMeta (pathUpper: PathLike) {
-    pathUpper = super._getPath(pathUpper) as string;
-    if (pathUpper === '') {
-      return '';
-    }
-    const cwdUpper = super.getCwd();
-    pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
-    const partsUpper = pathUpper.split('/');
-    if (!partsUpper.length) {
-      return '';
-    }
-    if (partsUpper[0] === '') {
-      partsUpper.shift();
-    }
-    const partsLower = partsUpper.map((p) => {
-      return p + '.data';
-    });
-    let pathLower = pathNode.posix.join(
-      ...partsLower
-    );
-    pathLower = pathNode.posix.resolve(this.cwdLower, pathLower)
-    return pathLower;
-  }
 
 
 
