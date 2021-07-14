@@ -24,7 +24,6 @@ describe('EncryptedFS', () => {
     });
   });
   test('translating paths at current directory', async () => {
-    // efs started with lowerfs root at the current directory
     const efs = new EncryptedFS(key);
     expect(efs.getCwd()).toBe('/');
     expect(efs.cwdLower).toBe(cwd);
@@ -129,7 +128,7 @@ describe('EncryptedFS', () => {
       ]
     );
   });
-  test('translating data paths at root', async () => {
+  test('translating paths at root', async () => {
     const efs = new EncryptedFS(key, fs, dataDir);
     expect(efs.getCwd()).toBe('/');
     expect(efs.cwdLower).toBe(dataDir);
@@ -181,7 +180,7 @@ describe('EncryptedFS', () => {
       ]
     );
   });
-  test('translating data paths at up one directory', async () => {
+  test('translating paths at up one directory', async () => {
     const upDir = pathNode.posix.resolve('..');
     const efs = new EncryptedFS(key, fs, upDir);
     expect(efs.getCwd()).toBe('/');
