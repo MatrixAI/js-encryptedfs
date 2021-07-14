@@ -16,6 +16,7 @@ const cryptoConstants = Object.freeze({
 });
 
 const pathJoin = (pathNode.posix) ? pathNode.posix.join : pathNode.join;
+const pathResolve = (pathNode.posix) ? pathNode.posix.resolve : pathNode.resolve;
 
 async function getRandomBytes(size: number): Promise<Buffer> {
   return Buffer.from(await random.getBytes(size), 'binary');
