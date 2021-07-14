@@ -26,9 +26,8 @@ describe('EncryptedFS', () => {
   test('translating data paths at current directory', async () => {
     // efs started with lowerfs root at the current directory
     const efs = new EncryptedFS(key);
-
     expect(efs.getCwd()).toBe('/');
-
+    expect(efs.cwdLower).toBe(cwd);
     // empty string is empty string
     expect(efs.translatePathData('')).toBe('');
     // upper root translates to the cwdLower
@@ -41,46 +40,137 @@ describe('EncryptedFS', () => {
     expect(efs.translatePathData('.')).toBe(cwd);
     // files and directories and links
     expect(efs.translatePathData('/a')).toBe(
-      pathNode.join(cwd, 'a.data')
+      pathNode.posix.join(cwd, 'a.data')
     );
     expect(efs.translatePathData('/a///')).toBe(
-      pathNode.join(cwd, 'a.data')
+      pathNode.posix.join(cwd, 'a.data')
     );
     expect(efs.translatePathData('/a/b')).toBe(
-      pathNode.join(cwd, 'a.data/b.data')
+      pathNode.posix.join(cwd, 'a.data/b.data')
     );
     expect(efs.translatePathData('./a')).toBe(
-      pathNode.join(cwd, 'a.data')
+      pathNode.posix.join(cwd, 'a.data')
     );
     expect(efs.translatePathData('./a/b')).toBe(
-      pathNode.join(cwd, 'a.data/b.data')
+      pathNode.posix.join(cwd, 'a.data/b.data')
     );
     expect(efs.translatePathData('./a/../b')).toBe(
-      pathNode.join(cwd, 'b.data')
+      pathNode.posix.join(cwd, 'b.data')
     );
   });
   test('translating data paths at a directory', async () => {
     const efs = new EncryptedFS(key, fs, 'dir');
-
-
+    expect(efs.getCwd()).toBe('/');
+    expect(efs.cwdLower).toBe(pathNode.posix.join(cwd, 'dir'));
     // empty string is empty string
     expect(efs.translatePathData('')).toBe('');
     // upper root translates to the cwdLower
     expect(efs.translatePathData('/')).toBe(
-      pathNode.join(cwd, 'dir')
+      pathNode.posix.join(cwd, 'dir')
     );
     expect(efs.translatePathData('////')).toBe(
-      pathNode.join(cwd, 'dir')
+      pathNode.posix.join(cwd, 'dir')
     );
     expect(efs.translatePathData('/../')).toBe(
-      pathNode.join(cwd, 'dir')
+      pathNode.posix.join(cwd, 'dir')
     );
     expect(efs.translatePathData('../')).toBe(
-      pathNode.join(cwd, 'dir')
+      pathNode.posix.join(cwd, 'dir')
     );
     expect(efs.translatePathData('../../../')).toBe(
-      pathNode.join(cwd, 'dir')
+      pathNode.posix.join(cwd, 'dir')
     );
-
+    // upper current directory is at cwd for lower
+    expect(efs.translatePathData('.')).toBe(
+      pathNode.posix.join(cwd, 'dir')
+    );
+    // files and directories and links
+    expect(efs.translatePathData('/a')).toBe(
+      pathNode.posix.join(cwd, 'dir/a.data')
+    );
+    expect(efs.translatePathData('/a///')).toBe(
+      pathNode.posix.join(cwd, 'dir/a.data')
+    );
+    expect(efs.translatePathData('/a/b')).toBe(
+      pathNode.posix.join(cwd, 'dir/a.data/b.data')
+    );
+    expect(efs.translatePathData('./a')).toBe(
+      pathNode.posix.join(cwd, 'dir/a.data')
+    );
+    expect(efs.translatePathData('./a/b')).toBe(
+      pathNode.posix.join(cwd, 'dir/a.data/b.data')
+    );
+    expect(efs.translatePathData('./a/../b')).toBe(
+      pathNode.posix.join(cwd, 'dir/b.data')
+    );
+  });
+  test('translating data paths at root', async () => {
+    const efs = new EncryptedFS(key, fs, dataDir);
+    expect(efs.getCwd()).toBe('/');
+    expect(efs.cwdLower).toBe(dataDir);
+    // empty string is empty string
+    expect(efs.translatePathData('')).toBe('');
+    // upper root translates to the cwdLower
+    expect(efs.translatePathData('/')).toBe(dataDir);
+    expect(efs.translatePathData('////')).toBe(dataDir);
+    expect(efs.translatePathData('/../')).toBe(dataDir);
+    expect(efs.translatePathData('../')).toBe(dataDir);
+    expect(efs.translatePathData('../../../')).toBe(dataDir);
+    // upper current directory is at cwd for lower
+    expect(efs.translatePathData('.')).toBe(dataDir);
+    // files and directories and links
+    expect(efs.translatePathData('/a')).toBe(
+      pathNode.posix.join(dataDir, 'a.data')
+    );
+    expect(efs.translatePathData('/a///')).toBe(
+      pathNode.posix.join(dataDir, 'a.data')
+    );
+    expect(efs.translatePathData('/a/b')).toBe(
+      pathNode.posix.join(dataDir, 'a.data/b.data')
+    );
+    expect(efs.translatePathData('./a')).toBe(
+      pathNode.posix.join(dataDir, 'a.data')
+    );
+    expect(efs.translatePathData('./a/b')).toBe(
+      pathNode.posix.join(dataDir, 'a.data/b.data')
+    );
+    expect(efs.translatePathData('./a/../b')).toBe(
+      pathNode.posix.join(dataDir, 'b.data')
+    );
+  });
+  test('translating data paths at up one directory', async () => {
+    const upDir = pathNode.posix.resolve('..');
+    const efs = new EncryptedFS(key, fs, '..');
+    expect(efs.getCwd()).toBe('/');
+    expect(efs.cwdLower).toBe(upDir);
+    // empty string is empty string
+    expect(efs.translatePathData('')).toBe('');
+    // upper root translates to the cwdLower
+    expect(efs.translatePathData('/')).toBe(upDir);
+    expect(efs.translatePathData('////')).toBe(upDir);
+    expect(efs.translatePathData('/../')).toBe(upDir);
+    expect(efs.translatePathData('../')).toBe(upDir);
+    expect(efs.translatePathData('../../../')).toBe(upDir);
+    // upper current directory is at cwd for lower
+    expect(efs.translatePathData('.')).toBe(upDir);
+    // files and directories and links
+    expect(efs.translatePathData('/a')).toBe(
+      pathNode.posix.join(upDir, 'a.data')
+    );
+    expect(efs.translatePathData('/a///')).toBe(
+      pathNode.posix.join(upDir, 'a.data')
+    );
+    expect(efs.translatePathData('/a/b')).toBe(
+      pathNode.posix.join(upDir, 'a.data/b.data')
+    );
+    expect(efs.translatePathData('./a')).toBe(
+      pathNode.posix.join(upDir, 'a.data')
+    );
+    expect(efs.translatePathData('./a/b')).toBe(
+      pathNode.posix.join(upDir, 'a.data/b.data')
+    );
+    expect(efs.translatePathData('./a/../b')).toBe(
+      pathNode.posix.join(upDir, 'b.data')
+    );
   });
 });

@@ -56,7 +56,7 @@ class EncryptedFS extends VirtualFS {
     this.key = key;
     this.blockSize = blockSize;
     this.fsLower = fsLower;
-    this.cwdLower = cwdLower;
+    this.cwdLower = pathNode.posix.resolve(cwdLower);
     this.noatime = noatime;
     this.chunkSize =
       this.blockSize +
