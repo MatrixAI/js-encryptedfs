@@ -67,10 +67,18 @@ class EncryptedFS extends VirtualFS {
   }
 
   public accessSync (path: string, mode: number = constants.F_OK): void {
+
+    // we use the super accessSync here
+    // but then we are loading metadata here as well?
+    // what's the reason to do so?
+    // because we have to "load it"
+
     if (super.existsSync(path)) {
       super.accessSync(path, mode);
     } else {
-
+      // once it is loaded into the map
+      // we are "saving" to the super
+      // that's what is happening here at the very least
       this.loadMetaSync(path);
 
       this.setMetadata(path);
@@ -79,21 +87,6 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  // // this is a string
-  // // that we are working against
-  // // the access sync
-  // // is performing synchronous multiple times
-  // // so the whole thing is running in the background?
-  // // well that only makes sense if its all in-memory ops anyway
-  // // but here when we run readFileSync that's going to block the entire thread
-
-  // // we need async and sync versions of this
-  // // otherwise the sync version is going to do something weird
-
-  // // sync vs async
-  // // we will need an async version of this function
-
-  // also the enryption/decryption of this should use workers when available
 
   protected async loadMeta(pathUpper: PathLike): Promise<void> {
     const pathLower = this.translatePathMeta(pathUpper);

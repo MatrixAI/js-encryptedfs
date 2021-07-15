@@ -2,7 +2,7 @@ import { VirtualFSError } from 'virtualfs';
 
 class EncryptedFSError extends VirtualFSError {
   constructor (
-    ...args: ConstructorParameters<VirtualFSError>
+    ...args: ConstructorParameters<typeof VirtualFSError>
   ) {
     super(...args);
   }

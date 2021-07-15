@@ -2,9 +2,18 @@ declare module 'virtualfs' {
   import type { PathLike } from 'fs';
   type NoParamCallback = (err: VirtualFSError | null) => void;
   export default class VirtualFSSingle {}
-  export class VirtualFSError {}
+  export class VirtualFSError {
+    constructor (
+      errnoObj: {errno: number, code: string, description: string},
+      path?: string,
+      dest?: string,
+      syscall?: string
+    );
+    public setPaths(src: string, dst?: string): void;
+    public setSyscall(syscall: string): void;
+  }
   export class VirtualFS {
-    constructor(
+    constructor (
       umask?: number,
       rootIndex?: number|null,
       devMgr?: DeviceManager,
