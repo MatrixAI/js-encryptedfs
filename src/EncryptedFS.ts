@@ -119,65 +119,6 @@ class EncryptedFS extends VirtualFS {
 
   // also the enryption/decryption of this should use workers when available
 
-  protected loadMetaSync (pathUpper: string): void {
-    const pathLower = this.translatePathMeta(pathUpper);
-    let metaCipher: Buffer;
-    try {
-      metaCipher = this.fsLower.readFileSync(pathLower);
-    } catch (e) {
-      if (e.code in errno) {
-        throw new EncryptedFSError(
-          errno[e.code],
-          e.path,
-          e.dest,
-          e.syscall
-        );
-      } else {
-        throw e;
-      }
-    }
-    const metaPlain = utils.decryptWithKey(this.key, metaCipher);
-    if (metaPlain == null) {
-      throw new EncryptedFSError(
-        {
-          errno: -1,
-          code: 'UNKNOWN',
-          description: 'Metadata decryption failed'
-        },
-        pathLower,
-      );
-    }
-    const metaValue = JSON.parse(metaPlain.toString('utf-8'));
-    this.metaMap.set(pathLower, metaValue);
-  }
-
-  protected saveMetaSync(pathUpper: string): void {
-    const pathLower = this.translatePathMeta(pathUpper);
-    const metaValue = this.metaMap.get(pathLower);
-    if (!metaValue) {
-      return;
-    }
-    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
-    const metaCipher = utils.encryptWithKey(
-      this.key,
-      metaPlain,
-    );
-    try {
-      this.fsLower.writeFileSync(pathLower, metaCipher);
-    } catch (e) {
-      if (e.code in errno) {
-        throw new EncryptedFSError(
-          errno[e.code],
-          e.path,
-          e.dest,
-          e.syscall
-        );
-      } else {
-        throw e;
-      }
-    }
-  }
-
   protected async loadMeta(pathUpper: PathLike): Promise<void> {
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
@@ -195,7 +136,39 @@ class EncryptedFS extends VirtualFS {
         throw e;
       }
     }
-    const metaPlain = utils.decryptWithKey(this.key, metaCipher);
+    const metaPlain = await this.decrypt(metaCipher);
+    if (metaPlain == null) {
+      throw new EncryptedFSError(
+        {
+          errno: -1,
+          code: 'UNKNOWN',
+          description: 'Metadata decryption failed'
+        },
+        pathLower,
+      );
+    }
+    const metaValue = JSON.parse(metaPlain.toString('utf-8'));
+    this.metaMap.set(pathLower, metaValue);
+  }
+
+  protected loadMetaSync (pathUpper: string): void {
+    const pathLower = this.translatePathMeta(pathUpper);
+    let metaCipher: Buffer;
+    try {
+      metaCipher = this.fsLower.readFileSync(pathLower);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+    const metaPlain = this.decryptSync(metaCipher);
     if (metaPlain == null) {
       throw new EncryptedFSError(
         {
@@ -217,12 +190,33 @@ class EncryptedFS extends VirtualFS {
       return;
     }
     const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
-    const metaCipher = utils.encryptWithKey(
-      this.key,
-      metaPlain,
-    );
+    const metaCipher = await this.encrypt(metaPlain);
     try {
       await this.fsLower.promises.writeFile(pathLower, metaCipher);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  protected saveMetaSync(pathUpper: string): void {
+    const pathLower = this.translatePathMeta(pathUpper);
+    const metaValue = this.metaMap.get(pathLower);
+    if (!metaValue) {
+      return;
+    }
+    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
+    const metaCipher = this.encryptSync(metaPlain);
+    try {
+      this.fsLower.writeFileSync(pathLower, metaCipher);
     } catch (e) {
       if (e.code in errno) {
         throw new EncryptedFSError(
