@@ -212,12 +212,8 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  protected saveMetaSync(pathUpper: string): void {
+  protected saveMetaSync(pathUpper: string, metaValue): void {
     const pathLower = this.translatePathMeta(pathUpper);
-    const metaValue = this.metaMap.get(pathLower);
-    if (!metaValue) {
-      return;
-    }
     const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
     const metaCipher = this.encryptSync(metaPlain);
     try {
