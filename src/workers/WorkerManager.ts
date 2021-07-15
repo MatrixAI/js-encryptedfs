@@ -1,11 +1,21 @@
 import type { ModuleThread } from 'threads';
+import type { QueuedTask } from 'threads/dist/master/pool-types';
 import type { EFSWorker } from './efsWorker';
 
 import os from 'os';
 import { spawn, Pool, Worker } from 'threads';
 import Logger from '@matrixai/logger';
-import { WorkerManagerInterface } from './';
+import { WorkerManagerInterface } from './types';
 import * as workersErrors from './errors';
+
+/**
+ * Consider putting this into a separate library.
+ * So that we can have a worker...
+ * Library.
+ * Note that it must spawn a particular file.
+ * In this case, it is always spawning the realtive the current file.
+ * And this way you can construct one relative to it.
+ */
 
 class WorkerManager implements WorkerManagerInterface<EFSWorker> {
   pool?;
@@ -39,6 +49,15 @@ class WorkerManager implements WorkerManagerInterface<EFSWorker> {
       throw new workersErrors.EncryptedFSWorkerNotRunningError();
     }
     return await this.pool.queue(f);
+  }
+
+  public queue<R>(
+    f: (worker: ModuleThread<EFSWorker>) => Promise<R>,
+  ): QueuedTask<ModuleThread<EFSWorker>, R> {
+    if (!this.pool) {
+      throw new workersErrors.EncryptedFSWorkerNotRunningError();
+    }
+    return this.pool.queue(f);
   }
 
   public async completed(): Promise<void> {

@@ -13,6 +13,7 @@ import {
   DeviceManager,
   constants
 } from 'virtualfs';
+import { Transfer } from 'threads';
 import { WorkerManager } from './workers';
 import * as utils from './utils';
 import { EncryptedFSError, errno } from './EncryptedFSError';
@@ -116,6 +117,8 @@ class EncryptedFS extends VirtualFS {
   // // sync vs async
   // // we will need an async version of this function
 
+  // also the enryption/decryption of this should use workers when available
+
   protected loadMetaSync (pathUpper: string): void {
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
@@ -175,17 +178,63 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  // the callback pattern will need to get the promise
-  // and then use .then(() => ....)
-  // before finally calling the callback!
-
-  protected async loadMeta (): Promise<void> {
-    // these return promises
+  protected async loadMeta(pathUpper: PathLike): Promise<void> {
+    const pathLower = this.translatePathMeta(pathUpper);
+    let metaCipher: Buffer;
+    try {
+      metaCipher = await this.fsLower.promises.readFile(pathLower);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
+    const metaPlain = utils.decryptWithKey(this.key, metaCipher);
+    if (metaPlain == null) {
+      throw new EncryptedFSError(
+        {
+          errno: -1,
+          code: 'UNKNOWN',
+          description: 'Metadata decryption failed'
+        },
+        pathLower,
+      );
+    }
+    const metaValue = JSON.parse(metaPlain.toString('utf-8'));
+    this.metaMap.set(pathLower, metaValue);
   }
 
-  protected async saveMeta (): Promise<void> {
-    // these return promises
-
+  protected async saveMeta (pathUpper: PathLike): Promise<void> {
+    const pathLower = this.translatePathMeta(pathUpper);
+    const metaValue = this.metaMap.get(pathLower);
+    if (!metaValue) {
+      return;
+    }
+    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
+    const metaCipher = utils.encryptWithKey(
+      this.key,
+      metaPlain,
+    );
+    try {
+      await this.fsLower.promises.writeFile(pathLower, metaCipher);
+    } catch (e) {
+      if (e.code in errno) {
+        throw new EncryptedFSError(
+          errno[e.code],
+          e.path,
+          e.dest,
+          e.syscall
+        );
+      } else {
+        throw e;
+      }
+    }
   }
 
   public translatePathData (pathUpper: PathLike): string {
@@ -239,6 +288,76 @@ class EncryptedFS extends VirtualFS {
       );
     }
     return [pathLowerData, pathLowerMeta];
+  }
+
+  /**
+   * Encrypt plaintext to ciphertext
+   * When the WorkerManager is available, it will use it
+   * However when it is not available, the encryption will use the main thread CPU
+   * This is a CPU-intensive operation, not IO-intensive
+   */
+  protected async encrypt(plainText: Buffer): Promise<Buffer> {
+    let cipherText: Buffer;
+    if (this.workerManager) {
+      cipherText = await this.workerManager.call(
+        async w => {
+          const [cipherBuf, cipherOffset, cipherLength]= await w.encryptWithKey(
+            Transfer(this.key.buffer),
+            this.key.byteOffset,
+            this.key.byteLength,
+            // @ts-ignore
+            Transfer(plainText.buffer),
+            plainText.byteOffset,
+            plainText.byteLength
+          );
+          return Buffer.from(cipherBuf, cipherOffset, cipherLength);
+        }
+      );
+    } else {
+      cipherText = utils.encryptWithKey(this.key, plainText);
+    }
+    return cipherText;
+  }
+
+  protected encryptSync(plainText: Buffer): Buffer {
+    return utils.encryptWithKey(this.key, plainText);
+  }
+
+  /**
+   * Decrypt ciphertext to plaintext
+   * When the WorkerManager is available, it will use it
+   * However when it is not available, the decryption will use the main thread CPU
+   * This is a CPU-intensive operation, not IO-intensive
+   */
+  protected async decrypt(cipherText: Buffer): Promise<Buffer|undefined> {
+    let plainText: Buffer | undefined;
+    if (this.workerManager) {
+      plainText = await this.workerManager.call(
+        async w => {
+          const decrypted = await w.decryptWithKey(
+            Transfer(this.key.buffer),
+            this.key.byteOffset,
+            this.key.byteLength,
+            // @ts-ignore
+            Transfer(cipherText.buffer),
+            cipherText.byteOffset,
+            cipherText.byteLength
+          );
+          if (decrypted != null) {
+            return Buffer.from(decrypted[0], decrypted[1], decrypted[2]);
+          } else {
+            return;
+          }
+        }
+      );
+    } else {
+      plainText = utils.decryptWithKey(this.key, cipherText);
+    }
+    return plainText;
+  }
+
+  protected decryptSync(cipherText: Buffer): Buffer | undefined {
+    return utils.decryptWithKey(this.key, cipherText);
   }
 
 }

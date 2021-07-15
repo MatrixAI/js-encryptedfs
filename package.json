@@ -41,6 +41,7 @@
     "node-forge": "^0.10.0",
     "readable-stream": "^3.6.0",
     "threads": "^1.6.5",
+    "ts-custom-error": "^3.2.0",
     "virtualfs": "^2.2.0"
   },
   "devDependencies": {
