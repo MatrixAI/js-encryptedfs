@@ -1,6 +1,20 @@
 declare module 'virtualfs' {
   import type { PathLike } from 'fs';
   type NoParamCallback = (err: VirtualFSError | null) => void;
+  type Metadata = {
+    dev?: number,
+    ino: number,
+    mode: number,
+    nlink: number,
+    uid: number,
+    gid: number,
+    rdev?: number,
+    size: number,
+    atime: Date,
+    mtime: Date,
+    ctime: Date,
+    birthtime: Date
+  };
   export default class VirtualFSSingle {}
   export class VirtualFSError {
     constructor (
@@ -22,14 +36,21 @@ declare module 'virtualfs' {
     );
     public getCwd(): string;
     public chdir (path: string): void;
-    public access(p: PathLike, mode: number | undefined, callback: NoParamCallback): void;
-    public access(p: PathLike, callback: NoParamCallback): void;
-    public accessSync(p: PathLike, mode: number): void;
-    public exists(p: PathLike, callback: (exists: boolean) => void): void;
-    public existsSync(p: PathLike): boolean;
+    public access(path: PathLike, mode: number | undefined, callback: NoParamCallback): void;
+    public access(path: PathLike, callback: NoParamCallback): void;
+    public accessSync(path: PathLike, mode: number): void;
+    public exists(path: PathLike, callback: (exists: boolean) => void): void;
+    public existsSync(path: PathLike): boolean;
+    public open(path: PathLike, flags: string|number, mode: number | undefined, callback: (err: VirtualFSError | null, fd: number) => void): void;
+    public open(path: PathLike, flags: string|number, callback: (err: VirtualFSError | null, fd: number) => void): void;
+    public openSync(path: PathLike, flags: string|number, mode?: number): number;
+    public close(fdIndex: number, callback: NoParamCallback): void;
+    public closeSync(fdIndex: number): void;
     public _getPath(p: PathLike): string;
   }
-  export class Stat {}
+  export class Stat {
+    constructor (props: Metadata);
+  }
   export namespace constants {
     const O_RDONLY: number;
     const O_WRONLY: number;

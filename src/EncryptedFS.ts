@@ -1,4 +1,5 @@
 import type { PathLike } from 'fs';
+import type { MappedMeta } from './types';
 
 import fs from 'fs';
 import pathNode from 'path';
@@ -17,6 +18,11 @@ import { EncryptedFSError, errno } from './EncryptedFSError';
 import { WorkerManager } from './workers';
 import * as utils from './utils';
 
+/**
+ * Asynchronous callback backup.
+ */
+const callbackUp = (err) => { if (err) throw err; };
+
 class EncryptedFS extends VirtualFS {
   public readonly cwdLower: string;
   public readonly blockSize: number;
@@ -26,9 +32,13 @@ class EncryptedFS extends VirtualFS {
   protected key: Buffer;
   protected fsLower: typeof fs;
   protected workerManager?: WorkerManager;
+  protected fdMgr;
 
-  protected metaMap: Map<string, fs.Stats> = new Map();
-  protected blockMap: Map<any, any> = new Map();
+  // mapping metadata
+  // and block values
+  protected metaMap: Map<string, MappedMeta> = new Map();
+
+  // protected blockMap: Map<any, any> = new Map();
 
   constructor (
     key: Buffer,
@@ -42,6 +52,7 @@ class EncryptedFS extends VirtualFS {
     fdMgr: FileDescriptorManager = new FileDescriptorManager(iNodeMgr)
   ) {
     super(umask, null, devMgr, iNodeMgr, fdMgr);
+    this.fdMgr = fdMgr;
     this.key = key;
     this.blockSize = blockSize;
     this.fsLower = fsLower;
@@ -62,30 +73,33 @@ class EncryptedFS extends VirtualFS {
   }
 
   public access (path: string, ...args: Array<any>): void {
-
-
+    super.exists(path, (exists) => {
+      if (exists) {
+        // @ts-ignore
+        super.access(path, ...args);
+      } else {
+        this.loadMeta(path).then(() => {
+          // @ts-ignore
+          super.access(path, ...args);
+        });
+      }
+    });
   }
 
   public accessSync (path: string, mode: number = constants.F_OK): void {
-
-    // we use the super accessSync here
-    // but then we are loading metadata here as well?
-    // what's the reason to do so?
-    // because we have to "load it"
-
     if (super.existsSync(path)) {
       super.accessSync(path, mode);
     } else {
-      // once it is loaded into the map
-      // we are "saving" to the super
-      // that's what is happening here at the very least
       this.loadMetaSync(path);
-
-      this.setMetadata(path);
-
       super.accessSync(path, mode);
     }
   }
+
+  // TODO:
+  // deal with race conditions
+  // we may need to add in a lock at some point
+  // for now we shall "load"
+  // and load it into the right place
 
 
   protected async loadMeta(pathUpper: PathLike): Promise<void> {
@@ -117,6 +131,16 @@ class EncryptedFS extends VirtualFS {
       );
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
+
+
+    // we do not need to do this...
+    // we just need to save it to upper fs
+    // that's it
+    // we do not need a separate map to hold the meta value
+    // we KNOW this tobe the JSON
+    // and it has to be saved
+    // as the metadata
+
     this.metaMap.set(pathLower, metaValue);
   }
 
@@ -149,7 +173,19 @@ class EncryptedFS extends VirtualFS {
       );
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
-    this.metaMap.set(pathLower, metaValue);
+
+    const fdIndex = super.openSync(pathLower, 'w');
+    const fd = this.fdMgr.getFd(fdIndex);
+    const iNode = fd.getINode();
+    // ensure we are preserving the ino which is dynamic in upperfs
+    iNode._metadata = new Stat({
+      ...metaValue,
+      ino: iNode._metadata.ino
+    });
+    super.closeSync(fdIndex);
+
+    // RELEASE LOCK for doing this
+    // this.metaMap.set(pathLower, metaValue);
   }
 
   protected async saveMeta (pathUpper: PathLike): Promise<void> {
