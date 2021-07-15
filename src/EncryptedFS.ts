@@ -1,5 +1,4 @@
 import type { PathLike } from 'fs';
-import type { POJO } from './types';
 
 import fs from 'fs';
 import pathNode from 'path';
@@ -14,16 +13,9 @@ import {
   constants
 } from 'virtualfs';
 import { Transfer } from 'threads';
+import { EncryptedFSError, errno } from './EncryptedFSError';
 import { WorkerManager } from './workers';
 import * as utils from './utils';
-import { EncryptedFSError, errno } from './EncryptedFSError';
-
-  // we have to override the synchronous version versions
-  // of each function in order to use the lower directory
-  // and also to set the base path for the lower directory
-  // we have to use a string
-  // we cannot use this type
-  // ith as to be preserved the same as VFS
 
 class EncryptedFS extends VirtualFS {
   public readonly cwdLower: string;
@@ -35,13 +27,8 @@ class EncryptedFS extends VirtualFS {
   protected fsLower: typeof fs;
   protected workerManager?: WorkerManager;
 
-  // these are closer to caches
-  // than anything else
-  // least recently used
-  // and least frequently used
-
-  protected metaMap: Map<any, POJO> = new Map();
-  protected dataMap: Map<any, any> = new Map();
+  protected metaMap: Map<string, fs.Stats> = new Map();
+  protected blockMap: Map<any, any> = new Map();
 
   constructor (
     key: Buffer,
@@ -74,34 +61,23 @@ class EncryptedFS extends VirtualFS {
     delete this.workerManager;
   }
 
-
-  // needs to be asynchronous
-  // which means even meta loading and saving has to be used
   public access (path: string, ...args: Array<any>): void {
 
-    // this is asynchronous
-    // this calls the access sync bind
-    // with the cb index
-    // but we really need to do things asynchronously
 
   }
 
-  // // this would have to load
-  // // from the lower fs
-  // // then run it
-  // // have this re-export everything as usual
-  // public accessSync (path: string, mode: number = constants.F_OK): void {
-  //   if (super.existsSync(path)) {
-  //     super.accessSync(path, mode);
-  //   } else {
+  public accessSync (path: string, mode: number = constants.F_OK): void {
+    if (super.existsSync(path)) {
+      super.accessSync(path, mode);
+    } else {
 
-  //     // consider this to be equivalent to block mapping
-  //     this.loadMetaSync(this.getMetaName(path));
-  //     this.setMetadata(path);
+      this.loadMetaSync(path);
 
-  //     super.accessSync(path, mode);
-  //   }
-  // }
+      this.setMetadata(path);
+
+      super.accessSync(path, mode);
+    }
+  }
 
   // // this is a string
   // // that we are working against
