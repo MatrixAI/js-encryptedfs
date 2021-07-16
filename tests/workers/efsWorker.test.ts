@@ -55,7 +55,8 @@ describe('EFS worker', () => {
     expect(plainText_?.toString()).toBe('hello world');
   });
   test('encryption and decryption within 1 call', async () => {
-    const plainText = Buffer.from('hello world', 'utf-8');
+    // use random bytes this time
+    const plainText = await utils.getRandomBytes(4096);
     const plainText_ = await workerManager.call(async w => {
       const [cipherBuf, cipherOffset, cipherLength] = await w.encryptWithKey(
         Transfer(key.buffer),
@@ -84,6 +85,5 @@ describe('EFS worker', () => {
     });
     expect(plainText_).toBeDefined();
     expect(plainText.equals(plainText_!)).toBe(true);
-    expect(plainText_?.toString()).toBe('hello world');
   });
 });
