@@ -4,6 +4,7 @@ import type { MappedMeta } from './types';
 import fs from 'fs';
 import pathNode from 'path';
 import process from 'process';
+import { callbackify } from 'util';
 import canonicalize from 'canonicalize';
 import {
   VirtualFS,
@@ -75,26 +76,26 @@ class EncryptedFS extends VirtualFS {
     delete this.workerManager;
   }
 
-  public access (path: string, ...args: Array<any>): void {
+  public access (path: PathLike, ...args: Array<any>): void {
     let cbIndex = args.findIndex((arg) => typeof arg === 'function');
     const callback = args[cbIndex] || callbackUp;
     super.exists(path, (exists) => {
       if (exists) {
-        // @ts-ignore
         super.access(path, ...args);
       } else {
-        this.loadMeta(path).then(
-          () => {
-            // @ts-ignore
+        const loadMeta = callbackify(this.loadMeta).bind(this);
+        loadMeta(path, (e) => {
+          if (!e) {
             super.access(path, ...args);
-          },
-          callback
-        );
+          } else {
+            callback(e);
+          }
+        });
       }
     });
   }
 
-  public accessSync (path: string, mode: number = constants.F_OK): void {
+  public accessSync (path: PathLike, mode: number = constants.F_OK): void {
     if (super.existsSync(path)) {
       super.accessSync(path, mode);
     } else {
@@ -161,7 +162,7 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  protected loadMetaSync (pathUpper: string): void {
+  protected loadMetaSync (pathUpper: PathLike): void {
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
     try {

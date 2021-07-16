@@ -40,15 +40,13 @@ declare module 'virtualfs' {
     );
     public getCwd(): string;
     public chdir (path: string): void;
-    public access(path: PathLike, mode: number | undefined, callback: NoParamCallback): void;
-    public access(path: PathLike, callback: NoParamCallback): void;
+    public access(path: PathLike, ...args: Array<any>): void;
     public accessSync(path: PathLike, mode: number): void;
-    public exists(path: PathLike, callback: (exists: boolean) => void): void;
+    public exists(path: PathLike, callback?: (exists: boolean) => void): void;
     public existsSync(path: PathLike): boolean;
-    public open(path: PathLike, flags: string|number, mode: number | undefined, callback: (err: VirtualFSError | null, fd: number) => void): void;
-    public open(path: PathLike, flags: string|number, callback: (err: VirtualFSError | null, fd: number) => void): void;
+    public open (path: PathLike, flags: string|number, ...args: Array<any>): void;
     public openSync(path: PathLike, flags: string|number, mode?: number): number;
-    public close(fdIndex: number, callback: NoParamCallback): void;
+    public close(fdIndex: number, callback?: NoParamCallback): void;
     public closeSync(fdIndex: number): void;
     public _getPath(p: PathLike): string;
   }
