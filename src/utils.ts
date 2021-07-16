@@ -176,6 +176,23 @@ function promisify<T>(f): (...args: any[]) => Promise<T> {
   };
 }
 
+function promise<T>(): {
+  p: Promise<T>;
+  resolveP: (value: T | PromiseLike<T>) => void;
+  rejectP: (reason?: any) => void;
+} {
+  let resolveP, rejectP;
+  const p = new Promise<T>((resolve, reject) => {
+    resolveP = resolve;
+    rejectP = reject;
+  });
+  return {
+    p,
+    resolveP,
+    rejectP,
+  };
+}
+
 export {
   cryptoConstants,
   pathJoin,
@@ -188,6 +205,7 @@ export {
   getRandomBytes,
   getRandomBytesSync,
   promisify,
+  promise,
   // resolvePath,
   // getDirsRecursive,
   // getPathToMeta,

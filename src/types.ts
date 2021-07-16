@@ -6,23 +6,12 @@ import type fs from 'fs';
  */
 type POJO = { [key: string]: any };
 
-type UpperDirectoryMetadata = {
-  size: number;
-  keyHash: Buffer;
-};
+type EncryptedFSLayer = 'upper' | 'lower';
 
-type BufferEncoding =
-  | 'ascii'
-  | 'utf8'
-  | 'utf-8'
-  | 'utf16le'
-  | 'ucs2'
-  | 'ucs-2'
-  | 'base64'
-  | 'latin1'
-  | 'binary'
-  | 'hex';
-
+// type UpperDirectoryMetadata = {
+//   size: number;
+//   keyHash: Buffer;
+// };
 
 // we would need to give it a normal lock too
 // each path has a lock
@@ -39,6 +28,6 @@ type MappedMeta = {
 
 export type {
   POJO,
-  UpperDirectoryMetadata,
+  EncryptedFSLayer,
   MappedMeta
 };

@@ -17,6 +17,10 @@ declare module 'virtualfs' {
   };
   export default class VirtualFSSingle {}
   export class VirtualFSError {
+    public errno: number;
+    public code: string;
+    public errnoDescription: string;
+    public syscall?: string;
     constructor (
       errnoObj: {errno: number, code: string, description: string},
       path?: string,

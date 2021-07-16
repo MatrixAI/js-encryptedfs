@@ -11,7 +11,8 @@ import {
   FileDescriptorManager,
   INodeManager,
   DeviceManager,
-  constants
+  constants,
+  VirtualFSError
 } from 'virtualfs';
 import { Transfer } from 'threads';
 import { EncryptedFSError, errno } from './EncryptedFSError';
@@ -36,7 +37,7 @@ class EncryptedFS extends VirtualFS {
 
   // mapping metadata
   // and block values
-  protected metaMap: Map<string, MappedMeta> = new Map();
+  // protected metaMap: Map<string, MappedMeta> = new Map();
 
   // protected blockMap: Map<any, any> = new Map();
 
@@ -95,13 +96,6 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  // TODO:
-  // deal with race conditions
-  // we may need to add in a lock at some point
-  // for now we shall "load"
-  // and load it into the right place
-
-
   protected async loadMeta(pathUpper: PathLike): Promise<void> {
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
@@ -110,6 +104,7 @@ class EncryptedFS extends VirtualFS {
     } catch (e) {
       if (e.code in errno) {
         throw new EncryptedFSError(
+          'lower',
           errno[e.code],
           e.path,
           e.dest,
@@ -122,6 +117,7 @@ class EncryptedFS extends VirtualFS {
     const metaPlain = await this.decrypt(metaCipher);
     if (metaPlain == null) {
       throw new EncryptedFSError(
+        'lower',
         {
           errno: -1,
           code: 'UNKNOWN',
@@ -131,17 +127,31 @@ class EncryptedFS extends VirtualFS {
       );
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
-
-
-    // we do not need to do this...
-    // we just need to save it to upper fs
-    // that's it
-    // we do not need a separate map to hold the meta value
-    // we KNOW this tobe the JSON
-    // and it has to be saved
-    // as the metadata
-
-    this.metaMap.set(pathLower, metaValue);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        super.open(pathLower, 'w', (err, fdIndex) => {
+          if (err != null) {
+            reject(err);
+          } else {
+            const fd = this.fdMgr.getFd(fdIndex);
+            const iNode = fd.getINode();
+            iNode._metadata = new Stat({
+              ...metaValue,
+              ino: iNode._metadata.ino
+            });
+            super.close(fdIndex, () => {
+              resolve();
+            });
+          }
+        });
+      });
+    } catch (e) {
+      if (e instanceof VirtualFSError) {
+        throw new EncryptedFSError('lower', errno[e.code]);
+      } else {
+        throw e;
+      }
+    }
   }
 
   protected loadMetaSync (pathUpper: string): void {
@@ -152,6 +162,7 @@ class EncryptedFS extends VirtualFS {
     } catch (e) {
       if (e.code in errno) {
         throw new EncryptedFSError(
+          'lower',
           errno[e.code],
           e.path,
           e.dest,
@@ -164,6 +175,7 @@ class EncryptedFS extends VirtualFS {
     const metaPlain = this.decryptSync(metaCipher);
     if (metaPlain == null) {
       throw new EncryptedFSError(
+        'lower',
         {
           errno: -1,
           code: 'UNKNOWN',
@@ -173,64 +185,68 @@ class EncryptedFS extends VirtualFS {
       );
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
-
-    const fdIndex = super.openSync(pathLower, 'w');
-    const fd = this.fdMgr.getFd(fdIndex);
-    const iNode = fd.getINode();
-    // ensure we are preserving the ino which is dynamic in upperfs
-    iNode._metadata = new Stat({
-      ...metaValue,
-      ino: iNode._metadata.ino
-    });
-    super.closeSync(fdIndex);
-
-    // RELEASE LOCK for doing this
-    // this.metaMap.set(pathLower, metaValue);
-  }
-
-  protected async saveMeta (pathUpper: PathLike): Promise<void> {
-    const pathLower = this.translatePathMeta(pathUpper);
-    const metaValue = this.metaMap.get(pathLower);
-    if (!metaValue) {
-      return;
-    }
-    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
-    const metaCipher = await this.encrypt(metaPlain);
     try {
-      await this.fsLower.promises.writeFile(pathLower, metaCipher);
+      const fdIndex = super.openSync(pathLower, 'w');
+      const fd = this.fdMgr.getFd(fdIndex);
+      const iNode = fd.getINode();
+      // ensure we are preserving the ino which is dynamic in upperfs
+      iNode._metadata = new Stat({
+        ...metaValue,
+        ino: iNode._metadata.ino
+      });
+      super.closeSync(fdIndex);
     } catch (e) {
-      if (e.code in errno) {
-        throw new EncryptedFSError(
-          errno[e.code],
-          e.path,
-          e.dest,
-          e.syscall
-        );
+      if (e instanceof VirtualFSError) {
+        throw new EncryptedFSError('lower', errno[e.code]);
       } else {
         throw e;
       }
     }
   }
 
-  protected saveMetaSync(pathUpper: string, metaValue): void {
-    const pathLower = this.translatePathMeta(pathUpper);
-    const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
-    const metaCipher = this.encryptSync(metaPlain);
-    try {
-      this.fsLower.writeFileSync(pathLower, metaCipher);
-    } catch (e) {
-      if (e.code in errno) {
-        throw new EncryptedFSError(
-          errno[e.code],
-          e.path,
-          e.dest,
-          e.syscall
-        );
-      } else {
-        throw e;
-      }
-    }
-  }
+  // protected async saveMeta (pathUpper: PathLike): Promise<void> {
+  //   const pathLower = this.translatePathMeta(pathUpper);
+  //   const metaValue = this.metaMap.get(pathLower);
+  //   if (!metaValue) {
+  //     return;
+  //   }
+  //   const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
+  //   const metaCipher = await this.encrypt(metaPlain);
+  //   try {
+  //     await this.fsLower.promises.writeFile(pathLower, metaCipher);
+  //   } catch (e) {
+  //     if (e.code in errno) {
+  //       throw new EncryptedFSError(
+  //         errno[e.code],
+  //         e.path,
+  //         e.dest,
+  //         e.syscall
+  //       );
+  //     } else {
+  //       throw e;
+  //     }
+  //   }
+  // }
+
+  // protected saveMetaSync(pathUpper: string, metaValue): void {
+  //   const pathLower = this.translatePathMeta(pathUpper);
+  //   const metaPlain = Buffer.from(canonicalize(metaValue) as string, 'utf-8');
+  //   const metaCipher = this.encryptSync(metaPlain);
+  //   try {
+  //     this.fsLower.writeFileSync(pathLower, metaCipher);
+  //   } catch (e) {
+  //     if (e.code in errno) {
+  //       throw new EncryptedFSError(
+  //         errno[e.code],
+  //         e.path,
+  //         e.dest,
+  //         e.syscall
+  //       );
+  //     } else {
+  //       throw e;
+  //     }
+  //   }
+  // }
 
   public translatePathData (pathUpper: PathLike): string {
     return this.translatePath(pathUpper)[0];
