@@ -22,7 +22,9 @@ import * as utils from './utils';
 /**
  * Asynchronous callback backup.
  */
-const callbackUp = (err) => { if (err) throw err; };
+const callbackUp = (err) => {
+  if (err) throw err;
+};
 
 class EncryptedFS extends VirtualFS {
   public readonly cwdLower: string;
@@ -74,15 +76,20 @@ class EncryptedFS extends VirtualFS {
   }
 
   public access (path: string, ...args: Array<any>): void {
+    let cbIndex = args.findIndex((arg) => typeof arg === 'function');
+    const callback = args[cbIndex] || callbackUp;
     super.exists(path, (exists) => {
       if (exists) {
         // @ts-ignore
         super.access(path, ...args);
       } else {
-        this.loadMeta(path).then(() => {
-          // @ts-ignore
-          super.access(path, ...args);
-        });
+        this.loadMeta(path).then(
+          () => {
+            // @ts-ignore
+            super.access(path, ...args);
+          },
+          callback
+        );
       }
     });
   }
