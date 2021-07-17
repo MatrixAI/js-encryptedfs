@@ -1,10 +1,10 @@
+import type fs from 'fs';
 import type { PathLike } from 'fs';
 import type { MappedMeta } from './types';
 
-import fs from 'fs';
 import pathNode from 'path';
 import process from 'process';
-import { callbackify } from 'util';
+import callbackify from 'util-callbackify';
 import canonicalize from 'canonicalize';
 import {
   VirtualFS,
@@ -46,7 +46,7 @@ class EncryptedFS extends VirtualFS {
 
   constructor (
     key: Buffer,
-    fsLower: typeof fs = fs,
+    fsLower: typeof fs = require('fs'),
     cwdLower: string = process.cwd(),
     umask: number = 0o022,
     blockSize: number = 4096,
@@ -104,7 +104,21 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  protected async loadMeta(pathUpper: PathLike): Promise<void> {
+  public existsSync(path: PathLike): boolean {
+    if (super.existsSync(path)) {
+      return true;
+    } else {
+      try {
+        this.loadMetaSync(path);
+      } catch (e) {
+        return false;
+      }
+      return super.existsSync(path);
+    }
+  }
+
+  protected async loadMeta(path: PathLike): Promise<void> {
+    const pathUpper = super._getPath(path);
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
     try {
@@ -137,18 +151,24 @@ class EncryptedFS extends VirtualFS {
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
     try {
       await new Promise<void>((resolve, reject) => {
-        super.open(pathLower, 'w', (err, fdIndex) => {
-          if (err != null) {
-            reject(err);
+        super.mkdirp(pathNode.posix.dirname(pathUpper), (e) => {
+          if (e != null) {
+            reject(e);
           } else {
-            const fd = this.fdMgr.getFd(fdIndex);
-            const iNode = fd.getINode();
-            iNode._metadata = new Stat({
-              ...metaValue,
-              ino: iNode._metadata.ino
-            });
-            super.close(fdIndex, () => {
-              resolve();
+            super.open(pathUpper, 'a', (e, fdIndex) => {
+              if (e != null) {
+                reject(e);
+              } else {
+                const fd = this.fdMgr.getFd(fdIndex);
+                const iNode = fd.getINode();
+                iNode._metadata = new Stat({
+                  ...metaValue,
+                  ino: iNode._metadata.ino
+                });
+                super.close(fdIndex, () => {
+                  resolve();
+                });
+              }
             });
           }
         });
@@ -162,7 +182,8 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
-  protected loadMetaSync (pathUpper: PathLike): void {
+  protected loadMetaSync (path: PathLike): void {
+    const pathUpper = super._getPath(path);
     const pathLower = this.translatePathMeta(pathUpper);
     let metaCipher: Buffer;
     try {
@@ -194,7 +215,8 @@ class EncryptedFS extends VirtualFS {
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
     try {
-      const fdIndex = super.openSync(pathLower, 'w');
+      super.mkdirpSync(pathNode.posix.dirname(pathUpper));
+      const fdIndex = super.openSync(pathUpper, 'a');
       const fd = this.fdMgr.getFd(fdIndex);
       const iNode = fd.getINode();
       // ensure we are preserving the ino which is dynamic in upperfs
@@ -256,16 +278,16 @@ class EncryptedFS extends VirtualFS {
   //   }
   // }
 
-  public translatePathData (pathUpper: PathLike): string {
-    return this.translatePath(pathUpper)[0];
+  public translatePathData (path: PathLike): string {
+    return this.translatePath(path)[0];
   }
 
-  public translatePathMeta (pathUpper: PathLike): string {
-    return this.translatePath(pathUpper)[1];
+  public translatePathMeta (path: PathLike): string {
+    return this.translatePath(path)[1];
   }
 
-  public translatePath (pathUpper: PathLike): [string, string] {
-    pathUpper = super._getPath(pathUpper) as string;
+  public translatePath (path: PathLike): [string, string] {
+    let pathUpper = super._getPath(path);
     if (pathUpper === '') {
       // empty paths should stay empty
       return ['', ''];

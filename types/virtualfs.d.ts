@@ -46,6 +46,8 @@ declare module 'virtualfs' {
     public existsSync(path: PathLike): boolean;
     public open (path: PathLike, flags: string|number, ...args: Array<any>): void;
     public openSync(path: PathLike, flags: string|number, mode?: number): number;
+    public mkdirp(path: PathLike, ...args: Array<any>): void;
+    public mkdirpSync(path: PathLike, mode?: number): void;
     public close(fdIndex: number, callback?: NoParamCallback): void;
     public closeSync(fdIndex: number): void;
     public _getPath(p: PathLike): string;
