@@ -2,6 +2,12 @@ import type { EncryptedFSLayer } from './types';
 
 import { VirtualFSError } from 'virtualfs';
 
+/**
+ * Consider encapsulating the VFS error
+ * Not extending it.
+ * It makes more sense, and helps with debugging
+ */
+
 class EncryptedFSError extends VirtualFSError {
   public readonly layer: EncryptedFSLayer;
   constructor (

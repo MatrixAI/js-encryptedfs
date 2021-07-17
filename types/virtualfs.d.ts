@@ -31,6 +31,12 @@ declare module 'virtualfs' {
     public setSyscall(syscall: string): void;
   }
   export class VirtualFS {
+    public _uid: number;
+    public _gid: number;
+    public _umask: number;
+    public _devMgr: DeviceManager;
+    public _iNodeMgr: INodeManager;
+    public _fdMgr: FileDescriptorManager;
     constructor (
       umask?: number,
       rootIndex?: number|null,
@@ -102,11 +108,19 @@ declare module 'virtualfs' {
     const MAP_SHARED: number;
     const MAP_PRIVATE: number;
   }
+  export class FileDescriptor<I extends INode> {
+    constructor(iNode: I, flags: number);
+  }
   export class FileDescriptorManager {
     constructor (
       iNodeMgr: INodeManager
     );
   }
+  export class INode { }
+  export class File extends INode { }
+  export class Directory extends INode { }
+  export class Symlink extends INode { }
+  export class CharacterDev extends INode { }
   export class INodeManager {
     constructor (
       devMgr: DeviceManager

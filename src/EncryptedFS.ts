@@ -9,12 +9,13 @@ import canonicalize from 'canonicalize';
 import {
   VirtualFS,
   Stat,
-  FileDescriptorManager,
   INodeManager,
   DeviceManager,
   constants,
   VirtualFSError
 } from 'virtualfs';
+
+import { EncryptedFileDescriptorManager } from './FileDescriptors';
 import { Transfer } from 'threads';
 import { EncryptedFSError, errno } from './EncryptedFSError';
 import { WorkerManager } from './workers';
@@ -34,9 +35,13 @@ class EncryptedFS extends VirtualFS {
   public readonly noatime: boolean;
 
   protected key: Buffer;
+  protected fsUpper: VirtualFS;
   protected fsLower: typeof fs;
   protected workerManager?: WorkerManager;
-  protected fdMgr;
+
+  // protected devMgr;
+  // protected iNodeMgr;
+  // protected fdMgr;
 
   // mapping metadata
   // and block values
@@ -53,10 +58,14 @@ class EncryptedFS extends VirtualFS {
     noatime: boolean = false,
     devMgr: DeviceManager = new DeviceManager,
     iNodeMgr: INodeManager = new INodeManager(devMgr),
-    fdMgr: FileDescriptorManager = new FileDescriptorManager(iNodeMgr)
+    fdMgr: EncryptedFileDescriptorManager = new EncryptedFileDescriptorManager(iNodeMgr)
   ) {
     super(umask, null, devMgr, iNodeMgr, fdMgr);
-    this.fdMgr = fdMgr;
+
+    // this.devMgr = devMgr;
+    // this.iNodeMgr = iNodeMgr;
+    // this.fdMgr = fdMgr;
+
     this.key = key;
     this.blockSize = blockSize;
     this.fsLower = fsLower;
@@ -117,6 +126,47 @@ class EncryptedFS extends VirtualFS {
     }
   }
 
+
+  public openSync(
+    path: PathLike,
+    flags: string|number,
+    mode?: number
+  ): number {
+
+    // you want to open a file
+    // you want to do it in the upperfs first
+    // if it doesn't exist
+    // you need to map it to the upperfs
+    // which is done block by block
+    // according to the FileDescriptor
+
+
+    // this must return a number
+    // it is crucual for this to be the act!
+    // the default matters here?
+
+    // the EFS FileDescriptor is just a wrapper object
+    // around the lowerfs fd
+    // that doesn't quite make sense at all
+    // we should do this against the FileDescriptor instead
+    // and map the write/read operations against that
+    // this.fileDescriptors.set(upperFd, efsFd)
+
+    // the File inode is what contains the _data buffer
+
+
+
+  }
+
+  // alot of functions rely on the file being created first
+  // so we need to go down to the most important function
+  // openSync which is the fundamental operation
+  // we need to see the block mappping thing first
+  // before we can even do anything
+  // until a file is actually created first!!!
+
+
+
   protected async loadMeta(path: PathLike): Promise<void> {
     const pathUpper = super._getPath(path);
     const pathLower = this.translatePathMeta(pathUpper);
@@ -159,7 +209,7 @@ class EncryptedFS extends VirtualFS {
               if (e != null) {
                 reject(e);
               } else {
-                const fd = this.fdMgr.getFd(fdIndex);
+                const fd = this._fdMgr.getFd(fdIndex);
                 const iNode = fd.getINode();
                 iNode._metadata = new Stat({
                   ...metaValue,
