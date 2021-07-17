@@ -1572,16 +1572,46 @@ class EncryptedFS {
     });
     const filePath = this.getMetaPath(fd);
     // Discriminate upper and lower file descriptors
+
+    // upper fd index
     const upperFd = fd;
+
+    // lower fd index
+    // this goes through the intermediate FD wrapper to getthe lower fd index
     const lowerFd = this.getLowerFd(fd);
+
+
+    // so the idea is that we have 2 fd indices we are managing here
+    // and remember streams are complicated as well
+    // one upper and one lower
+    // we aren't extending the upperfd to keep track of the lower fd
+    // although that would be nice, that wouldn't be an extension of VirtualFS
+    // at least i dont think it can be because the APIs may be different
+
+
 
     // Get block boundary conditions
     const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
+
+    // the boundaryOffset may return -1
+    // this doesn't make sense
+    // as it means that if i write some bytes
+    // from the last byte position of the initial block
+    // it ends up telling me the wrong number of blocks to write
+
+
     const numBlocksToWrite = Math.ceil(
       (boundaryOffset + length) / this.blockSize,
     );
+
+
+    // block index to start from
     const startBlockNum = this.offsetToBlockNum(position);
+
+    // a one to one mapping of block to chunk
     const startChunkNum = startBlockNum;
+
+
     const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
     let bufferBytesWritten: number = 0;

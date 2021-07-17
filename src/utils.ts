@@ -103,6 +103,14 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
   return Buffer.from(d.output.getBytes(), 'binary');
 }
 
+// const upperBlockOffset
+// const lowerBlockOfset
+
+function upperBlockOffset (blockSize: number, position: number) {
+  return position % blockSize;
+}
+
+
 
 
 
