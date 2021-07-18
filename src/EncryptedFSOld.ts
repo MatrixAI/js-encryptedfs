@@ -1612,6 +1612,7 @@ class EncryptedFS {
     const startChunkNum = startBlockNum;
 
 
+    // the finish line
     const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
     let bufferBytesWritten: number = 0;

@@ -8,9 +8,7 @@ import {
 } from 'node-forge';
 
 const cryptoConstants = Object.freeze({
-  KEY_LEN: 32,
   SALT_LEN: 16,
-  PBKDF_NUM_ITERATIONS: 2048,
   INIT_VECTOR_LEN: 16,
   AUTH_TAG_LEN: 16,
 });
@@ -38,29 +36,39 @@ function generateKeySync(bits: number = 256): Buffer {
   return key;
 }
 
-async function generateKeyFromPass(password: string, salt?: string): Promise<[Buffer, Buffer]> {
+async function generateKeyFromPass(
+  password: string,
+  salt?: string,
+  bits: number = 256
+): Promise<[Buffer, Buffer]> {
   if (salt == null) {
-    salt = (await getRandomBytes(cryptoConstants.SALT_LEN)).toString('binary');
+    salt = (await getRandomBytes(16)).toString('binary');
   }
+  const keyLen = Math.floor(bits / 8);
   const key = await promisify<string>(pkcs5.pbkdf2)(
     password,
     salt,
-    cryptoConstants.PBKDF_NUM_ITERATIONS,
-    cryptoConstants.KEY_LEN,
+    2048,
+    keyLen,
     md.sha512.create()
   );
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
-function generateKeyFromPassSync(password: string, salt?: string): [Buffer, Buffer] {
+function generateKeyFromPassSync(
+  password: string,
+  salt?: string,
+  bits: number = 256
+): [Buffer, Buffer] {
   if (salt == null) {
-    salt = getRandomBytesSync(cryptoConstants.SALT_LEN).toString('binary');
+    salt = getRandomBytesSync(16).toString('binary');
   }
+  const keyLen = Math.floor(bits / 8);
   const key = pkcs5.pbkdf2(
     password,
     salt,
-    cryptoConstants.PBKDF_NUM_ITERATIONS,
-    cryptoConstants.KEY_LEN,
+    2048,
+    keyLen,
     md.sha512.create()
   );
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
@@ -103,14 +111,60 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
   return Buffer.from(d.output.getBytes(), 'binary');
 }
 
-// const upperBlockOffset
-// const lowerBlockOfset
+/**
+ * Maps the plaintext position to the block index
+ */
+function posToBlockIndex(blockSize: number, position: number): number {
+  return Math.floor(position / blockSize);
+}
 
-function upperBlockOffset (blockSize: number, position: number) {
+/**
+ * Maps the plaintest position to the offset from the target block
+ */
+function posToBlockOffset(blockSize: number, position: number): number {
   return position % blockSize;
 }
 
+/**
+ * Calculates how many blocks need to be written using
+ * the block offset and the plaintext byte length
+ */
+function countBlocks(blockSize: number, blockOffset: number, length: number): number {
+  return Math.ceil((blockOffset + length) / blockSize);
+}
 
+// function compareBlockArrays(
+//   blockA: Array<number>,
+//   blockB: Array<number>,
+// ): boolean {
+//   let check = true;
+//   if (!blockB) {
+//     return false;
+//   }
+//   for (const index in blockA) {
+//     if (!blockB.includes(blockA[index])) {
+//       check = false;
+//     }
+//   }
+//   return check;
+// }
+
+
+// function getBlocksToWrite(
+//   position: number,
+//   length: number,
+//   blockSize: number,
+// ): Array<number> {
+//   const startBlock = Math.floor(position / blockSize);
+//   const endBlock = Math.floor((position + length - 1) / blockSize);
+//   let counter = startBlock;
+//   const blocks: Array<number> = [];
+//   while (counter <= endBlock) {
+//     blocks.push(counter);
+//     counter++;
+//   }
+//   return blocks;
+// }
 
 
 
@@ -137,37 +191,7 @@ function upperBlockOffset (blockSize: number, position: number) {
 //   return navPath;
 // }
 
-// function getBlocksToWrite(
-//   position: number,
-//   length: number,
-//   blockSize: number,
-// ): Array<number> {
-//   const startBlock = Math.floor(position / blockSize);
-//   const endBlock = Math.floor((position + length - 1) / blockSize);
-//   let counter = startBlock;
-//   const blocks: Array<number> = [];
-//   while (counter <= endBlock) {
-//     blocks.push(counter);
-//     counter++;
-//   }
-//   return blocks;
-// }
 
-// function compareBlockArrays(
-//   blockA: Array<number>,
-//   blockB: Array<number>,
-// ): boolean {
-//   let check = true;
-//   if (!blockB) {
-//     return false;
-//   }
-//   for (const index in blockA) {
-//     if (!blockB.includes(blockA[index])) {
-//       check = false;
-//     }
-//   }
-//   return check;
-// }
 
 function promisify<T>(f): (...args: any[]) => Promise<T> {
   return function <T>(...args): Promise<T> {
@@ -214,6 +238,9 @@ export {
   getRandomBytesSync,
   promisify,
   promise,
+  posToBlockIndex,
+  posToBlockOffset,
+  countBlocks,
   // resolvePath,
   // getDirsRecursive,
   // getPathToMeta,
