@@ -47,7 +47,10 @@ class EncryptedFS {
 
   // VIRTUALISATION STRATEGY
   // upper fd to lower fd
-  protected fdMap: Map<number, number> = new Map();
+  protected fdMap: Map<number, {
+    dataFd: number;
+    metaFd: number;
+  }> = new Map();
 
   // protected metaMap: Map<string, MappedMeta> = new Map();
   // protected blockMap: Map<any, any> = new Map();
@@ -114,8 +117,7 @@ class EncryptedFS {
     flags: string|number = 'r',
     mode?: number
   ): number {
-    // we will need to open to the lower as well
-    // as well as the metadata
+    const pathUpper = this.upper.fs._getPath(path);
     const [pathLowerData, pathLowerMeta] = this.translatePath(path);
 
     let fdIndexLowerData, fdIndexLowerMeta;
@@ -142,9 +144,22 @@ class EncryptedFS {
     // it has a DIFFERENT owner and group and etc
     // the VFS has a completely different owner and group
 
+    // if this succeeded you must create all upper directories
+
     try  {
+
+      // all upper directories must be created
+      this.upper.fs.mkdirpSync(pathNode.posix.dirname(pathUpper));
+
+      // now we stick it!
       fdIndexUpper = this.upper.fs.openSync(path, flags, mode);
+
     } catch (e) {
+
+      // close lower descriptors if they exist
+      this.lower.fs.closeSync(fdIndexLowerData);
+      this.lower.fs.closeSync(fdIndexLowerMeta);
+
       throw e;
     }
 
@@ -154,7 +169,11 @@ class EncryptedFS {
     // or better would be return the lower index
     // and map it to the upper
 
-    this.fdMap.set(fdIndexUpper, fdIndexLower);
+    this.fdMap.set(fdIndexUpper, {
+      dataFd: fdIndexLowerData,
+      metaFd: fdIndexLowerMeta
+    });
+
     return fdIndexUpper;
   }
 
