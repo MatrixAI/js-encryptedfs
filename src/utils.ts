@@ -114,24 +114,33 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
 /**
  * Maps the plaintext position to the block index
  */
-function posToBlockIndex(blockSize: number, position: number): number {
-  return Math.floor(position / blockSize);
+function blockIndexStart(blockSize: number, bytePosition: number): number {
+  return Math.floor(bytePosition / blockSize);
+}
+
+/**
+ * Calculates last block index
+ */
+function blockIndexEnd(blockIndexStart: number, blockLength: number): number {
+  return blockIndexStart + blockLength - 1;
 }
 
 /**
  * Maps the plaintest position to the offset from the target block
  */
-function posToBlockOffset(blockSize: number, position: number): number {
-  return position % blockSize;
+function blockOffset(blockSize: number, bytePosition: number): number {
+  return bytePosition % blockSize;
 }
 
 /**
  * Calculates how many blocks need to be written using
  * the block offset and the plaintext byte length
  */
-function countBlocks(blockSize: number, blockOffset: number, length: number): number {
-  return Math.ceil((blockOffset + length) / blockSize);
+function blockLength(blockSize: number, blockOffset: number, byteLength: number): number {
+  return Math.ceil((blockOffset + byteLength) / blockSize);
 }
+
+
 
 // function compareBlockArrays(
 //   blockA: Array<number>,
@@ -238,9 +247,10 @@ export {
   getRandomBytesSync,
   promisify,
   promise,
-  posToBlockIndex,
-  posToBlockOffset,
-  countBlocks,
+  blockIndexStart,
+  blockIndexEnd,
+  blockOffset,
+  blockLength,
   // resolvePath,
   // getDirsRecursive,
   // getPathToMeta,

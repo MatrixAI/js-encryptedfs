@@ -1,10 +1,6 @@
-import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import * as utils from '@/utils';
 
 describe('utils', () => {
-  const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
-    new StreamHandler(),
-  ]);
   let key: Buffer;
   beforeAll(async () => {
     key = await utils.generateKey();
@@ -33,6 +29,10 @@ describe('utils', () => {
     const [key2, salt2] = await utils.generateKeyFromPass('somepassword', 'salt1');
     expect(key1.equals(key2)).toBe(true);
     expect(salt1.equals(salt2)).toBe(true);
+    const [key3, salt3] = utils.generateKeyFromPassSync('somepassword', 'salt1');
+    const [key4, salt4] = utils.generateKeyFromPassSync('somepassword', 'salt1');
+    expect(key3.equals(key4)).toBe(true);
+    expect(salt3.equals(salt4)).toBe(true);
   });
   test('encryption and decryption', async () => {
     const plainText = Buffer.from('hello world', 'utf-8');
@@ -41,26 +41,68 @@ describe('utils', () => {
     expect(plainText_).toBeDefined();
     expect(plainText.equals(plainText_!)).toBe(true);
   });
-  test('block index', async () => {
-    expect(utils.posToBlockIndex(4096, 0)).toBe(0);
-    expect(utils.posToBlockIndex(4096, 1)).toBe(0);
-    expect(utils.posToBlockIndex(4096, 4095)).toBe(0);
-    expect(utils.posToBlockIndex(4096, 4096)).toBe(1);
-    expect(utils.posToBlockIndex(4096, 4097)).toBe(1);
-  });
-  test('block offset', async () => {
-    // the plain text position can be mapped to a block offset
-    // which is the length from the beginning the target block
-    expect(utils.posToBlockOffset(4096, 0)).toBe(0);
-    expect(utils.posToBlockOffset(4096, 1)).toBe(1);
-    expect(utils.posToBlockOffset(4096, 4095)).toBe(4095);
-    expect(utils.posToBlockOffset(4096, 4096)).toBe(0);
-    expect(utils.posToBlockOffset(4096, 4097)).toBe(1);
+  test('block offset is position % block size', async () => {
+    expect(utils.blockOffset(4096, 0)).toBe(0);
+    expect(utils.blockOffset(4096, 1)).toBe(1);
+    expect(utils.blockOffset(4096, 4095)).toBe(4095);
+    expect(utils.blockOffset(4096, 4096)).toBe(0);
+    expect(utils.blockOffset(4096, 4097)).toBe(1);
   });
   test('number of blocks to be written', async () => {
     const blockSize = 4096;
-    const blockOffset = utils.posToBlockOffset(blockSize, 4099);
-    expect(utils.countBlocks(blockSize, blockOffset, 10)).toBe(1);
-    expect(utils.countBlocks(blockSize, blockOffset, 4096)).toBe(2);
+    const blockOffset = utils.blockOffset(blockSize, 4099);
+    expect(utils.blockLength(blockSize, blockOffset, 10)).toBe(1);
+    expect(utils.blockLength(blockSize, blockOffset, 4096)).toBe(2);
+  });
+  test('block index start', async () => {
+    expect(utils.blockIndexStart(4096, 0)).toBe(0);
+    expect(utils.blockIndexStart(4096, 1)).toBe(0);
+    expect(utils.blockIndexStart(4096, 4095)).toBe(0);
+    expect(utils.blockIndexStart(4096, 4096)).toBe(1);
+    expect(utils.blockIndexStart(4096, 4097)).toBe(1);
+  });
+  test('block index end', async () => {
+    let blockSize, bytePosition, byteLength;
+    let blockOffset, blockCount, blockIndexStart, blockIndexEnd;
+    blockSize = 3;
+    bytePosition = 2;
+    byteLength = 1;
+    blockOffset = utils.blockOffset(blockSize, bytePosition);
+    blockCount = utils.blockLength(blockSize, blockOffset, byteLength);
+    blockIndexStart = utils.blockIndexStart(blockSize, bytePosition);
+    blockIndexEnd = utils.blockIndexEnd(blockIndexStart, blockCount);
+    expect(blockIndexStart).toBe(0);
+    expect(blockIndexEnd).toBe(0);
+    blockSize = 3;
+    bytePosition = 2;
+    byteLength = 2;
+    blockOffset = utils.blockOffset(blockSize, bytePosition);
+    blockCount = utils.blockLength(blockSize, blockOffset, byteLength);
+    blockIndexStart = utils.blockIndexStart(blockSize, bytePosition);
+    blockIndexEnd = utils.blockIndexEnd(blockIndexStart, blockCount);
+    expect(blockIndexStart).toBe(0);
+    expect(blockIndexEnd).toBe(1);
+    blockSize = 3;
+    bytePosition = 2;
+    byteLength = 4;
+    blockOffset = utils.blockOffset(blockSize, bytePosition);
+    blockCount = utils.blockLength(blockSize, blockOffset, byteLength);
+    blockIndexStart = utils.blockIndexStart(blockSize, bytePosition);
+    blockIndexEnd = utils.blockIndexEnd(blockIndexStart, blockCount);
+    expect(blockIndexStart).toBe(0);
+    expect(blockIndexEnd).toBe(1);
+    blockSize = 3;
+    bytePosition = 2;
+    byteLength = 5;
+    blockOffset = utils.blockOffset(blockSize, bytePosition);
+    blockCount = utils.blockLength(blockSize, blockOffset, byteLength);
+    blockIndexStart = utils.blockIndexStart(blockSize, bytePosition);
+    blockIndexEnd = utils.blockIndexEnd(blockIndexStart, blockCount);
+    expect(blockIndexStart).toBe(0);
+    expect(blockIndexEnd).toBe(2);
+  });
+  test('block mapping', async () => {
+
+
   });
 });
