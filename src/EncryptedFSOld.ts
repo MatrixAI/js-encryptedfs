@@ -1618,15 +1618,27 @@ class EncryptedFS {
     let bufferBytesWritten: number = 0;
 
     // ================== Handle first block ================== //
+
+
+    // the offset used here, is the offset into the input buffer
+    // it has nothing to do with the first block
+
     const firstBlockStart = offset;
+
     const firstBlockEnd =
       firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
+
     const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd);
+
+
+    // what is this?
+
     const firstBlock = await this.overlaySegment(
       upperFd,
       firstBlockOverlay,
       position,
     );
+
     let firstChunk;
     let lastChunk;
     if (this.workerManager) {

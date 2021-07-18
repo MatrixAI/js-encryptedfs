@@ -44,6 +44,12 @@ declare module 'virtualfs' {
       iNodeMgr?: INodeManager,
       fdMgr?: FileDescriptorManager
     );
+    public getUmask(): number;
+    public setUmask(umask: number): void;
+    public getUid(): number;
+    public setUid(uid: number): void;
+    public getGid(): number;
+    public setGid(gid: number): void;
     public getCwd(): string;
     public chdir (path: string): void;
     public access(path: PathLike, ...args: Array<any>): void;

@@ -7,11 +7,8 @@ import {
   util as forgeUtil,
 } from 'node-forge';
 
-const cryptoConstants = Object.freeze({
-  SALT_LEN: 16,
-  INIT_VECTOR_LEN: 16,
-  AUTH_TAG_LEN: 16,
-});
+const ivSize = 16;
+const authTagSize = 16;
 
 const pathJoin = (pathNode.posix) ? pathNode.posix.join : pathNode.join;
 const pathResolve = (pathNode.posix) ? pathNode.posix.resolve : pathNode.resolve;
@@ -75,9 +72,9 @@ function generateKeyFromPassSync(
 }
 
 function encryptWithKey(key: Buffer, plainText: Buffer): Buffer {
-  const iv = getRandomBytesSync(cryptoConstants.INIT_VECTOR_LEN);
+  const iv = getRandomBytesSync(ivSize);
   const c = cipher.createCipher('AES-GCM', key.toString('binary'));
-  c.start({ iv: iv.toString('binary'), tagLength: cryptoConstants.AUTH_TAG_LEN * 8 });
+  c.start({ iv: iv.toString('binary'), tagLength: authTagSize * 8 });
   c.update(forgeUtil.createBuffer(plainText));
   c.finish();
   const cipherText = Buffer.from(c.output.getBytes(), 'binary');
@@ -90,18 +87,13 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
   if (cipherText.length <= 32) {
     return;
   }
-  const iv = cipherText.subarray(0, cryptoConstants.INIT_VECTOR_LEN);
-  const authTag = cipherText.subarray(
-    cryptoConstants.INIT_VECTOR_LEN,
-    cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN
-  );
-  const cipherText_ = cipherText.subarray(
-    cryptoConstants.INIT_VECTOR_LEN + cryptoConstants.AUTH_TAG_LEN
-  );
+  const iv = cipherText.subarray(0, ivSize);
+  const authTag = cipherText.subarray(ivSize, ivSize + authTagSize);
+  const cipherText_ = cipherText.subarray(ivSize + authTagSize);
   const d = cipher.createDecipher('AES-GCM', key.toString('binary'));
   d.start({
     iv: iv.toString('binary'),
-    tagLength: cryptoConstants.AUTH_TAG_LEN * 8,
+    tagLength: authTagSize * 8,
     tag: forgeUtil.createBuffer(authTag),
   });
   d.update(forgeUtil.createBuffer(cipherText_));
@@ -140,6 +132,15 @@ function blockLength(blockSize: number, blockOffset: number, byteLength: number)
   return Math.ceil((blockOffset + byteLength) / blockSize);
 }
 
+function *range(start: number, stop?: number, step = 1): Generator<number> {
+  if (stop == null) {
+    stop = start;
+    start = 0;
+  }
+  for (let i = start; step > 0 ? i < stop : i > stop; i += step) {
+    yield i;
+  }
+}
 
 
 // function compareBlockArrays(
@@ -158,22 +159,6 @@ function blockLength(blockSize: number, blockOffset: number, byteLength: number)
 //   return check;
 // }
 
-
-// function getBlocksToWrite(
-//   position: number,
-//   length: number,
-//   blockSize: number,
-// ): Array<number> {
-//   const startBlock = Math.floor(position / blockSize);
-//   const endBlock = Math.floor((position + length - 1) / blockSize);
-//   let counter = startBlock;
-//   const blocks: Array<number> = [];
-//   while (counter <= endBlock) {
-//     blocks.push(counter);
-//     counter++;
-//   }
-//   return blocks;
-// }
 
 
 
@@ -235,8 +220,10 @@ function promise<T>(): {
 }
 
 export {
-  cryptoConstants,
+  ivSize,
+  authTagSize,
   pathJoin,
+  pathResolve,
   encryptWithKey,
   decryptWithKey,
   generateKey,
@@ -251,6 +238,7 @@ export {
   blockIndexEnd,
   blockOffset,
   blockLength,
+  range,
   // resolvePath,
   // getDirsRecursive,
   // getPathToMeta,

@@ -101,7 +101,59 @@ describe('utils', () => {
     expect(blockIndexStart).toBe(0);
     expect(blockIndexEnd).toBe(2);
   });
-  test('block mapping', async () => {
+  test.only('block mapping', async () => {
+
+    // abc
+    const buf = Buffer.from('abc', 'utf-8');
+    console.log(buf);
+
+    // this should be the it
+    console.log(buf.slice(2, 3));
+
+    // based on the blocks
+    // we can calculate how to deal with the first one
+    // the input buffer is sliced into segments
+    // the segments are mapped into the blocks
+    // so these are plaintext blocks
+
+    // readBlock from the upper fd
+
+
+
+
+    // this is weird
+    // const firstBlockStart = offset;
+    // const firstBlockEnd = firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
+
+    // buffer.slice(firstBlockStart, firstBlockEnd)
+
+    // ok so this takes the input buffer and slices that
+
+    // start on the offset
+    // then the minimum of either
+    // the block size (4096 - offset)
+    // or the full length
+    // yea i get that, we need the offset
+    // but that's wrong
+
+
+    // this is the easy part
+    // cause then i just need to work out the math
+    // the complicated part comes with the interacting effects and behaviour
+    // of the concurrent writes and what is supposed to happen
+    // the key point is transparency
+    // should be the same as if it wasn't there
+    // and the relevant abstraction
+
+    // now we have the blocks
+    // and we are starting to write
+
+    // it has to handle the first block
+    // so we want to know what is the first block we start writing from
+    // and the first block end
+
+
+
 
 
   });

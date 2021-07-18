@@ -12,7 +12,8 @@ import {
   INodeManager,
   DeviceManager,
   constants,
-  VirtualFSError
+  VirtualFSError,
+  FileDescriptorManager
 } from 'virtualfs';
 
 import { EncryptedFileDescriptorManager } from './FileDescriptors';
@@ -28,53 +29,52 @@ const callbackUp = (err) => {
   if (err) throw err;
 };
 
-class EncryptedFS extends VirtualFS {
-  public readonly cwdLower: string;
-  public readonly blockSize: number;
-  public readonly chunkSize: number;
-  public readonly noatime: boolean;
-
+class EncryptedFS {
+  public readonly blockSizePlain: number;
+  public readonly blockSizeCipher: number;
   protected key: Buffer;
-  protected fsUpper: VirtualFS;
-  protected fsLower: typeof fs;
+  protected upper: {
+    fs: VirtualFS,
+    devMgr: DeviceManager,
+    iNodeMgr: INodeManager,
+    fdMgr: FileDescriptorManager
+  };
+  protected lower: {
+    fs: typeof fs;
+    dir: string;
+  };
   protected workerManager?: WorkerManager;
 
-  // protected devMgr;
-  // protected iNodeMgr;
-  // protected fdMgr;
+  // VIRTUALISATION STRATEGY
+  // upper fd to lower fd
+  protected fdMap: Map<number, number> = new Map();
 
-  // mapping metadata
-  // and block values
   // protected metaMap: Map<string, MappedMeta> = new Map();
-
   // protected blockMap: Map<any, any> = new Map();
 
   constructor (
     key: Buffer,
+    dir: string = process.cwd(),
     fsLower: typeof fs = require('fs'),
-    cwdLower: string = process.cwd(),
     umask: number = 0o022,
-    blockSize: number = 4096,
-    noatime: boolean = false,
+    blockSizePlain: number = 4096,
     devMgr: DeviceManager = new DeviceManager,
     iNodeMgr: INodeManager = new INodeManager(devMgr),
     fdMgr: EncryptedFileDescriptorManager = new EncryptedFileDescriptorManager(iNodeMgr)
   ) {
-    super(umask, null, devMgr, iNodeMgr, fdMgr);
-
-    // this.devMgr = devMgr;
-    // this.iNodeMgr = iNodeMgr;
-    // this.fdMgr = fdMgr;
-
     this.key = key;
-    this.blockSize = blockSize;
-    this.fsLower = fsLower;
-    this.cwdLower = pathNode.posix.resolve(cwdLower);
-    this.noatime = noatime;
-    this.chunkSize =
-      this.blockSize +
-      utils.cryptoConstants.INIT_VECTOR_LEN +
-      utils.cryptoConstants.AUTH_TAG_LEN;
+    this.blockSizePlain = blockSizePlain;
+    this.blockSizeCipher = utils.ivSize + utils.authTagSize + blockSizePlain;
+    this.upper = {
+      fs: new VirtualFS(umask, null, devMgr, iNodeMgr, fdMgr),
+      devMgr,
+      iNodeMgr,
+      fdMgr
+    };
+    this.lower = {
+      fs: fsLower,
+      dir: utils.pathResolve(dir)
+    };
   }
 
   public setWorkerManager(workerManager: WorkerManager) {
@@ -84,6 +84,121 @@ class EncryptedFS extends VirtualFS {
   public unsetWorkerManager() {
     delete this.workerManager;
   }
+
+  public getUmask (): number {
+    return this.upper.fs.getUmask();
+  }
+
+  public setUmask (umask: number): void {
+    return this.upper.fs.setUmask(umask);
+  }
+
+  public getUid (): number {
+    return this.upper.fs.getUid();
+  }
+
+  public setUid (uid:number): void {
+    return this.upper.fs.setUid(uid);
+  }
+
+  public getGid (): number {
+    return this.upper.fs.getGid();
+  }
+
+  public setGid (gid:number): void {
+    return this.upper.fs.setGid(gid);
+  }
+
+  public openSync(
+    path: PathLike,
+    flags: string|number = 'r',
+    mode?: number
+  ): number {
+    // we will need to open to the lower as well
+    // as well as the metadata
+    const [pathLowerData, pathLowerMeta] = this.translatePath(path);
+
+    let fdIndexLowerData, fdIndexLowerMeta;
+    let fdIndexUpper;
+
+    try {
+      fdIndexLowerData = this.lower.fs.openSync(
+        pathLowerData,
+        flags,
+        mode
+      );
+      // read and write and create if not exists
+      // this can only run if opening the lower data file worked
+      fdIndexLowerMeta = this.lower.fs.openSync(
+        pathLowerMeta,
+        constants.O_RDWR | constants.O_CREAT,
+        mode
+      );
+    } catch (e) {
+      throw e;
+    }
+
+    // the LOWER has different metadata and attributes
+    // it has a DIFFERENT owner and group and etc
+    // the VFS has a completely different owner and group
+
+    try  {
+      fdIndexUpper = this.upper.fs.openSync(path, flags, mode);
+    } catch (e) {
+      throw e;
+    }
+
+    // this is setting upper to lower
+    // in that case we return the upper index
+    // not the lower index
+    // or better would be return the lower index
+    // and map it to the upper
+
+    this.fdMap.set(fdIndexUpper, fdIndexLower);
+    return fdIndexUpper;
+  }
+
+  public closeSync (fdIndex: number): void {
+
+    // what is the fdIndex that we send out
+
+
+  }
+
+  public readSync (
+    fdIndex: number,
+    buffer: Buffer | Uint8Array | string,
+    offset: number = 0,
+    length: number = 0,
+    position: number|null = null
+  ): number {
+
+    // read through
+    // read from the upper, if that's good that's good
+    // otherwise we need to read from the bottom
+    // note that bottom read should not change the pointer
+
+  }
+
+  public writeSync (
+    fdIndex: number,
+    data: Buffer | Uint8Array | string,
+    offsetOrPos?: number,
+    lengthOrEncoding?: number|string,
+    position: number|null = null
+  ): number {
+
+    // TypedArray is now any Uint8Array
+    // ithink htat changed
+    // this is now using this
+    // and strems are using this
+
+    // WRITE THROUGH STRATEGY write to the lower
+    // before loading the write to the upper
+
+  }
+
+
 
   public access (path: PathLike, ...args: Array<any>): void {
     let cbIndex = args.findIndex((arg) => typeof arg === 'function');
@@ -127,36 +242,6 @@ class EncryptedFS extends VirtualFS {
   }
 
 
-  public openSync(
-    path: PathLike,
-    flags: string|number,
-    mode?: number
-  ): number {
-
-    // you want to open a file
-    // you want to do it in the upperfs first
-    // if it doesn't exist
-    // you need to map it to the upperfs
-    // which is done block by block
-    // according to the FileDescriptor
-
-
-    // this must return a number
-    // it is crucual for this to be the act!
-    // the default matters here?
-
-    // the EFS FileDescriptor is just a wrapper object
-    // around the lowerfs fd
-    // that doesn't quite make sense at all
-    // we should do this against the FileDescriptor instead
-    // and map the write/read operations against that
-    // this.fileDescriptors.set(upperFd, efsFd)
-
-    // the File inode is what contains the _data buffer
-
-
-
-  }
 
   // alot of functions rely on the file being created first
   // so we need to go down to the most important function
@@ -337,12 +422,12 @@ class EncryptedFS extends VirtualFS {
   }
 
   public translatePath (path: PathLike): [string, string] {
-    let pathUpper = super._getPath(path);
+    let pathUpper = this.upper.fs._getPath(path);
     if (pathUpper === '') {
       // empty paths should stay empty
       return ['', ''];
     }
-    const cwdUpper = super.getCwd();
+    const cwdUpper = this.upper.fs.getCwd();
     pathUpper = pathNode.posix.resolve(cwdUpper, pathUpper);
     // this array will always have parts because of cwdUpper
     const partsUpper = pathUpper.split('/');
@@ -358,8 +443,8 @@ class EncryptedFS extends VirtualFS {
       // this can happen with a upper path that is just `/`
       // in this case, '' is preserved, so we use cwdLower
       // partsLower = partsUpper;
-      pathLowerData = this.cwdLower;
-      pathLowerMeta = this.cwdLower;
+      pathLowerData = this.lower.dir;
+      pathLowerMeta = this.lower.dir;
     } else {
       const partsLower = partsUpper.slice(0, partsUpper.length - 1).map((p) => {
         return p + '.data';
@@ -368,12 +453,12 @@ class EncryptedFS extends VirtualFS {
       const partsLowerLastMeta = '.' + partsUpper[partsUpper.length - 1] + '.meta';
       const pathLower = pathNode.posix.join(...partsLower);
       pathLowerData = pathNode.posix.resolve(
-        this.cwdLower,
+        this.lower.dir,
         pathLower,
         partsLowerLastData
       );
       pathLowerMeta = pathNode.posix.resolve(
-        this.cwdLower,
+        this.lower.dir,
         pathLower,
         partsLowerLastMeta
       );
