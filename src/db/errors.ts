@@ -16,6 +16,13 @@ class ErrorDBKeyWrite extends ErrorDB {}
 
 class ErrorDBKeyParse extends ErrorDB {}
 
+class ErrorDBCommitted extends ErrorDB {}
+
+class ErrorDBNotCommited extends ErrorDB {}
+
+class ErrorDBRollbacked extends ErrorDB {}
+
+
 export {
   ErrorDB,
   ErrorDBNotStarted,
@@ -25,4 +32,7 @@ export {
   ErrorDBKeyRead,
   ErrorDBKeyWrite,
   ErrorDBKeyParse,
+  ErrorDBCommitted,
+  ErrorDBNotCommited,
+  ErrorDBRollbacked
 };

@@ -34,7 +34,8 @@ interface DBTransaction {
 
   ops: Readonly<DBOps>;
   snap: ReadonlyMap<string, any>;
-  callbacks: Readonly<Array<() => any>>;
+  callbacksSuccess: Readonly<Array<() => any>>;
+  callbacksFailure: Readonly<Array<() => any>>;
   committed: boolean;
 
   get<T>(
@@ -66,7 +67,11 @@ interface DBTransaction {
     key: string | Buffer,
   ): Promise<void>;
 
-  queue(
+  queueSuccess(
+    f: () => any
+  ): void;
+
+  queueFailure(
     f: () => any
   ): void;
 

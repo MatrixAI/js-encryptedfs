@@ -8,8 +8,6 @@ class ErrorINodesParentMissing extends ErrorINodes {}
 
 class ErrorINodesInvalidName extends ErrorINodes {}
 
-// return Promise.reject(new Error('Not allowed to add `.` or `..` entries'));
-
 export {
   ErrorINodes,
   ErrorINodesIndexMissing,

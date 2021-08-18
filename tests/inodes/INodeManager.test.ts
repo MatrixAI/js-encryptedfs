@@ -8,6 +8,7 @@ import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
+import { countReset } from 'console';
 
 describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [new StreamHandler()]);
@@ -34,89 +35,36 @@ describe('INodeManager', () => {
     });
   });
   test.only('create and destroy directories', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-
-
-    // so the ops are provided
-    // once we have done this
-    // we can join this with dir add entry ops
-    // and then we know that we can "link" the thing we just added
-    // note that dirSetEntryOps
-    // has no snapshot atm
-    // linkOps
-    // should be done ahead of time
-    // so we know how many of them
-    // if we do that we need to know that we are getting the counter
-
-
-    // so that means linkOps dirCreateOps and dirSetEntryOps
-    // are ALL completely different!
-
-    // you need to be able to lock for a given indoe
-
-
-    const [parentOps, parentIno] = await iNodeMgr.dirCreateOps({
-      mode: vfs.DEFAULT_ROOT_PERM,
-      uid: vfs.DEFAULT_ROOT_UID,
-      gid: vfs.DEFAULT_ROOT_GID
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger
     });
-
-    // now you have to "link" parent
-    const [childOps, childIno] = await iNodeMgr.dirCreateOps({
-      mode: vfs.DEFAULT_DIRECTORY_PERM
-    }, parentIno);
-
-    // now you have to link child
-    const dirOps = await iNodeMgr.dirSetEntryOps(parentIno, 'childdir', childIno);
-
-    // suppose you were to add link on dirSetEntryOps
-    // suppose you were to delete the entry ops?
-    // then suppose you needed
-
-    console.log(parentOps, childOps, dirOps);
-
-    // mkdir sync
-
-
-    // you now have to look the dirSetEntryOps
-    // otherwise another operation in the midst
-    // may set the counter
-    // so the "counter" in this case is the nlink counter
-
-    // we need locks indexed by ino
-    // no weakmap
-    // just map
-    // delete the locks when not needed
-    // but leave them around for later deletion if necessary
-    // this is what we can combine the deletion and removal?
-    // like imagine creating a large FS
-    // it's sort of in-memory, but sort of not
-    // cause lots of operations as an array
-
-
-    // we know we can "join" up ops
-    // and do the atomic operations on the outside world
-    // the counter is dealt with
-    // what about the inode index?
-    // it needs to be returned as well
-    // not just the ops
-
+    const parentIno = iNodeMgr.inoAllocate();
+    const childIno = iNodeMgr.inoAllocate()
+    await iNodeMgr.transaction(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(parentIno);
+        iNodeMgr.inoDeallocate(childIno);
+      });
+      await iNodeMgr.dirCreate(tran, parentIno, {
+        mode: vfs.DEFAULT_ROOT_PERM,
+        uid: vfs.DEFAULT_ROOT_UID,
+        gid: vfs.DEFAULT_ROOT_GID
+      });
+      await iNodeMgr.dirCreate(tran, childIno, {
+        mode: vfs.DEFAULT_DIRECTORY_PERM
+      }, parentIno);
+      await iNodeMgr.dirSetEntry(
+        tran,
+        parentIno,
+        'childdir',
+        childIno
+      );
+      console.log(tran.ops);
+    }, [parentIno, childIno]);
   });
 
-
-  // test('create inodes', async () => {
-  //   const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-  //   const [rootINode, rootINodeIndex] = await iNodeMgr.createINode(
-  //     'Directory',
-  //     { params: {
-  //       mode: vfs.DEFAULT_ROOT_PERM,
-  //       uid: vfs.DEFAULT_ROOT_UID,
-  //       gid: vfs.DEFAULT_ROOT_GID
-  //     } }
-  //   );
-  //   expect(rootINodeIndex).toBe(1);
-
-  //   // let's create subdirectories
 
   // });
   // test('create directories and subdirectories', async () => {

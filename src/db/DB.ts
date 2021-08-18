@@ -136,14 +136,22 @@ class DB {
     f: (t: DBTransaction) => Promise<T>,
     locks: Array<MutexInterface> = [this.lock]
   ): Promise<T> {
+    const tran = new Transaction(this);
     const releases: Array<MutexInterface.Releaser> = [];
     for (const l of locks) {
       releases.push(await l.acquire());
     }
-    const t = new Transaction(this);
     try {
-      const value = f(t);
-      await t.commit();
+      let value;
+      try {
+        value = f(tran);
+        await tran.commit();
+      } catch (e) {
+        await tran.rollback();
+        throw e;
+      }
+      // only finalize if commit succeeded
+      await tran.finalize();
       return value;
     } finally {
       // release them in the opposite order

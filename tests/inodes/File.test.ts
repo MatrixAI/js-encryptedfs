@@ -37,36 +37,34 @@ describe('File INode', () => {
   });
   test('create a file INode', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-    const data = Buffer.from('File INode Creation');
-    const iNode = await File.createFile({
-      params: {
-        ino: 1,
-        mode: vfs.DEFAULT_FILE_PERM,
-        uid: vfs.DEFAULT_ROOT_UID,
-        gid: vfs.DEFAULT_ROOT_GID,
-      },
-      iNodeMgr: iNodeMgr,
-      lock,
-      data: data,
+    let iNode;
+    await db.transaction(async (tran) => {
+      iNode = await iNodeMgr.fileCreate(
+        tran,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+      );
     });
-    expect(iNode).toBeInstanceOf(File);
+    expect(typeof iNode).toBe('number');
   });
-  test('access data in file iNode', async () => {
+  test('access data in a file INode', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-    const data = Buffer.from('File INode Creation');
-    const iNode = await File.createFile({
-      params: {
-        ino: 1,
-        mode: vfs.DEFAULT_FILE_PERM,
-        uid: vfs.DEFAULT_ROOT_UID,
-        gid: vfs.DEFAULT_ROOT_GID,
-      },
-      iNodeMgr: iNodeMgr,
-      lock,
-      data: data,
+    await db.transaction(async (tran) => {
+      const iNode = await iNodeMgr.fileCreate(
+        tran,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+      );
+      await iNodeMgr.fileSetData(tran, iNode, Buffer.from('Test Buffer'), 2);
+      for await (const block of iNodeMgr.fileGetBlocks(tran, iNode)) {
+        console.log(block)
+      }
     });
-    for await (const block of iNode.getBlocks(1, 4)) {
-      console.log(data);
-    }
   });
 });

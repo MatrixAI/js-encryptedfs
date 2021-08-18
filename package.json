@@ -44,6 +44,7 @@
     "lexicographic-integer": "^1.1.0",
     "node-forge": "^0.10.0",
     "readable-stream": "^3.6.0",
+    "resource-counter": "^1.2.4",
     "sublevel-prefixer": "^1.0.0",
     "subleveldown": "^5.0.1",
     "threads": "^1.6.5",

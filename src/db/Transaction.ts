@@ -2,6 +2,7 @@ import type DB from './DB';
 import type { DBDomain, DBOps, DBTransaction } from './types';
 
 import * as dbUtils from './utils';
+import * as dbErrors from './errors';
 
 /**
  * Minimal transaction system
@@ -20,8 +21,10 @@ class Transaction implements DBTransaction {
   protected db: DB;
   protected _ops: DBOps = [];
   protected _snap: Map<string, any> = new Map;
-  protected _callbacks: Array<() => any> = [];
+  protected _callbacksSuccess: Array<() => any> = [];
+  protected _callbacksFailure: Array<() => any> = [];
   protected _committed: boolean = false;
+  protected _rollbacked: boolean = false;
 
   public constructor (db: DB) {
     this.db = db;
@@ -35,12 +38,20 @@ class Transaction implements DBTransaction {
     return this._snap;
   }
 
-  get callbacks(): Readonly<Array<() => any>> {
-    return this._callbacks;
+  get callbacksSuccess(): Readonly<Array<() => any>> {
+    return this._callbacksSuccess;
+  }
+
+  get callbacksFailure(): Readonly<Array<() => any>> {
+    return this._callbacksFailure;
   }
 
   get committed(): boolean {
     return this._committed;
+  }
+
+  get rollbacked(): boolean {
+    return this._rollbacked;
   }
 
   public async get<T>(
@@ -57,13 +68,13 @@ class Transaction implements DBTransaction {
     domain: DBDomain,
     key: string | Buffer,
     raw: boolean = false,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     const path = dbUtils.domainPath(domain, key).toString('binary');
-    let value;
+    let value: T | undefined;
     if (this._snap.has(path)) {
       value = this._snap.get(path);
     } else {
-      value = await this.db.get(domain, key, raw as any);
+      value = await this.db.get<T>(domain, key, raw as any);
       // don't need this atm
       // there is no repeatable-read "snapshot"
       // this._snap.set(path, value);
@@ -99,7 +110,6 @@ class Transaction implements DBTransaction {
       value,
       raw
     });
-    return;
   }
 
   public async del(
@@ -113,14 +123,20 @@ class Transaction implements DBTransaction {
       domain,
       key,
     });
-    return;
   }
 
-  public queue(f: () => any): void {
-    this._callbacks.push(f);
+  public queueSuccess(f: () => any): void {
+    this._callbacksSuccess.push(f);
+  }
+
+  public queueFailure(f: () => any): void {
+    this._callbacksFailure.push(f);
   }
 
   public async commit(): Promise<void> {
+    if (this._rollbacked) {
+      throw new dbErrors.ErrorDBRollbacked;
+    }
     if (this._committed) {
       return;
     }
@@ -131,10 +147,31 @@ class Transaction implements DBTransaction {
       this._committed = false;
       throw e;
     }
-    for (const f of this._callbacks) {
+  }
+
+  public async rollback(): Promise<void> {
+    if (this._committed) {
+      throw new dbErrors.ErrorDBCommitted;
+    }
+    if (this._rollbacked) {
+      return;
+    }
+    this._rollbacked = true;
+    for (const f of this._callbacksFailure) {
       await f();
     }
-    return;
+  }
+
+  public async finalize (): Promise<void> {
+    if (this._rollbacked) {
+      throw new dbErrors.ErrorDBRollbacked;
+    }
+    if (!this._committed) {
+      throw new dbErrors.ErrorDBNotCommited;
+    }
+    for (const f of this._callbacksSuccess) {
+      await f();
+    }
   }
 
 }
