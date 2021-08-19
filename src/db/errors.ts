@@ -2,7 +2,11 @@ import { CustomError } from 'ts-custom-error';
 
 class ErrorDB extends CustomError {}
 
+class ErrorDBStarted extends ErrorDB {}
+
 class ErrorDBNotStarted extends ErrorDB {}
+
+class ErrorDBDestroyed extends ErrorDB {}
 
 class ErrorDBLevelPrefix extends ErrorDB {}
 
@@ -25,7 +29,9 @@ class ErrorDBRollbacked extends ErrorDB {}
 
 export {
   ErrorDB,
+  ErrorDBStarted,
   ErrorDBNotStarted,
+  ErrorDBDestroyed,
   ErrorDBLevelPrefix,
   ErrorDBDecrypt,
   ErrorDBParse,

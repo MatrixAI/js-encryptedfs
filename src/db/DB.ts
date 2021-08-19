@@ -16,6 +16,31 @@ import { WorkerManager } from '../workers';
 import { maybeCallback } from '../utils';
 
 class DB {
+
+  public static async createDB({
+    dbKey,
+    dbPath,
+    lock = new Mutex,
+    fs = require('fs'),
+    logger = new Logger(this.name),
+  }: {
+    dbKey: Buffer;
+    dbPath: string;
+    lock?: MutexInterface;
+    fs?: FileSystem;
+    logger?: Logger;
+  }) {
+    const db = new DB({
+      dbKey,
+      dbPath,
+      lock,
+      fs,
+      logger
+    });
+    await db.start();
+    return db;
+  }
+
   public readonly dbPath: string;
 
   protected dbKey: Buffer;
@@ -25,8 +50,9 @@ class DB {
   protected workerManager?: WorkerManager;
   protected _db: LevelDB<string | Buffer, Buffer>;
   protected _started: boolean = false;
+  protected _destroyed: boolean = false;
 
-  public constructor({
+  protected constructor({
     dbKey,
     dbPath,
     lock,
@@ -35,39 +61,45 @@ class DB {
   }: {
     dbKey: Buffer;
     dbPath: string;
-    lock?: MutexInterface;
-    fs?: FileSystem;
-    logger?: Logger;
+    lock: MutexInterface;
+    fs: FileSystem;
+    logger: Logger;
   }) {
-    this.logger = logger ?? new Logger(this.constructor.name);
+    this.logger = logger;
     this.dbKey = dbKey;
     this.dbPath = dbPath;
-    this.lock = lock ?? new Mutex;
-    this.fs = fs ?? require('fs');
+    this.lock = lock;
+    this.fs = fs;
   }
 
   get db(): LevelDB<string, Buffer> {
     return this._db;
   }
 
+  get locked(): boolean {
+    return this.lock.isLocked();
+  }
+
   get started(): boolean {
     return this._started;
   }
 
-  get locked(): boolean {
-    return this.lock.isLocked();
+  get destroyed(): boolean {
+    return this._destroyed;
   }
 
   public async start(): Promise<void>;
   public async start(callback: Callback): Promise<void>;
   public async start(callback?: Callback): Promise<void> {
-    return maybeCallback(async () => {
-      try {
+    return maybeCallback(async () => this.withLocks(
+      async () => {
         if (this._started) {
           return;
         }
+        if (this._destroyed) {
+          throw new dbErrors.ErrorDBDestroyed;
+        }
         this.logger.info('Starting DB');
-        this._started = true;
         this.logger.info(`Setting DB path to ${this.dbPath}`);
         try {
           await this.fs.promises.mkdir(
@@ -79,7 +111,7 @@ class DB {
             throw e;
           }
         }
-        const db = await new Promise<LevelDB<string | Buffer, Buffer>>(
+        const dbLevel = await new Promise<LevelDB<string | Buffer, Buffer>>(
           (resolve, reject) => {
             const db = level(this.dbPath, {
               keyEncoding: 'binary',
@@ -93,27 +125,47 @@ class DB {
             });
           },
         );
-        this._db = db;
+        this._db = dbLevel;
+        this._started = true;
         this.logger.info('Started DB');
-      } catch (e) {
-        this._started = false;
-        throw e;
-      }
-    }, callback);
+      }),
+      callback
+    );
   }
 
   public async stop(): Promise<void>;
   public async stop(callback: Callback): Promise<void>;
   public async stop(callback?: Callback): Promise<void> {
-    return maybeCallback(async () => {
-      if (!this._started) {
-        return;
-      }
-      this.logger.info('Stopping DB');
-      this._started = false;
-      await this.db.close();
-      this.logger.info('Stopped DB');
-    }, callback);
+    return maybeCallback(async () => this.withLocks(
+      async () => {
+        if (!this._started) {
+          return;
+        }
+        this.logger.info('Stopping DB');
+        await this.db.close();
+        this._started = false;
+        this.logger.info('Stopped DB');
+      }),
+      callback
+    );
+  }
+
+  public async destroy(): Promise<void>;
+  public async destroy(callback: Callback): Promise<void>;
+  public async destroy(callback?: Callback): Promise<void> {
+    return maybeCallback(async () => this.withLocks(
+      async () => {
+        if (this.destroyed) {
+          return;
+        }
+        if (this._started) {
+          throw new dbErrors.ErrorDBStarted;
+        }
+        await this.fs.promises.rm(this.dbPath, { recursive: true });
+        this._destroyed = true;
+      }),
+      callback
+    );
   }
 
   public setWorkerManager(workerManager: WorkerManager) {
@@ -124,6 +176,25 @@ class DB {
     delete this.workerManager;
   }
 
+  public async withLocks<T>(
+    f: () => Promise<T>,
+    locks: Array<MutexInterface> = [this.lock]
+  ): Promise<T> {
+    const releases: Array<MutexInterface.Releaser> = [];
+    for (const l of locks) {
+      releases.push(await l.acquire());
+    }
+    try {
+      return await f();
+    } finally {
+      // release them in the opposite order
+      releases.reverse();
+      for (const r of releases) {
+        r();
+      }
+    }
+  }
+
   /**
    * Attempts to lock in sequence
    * If you don't pass any
@@ -132,19 +203,18 @@ class DB {
    * And commits the operations at the very end
    * This allows one to create a lock to be shared between mutliple transactions
    */
-  public async transaction<T>(
+  public async transact<T>(
     f: (t: DBTransaction) => Promise<T>,
     locks: Array<MutexInterface> = [this.lock]
   ): Promise<T> {
-    const tran = new Transaction(this);
-    const releases: Array<MutexInterface.Releaser> = [];
-    for (const l of locks) {
-      releases.push(await l.acquire());
-    }
-    try {
-      let value;
+    return this.withLocks(async () => {
+      if (!this._started) {
+        throw new dbErrors.ErrorDBNotStarted();
+      }
+      const tran = new Transaction({ db: this, logger: this.logger });
+      let value: T;
       try {
-        value = f(tran);
+        value = await f(tran);
         await tran.commit();
       } catch (e) {
         await tran.rollback();
@@ -153,13 +223,7 @@ class DB {
       // only finalize if commit succeeded
       await tran.finalize();
       return value;
-    } finally {
-      // release them in the opposite order
-      releases.reverse();
-      for (const r of releases) {
-        r();
-      }
-    }
+    }, locks);
   }
 
   public async level(domain: string | Buffer, dbLevel?: DBLevel): Promise<DBLevel>;

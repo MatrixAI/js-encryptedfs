@@ -1,15 +1,16 @@
-import type { MutexInterface } from 'async-mutex';
 import type { StatProps } from '../Stat';
 import type { Opaque } from '../types';
 
-type INodeIndex = number;
+type INodeIndex = Opaque<'INodeIndex', number>;
 
 type INodeId = Opaque<'INodeId', Buffer>;
 
 type INodeType = 'File' | 'Directory' | 'Symlink' | 'CharacterDev';
 
 type INodeData = {
+  ino: INodeIndex;
   type: INodeType;
+  gc: boolean;
 };
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;

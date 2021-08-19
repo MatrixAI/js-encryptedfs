@@ -3,8 +3,7 @@ import type { DeviceManager } from 'virtualfs';
 import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
 import type { DB } from '../db';
 import type { StatProps } from '../Stat';
-import type { DBDomain, DBLevel, DBOps, DBTransaction } from '../db/types';
-import type { Callback } from '../types';
+import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
 
 import * as vfs from 'virtualfs';
 import Logger from '@matrixai/logger';
@@ -49,7 +48,7 @@ class INodeManager {
     const dataDb = await db.level(dataDomain[1], mgrDb);
     const dirsDb = await db.level(dirsDomain[1], mgrDb);
     const linkDb = await db.level(linkDomain[1], mgrDb);
-    const gcDb = await db.level(iNodesDomain[1], mgrDb);
+    const gcDb = await db.level(gcDomain[1], mgrDb);
     for await (const k of iNodesDb.createKeyStream()) {
       counter.allocate(
         inodesUtils.uniNodeId(k as INodeId)
@@ -77,13 +76,12 @@ class INodeManager {
     });
     // clean up any dangling inodes
     for await (const k of gcDb.createKeyStream()) {
-      // no need for locking as this is done at the beginning
-      await db.transaction(async (tran) => {
+      await db.transact(async (tran) => {
         await iNodeMgr.destroy(
           tran,
           inodesUtils.uniNodeId(k as INodeId)
         );
-      }, []);
+      });
     }
     return iNodeMgr;
   }
@@ -99,13 +97,14 @@ class INodeManager {
   protected _db: DB;
   protected _devMgr: DeviceManager;
   protected counter: Counter;
-  protected mgrDb: DBLevel;
-  protected iNodesDb: DBLevel;
-  protected statsDb: DBLevel;
-  protected dataDb: DBLevel;
-  protected dirsDb: DBLevel;
-  protected linkDb: DBLevel;
-  protected gcDb: DBLevel;
+
+  public mgrDb: DBLevel;
+  public iNodesDb: DBLevel;
+  public statsDb: DBLevel;
+  public dataDb: DBLevel;
+  public dirsDb: DBLevel;
+  public linkDb: DBLevel;
+  public gcDb: DBLevel;
   protected refs: Map<INodeIndex, number> = new Map;
   protected locks: Map<INodeIndex, MutexInterface> = new Map;
 
@@ -186,12 +185,15 @@ class INodeManager {
     return this.counter.deallocate(ino);
   }
 
-  public async transaction<T>(
+  /**
+   * By default will not lock anything
+   */
+  public async transact<T>(
     f: (t: DBTransaction) => Promise<T>,
     inos: Array<INodeIndex> = []
   ) {
     // will lock nothing by default
-    return await this.db.transaction(
+    return await this.db.transact(
       f,
       inos.map(this.getLock.bind(this))
     );
@@ -227,15 +229,23 @@ class INodeManager {
     tran: DBTransaction,
     ino: INodeIndex,
     params: DirectoryParams,
-    parent?: INodeIndex,
+    parent?: INodeIndex
   ): Promise<void> {
     const mode = vfs.constants.S_IFDIR | ((params.mode ?? 0) & (~vfs.constants.S_IFMT));
     const dirDomain = [...this.dirsDomain, ino.toString()];
     let nlink: number;
     if (parent == null) {
+      // root cannot never be garbage collected
       nlink = 2;
       parent = ino;
+      if (await this.dirGetRoot(tran) != null) {
+        throw new inodesErrors.ErrorINodesDuplicateRoot();
+      }
+      await this.dirSetRoot(tran, ino);
     } else {
+      if (await this.get(tran, parent) == null) {
+        throw new inodesErrors.ErrorINodesParentMissing;
+      }
       nlink = 1;
     }
     await this.iNodeCreate(
@@ -310,7 +320,7 @@ class INodeManager {
     params.mtime = params.mtime ?? now;
     params.ctime = params.ctime ?? now;
     params.birthtime = params.birthtime ?? now;
-    await tran.put(this.iNodesDomain, inodesUtils.iNodeId(params.ino), type);
+    await tran.put(this.iNodesDomain, inodesUtils.iNodeId(params.ino as INodeIndex), type);
     await tran.put(statDomain, 'ino', params.ino);
     for (const [key, value] of Object.entries(params)) {
       switch (key) {
@@ -382,9 +392,11 @@ class INodeManager {
   ): Promise<void> {
     const dirDomain = [...this.dirsDomain, ino.toString()];
     const dirDb = await this.db.level(ino.toString(), this.dirsDb);
-    const parent = (await tran.get<number>(dirDomain, '..'))!;
+    const parent = (await tran.get<INodeIndex>(dirDomain, '..'))!;
     if (parent !== ino) {
-      await this.unlink(tran, ino);
+      await this.unlink(tran, parent);
+    } else {
+      await this.dirUnsetRoot(tran);
     }
     for await (const k of dirDb.createKeyStream()) {
       await tran.del(dirDomain, k);
@@ -435,12 +447,31 @@ class INodeManager {
     await tran.del(this.gcDomain, inodesUtils.iNodeId(ino));
   }
 
-  public async getType(tran: DBTransaction, ino: INodeIndex): Promise<INodeType> {
+  /**
+   * Gets the INodeData
+   * Use this to test if an ino number exists
+   * You can use the returned ino for subsequent operations
+   */
+  public async get(
+    tran: DBTransaction,
+    ino: number
+  ): Promise<INodeData | undefined> {
     const type = await tran.get<INodeType>(
       this.iNodesDomain,
-      inodesUtils.iNodeId(ino),
+      inodesUtils.iNodeId(ino as INodeIndex),
     );
-    return type!;
+    if (type == null)  {
+      return;
+    }
+    const gc = await tran.get<null>(
+      this.gcDomain,
+      inodesUtils.iNodeId(ino as INodeIndex)
+    );
+    return {
+      ino: ino as INodeIndex,
+      type,
+      gc: (gc !== undefined)
+    };
   }
 
   public async link(
@@ -460,8 +491,7 @@ class INodeManager {
     await this.gc(tran, ino);
   }
 
-  public async ref(
-    tran: DBTransaction,
+  public ref(
     ino: INodeIndex
   ) {
     const refCount = this.refs.get(ino) ?? 0;
@@ -480,27 +510,21 @@ class INodeManager {
     await this.gc(tran, ino);
   }
 
-  public async gc(tran: DBTransaction, ino: INodeIndex): Promise<void> {
+  protected async gc(tran: DBTransaction, ino: INodeIndex): Promise<void> {
     const refs = this.refs.get(ino) ?? 0;
     const nlink = await this.statGetProp(tran, ino, 'nlink');
-
-    // this tries to acquire a type
-    // just in case for nlink...
-    // since nlink of 1 for directory is sufficient
     const type = (await tran.get<INodeType>(
       this.iNodesDomain,
       inodesUtils.iNodeId(ino),
     ))!;
-
+    // the root directory will never be deleted
     if (nlink === 0 || nlink === 1 && type === 'Directory') {
       if (refs === 0) {
-        // delete now
         await this.destroy(tran, ino);
       } else {
         // schedule for deletion
-        // when it is scheduled for deletion
+        // when scheduled for deletion
         // it is not allowed for mutation of the directory to occur
-        // that's something that should be tested
         await tran.put(
           this.gcDomain,
           inodesUtils.iNodeId(ino),
@@ -608,6 +632,25 @@ class INodeManager {
     await tran.del(statDomain, key);
   }
 
+  public async dirGetRoot(
+    tran: DBTransaction
+  ): Promise<INodeIndex | undefined> {
+    return tran.get<INodeIndex>(this.mgrDomain, 'root');
+  }
+
+  protected async dirSetRoot(
+    tran: DBTransaction,
+    ino: INodeIndex
+  ): Promise<void> {
+    await tran.put(this.mgrDomain, 'root', ino);
+  }
+
+  protected async dirUnsetRoot(
+    tran: DBTransaction,
+  ): Promise<void> {
+    await tran.del(this.mgrDomain, 'root');
+  }
+
   /**
    * Iterators are not part of our snapshot yet
    */
@@ -618,7 +661,10 @@ class INodeManager {
     const dirDb = await this.db.level(ino.toString(), this.dirsDb);
     for await (const o of dirDb.createReadStream()) {
       const name = (o as any).key.toString('utf-8') as string;
-      const value = (o as any).value as INodeIndex;
+      const value = await this.db.deserializeDecrypt<INodeIndex>(
+        (o as any).value,
+        false
+      );
       yield [name, value];
     }
   }
@@ -627,9 +673,9 @@ class INodeManager {
     tran: DBTransaction,
     ino: INodeIndex,
     name: string,
-  ): Promise<number | undefined> {
+  ): Promise<INodeIndex | undefined> {
     const dirDomain = [...this.dirsDomain, ino.toString()];
-    return tran.get<number>(dirDomain, name);
+    return tran.get<INodeIndex>(dirDomain, name);
   }
 
   public async dirSetEntry(
@@ -639,6 +685,9 @@ class INodeManager {
     value: INodeIndex
   ): Promise<void> {
     const dirDomain = [...this.dirsDomain, ino.toString()];
+    if (await this.get(tran, value) == null) {
+      throw new inodesErrors.ErrorINodesIndexMissing;
+    }
     const existingValue = await tran.get<INodeIndex>(dirDomain, name);
     if (existingValue === value) {
       return;
@@ -670,6 +719,23 @@ class INodeManager {
     await this.unlink(tran, existingValue);
   }
 
+  public async dirResetEntry(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    nameOld: string,
+    nameNew: string
+  ): Promise<void> {
+    const dirDomain = [...this.dirsDomain, ino.toString()];
+    const inoOld = await tran.get<INodeIndex>(dirDomain, nameOld);
+    if (inoOld == null) {
+      throw new inodesErrors.ErrorINodesInvalidName;
+    }
+    // the order must be set then unset
+    // it cannot work if unset then set, the old inode may get garbage collected
+    await this.dirSetEntry(tran, ino, nameNew, inoOld);
+    await this.dirUnsetEntry(tran, ino, nameOld);
+  }
+
   public async symlinkGetLink(
     tran: DBTransaction,
     ino: INodeIndex
@@ -684,7 +750,7 @@ class INodeManager {
   public async charDevGetFileDesOps(
     tran: DBTransaction,
     ino: INodeIndex
-  ): Promise<vfs.DeviceInterface<vfs.CharacterDev> | undefined> {
+  ): Promise<Readonly<vfs.DeviceInterface<vfs.CharacterDev>> | undefined> {
     const rdev = await this.statGetProp(tran, ino, 'rdev');
     const [major, minor] = vfs.unmkDev(rdev);
     return this.devMgr.getChr(major, minor);

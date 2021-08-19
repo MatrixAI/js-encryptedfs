@@ -24,15 +24,9 @@ describe('DB', () => {
       recursive: true,
     });
   });
-  test('construction has no side effects', async () => {
+  test('async construction constructs the db leveldb', async () => {
     const dbPath = `${dataDir}/db`;
-    new DB({ dbKey, dbPath, logger });
-    await expect(fs.promises.stat(dbPath)).rejects.toThrow(/ENOENT/);
-  });
-  test('async start constructs the db leveldb', async () => {
-    const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
-    await db.start();
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     const dbPathContents = await fs.promises.readdir(dbPath);
     expect(dbPathContents.length).toBeGreaterThan(1);
     await db.stop();
@@ -41,7 +35,7 @@ describe('DB', () => {
     'get and put and del',
     async () => {
       const dbPath = `${dataDir}/db`;
-      const db = new DB({ dbKey, dbPath, logger });
+      const db = await DB.createDB({ dbKey, dbPath, logger });
       await db.start();
       await db.db.clear();
       await db.put([], 'a', 'value0');
@@ -59,7 +53,7 @@ describe('DB', () => {
   );
   test('db levels are leveldbs', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     await db.db.put('a', await db.serializeEncrypt('value0', false));
     expect(await db.get([], 'a')).toBe('value0');
@@ -74,7 +68,7 @@ describe('DB', () => {
   });
   test('db levels are just ephemeral abstractions', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     // there's no need to actually create a sublevel instance
     // if you are always going to directly use the root
@@ -89,7 +83,7 @@ describe('DB', () => {
   });
   test('db levels are facilitated by key prefixes', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     const level1 = await db.level('level1');
     const level2a = await db.level('100', level1);
@@ -124,7 +118,7 @@ describe('DB', () => {
     // the default encoding is utf-8
     // so they can be represented as strings
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     const level1 = await db.level(Buffer.from('level1'));
     await db.put(['level1'], 'a', 'value1');
@@ -141,7 +135,7 @@ describe('DB', () => {
   });
   test('clearing a db level clears all sublevels', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     const level1 = await db.level('level1');
     await db.level('level2', level1);
@@ -160,7 +154,7 @@ describe('DB', () => {
   test('lexicographic iteration order', async () => {
     // leveldb stores keys in lexicographic order
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     // sorted order [ 'AQ', 'L', 'Q', 'fP' ]
     const keys = ["Q", "fP", "AQ", "L"];
@@ -179,7 +173,7 @@ describe('DB', () => {
   test('lexicographic integer iteration', async () => {
     // using the lexicographic-integer encoding
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     // sorted order should be [3, 4, 42, 100]
     const keys = [100, 3, 4, 42];
@@ -198,7 +192,7 @@ describe('DB', () => {
   });
   test('db level lexicographic iteration', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     const level1 = await db.level('level1');
     const keys1 = ["Q", "fP", "AQ", "L"];
@@ -232,7 +226,7 @@ describe('DB', () => {
   });
   test('get and put and del on string and buffer keys', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     await db.db.clear();
     // 'string' is the same as Buffer.from('string')
@@ -258,105 +252,105 @@ describe('DB', () => {
     expect(await db.get(['level1'], Buffer.from('string'))).toBeUndefined();
     await db.stop();
   });
-  test('get and put and del callback style', (done) => {
-    const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
-    db.start((e) => {
-      expect(e).toBeNull();
-      db.put([], 'a', 'value0', () => {
-        expect(e).toBeNull();
-        db.get([], 'a', (_, value) => {
-          expect(value).toBe('value0');
-          db.del([], 'a', (e) => {
-            expect(e).toBeNull();
-            db.get([], 'a', (e, value) => {
-              expect(e).toBeNull();
-              expect(value).toBeUndefined();
-              db.level('level1', (e) => {
-                expect(e).toBeNull();
-                db.put(['level1'], 'a', 'value1', () => {
-                  db.get(['level1'], 'a', (e, value) => {
-                    expect(e).toBeNull();
-                    expect(value).toBe('value1');
-                    db.del(['level1'], 'a', () => {
-                      db.get(['level1'], 'a', (_, value) => {
-                        expect(value).toBeUndefined();
-                        db.stop(() => {
-                          done();
-                        })
-                      });
-                    });
-                  });
-                });
-              });
-            });
-          });
-        });
-      });
-    });
-  });
-  test('level callback style', (done) => {
-    const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
-    db.start((e) => {
-      expect(e).toBeNull();
-      db.level('level1', (e, level1) => {
-        expect(e).toBeNull();
-        db.level('level2', level1, (e, level2) => {
-          expect(e).toBeNull();
-          expect(level2).toBeDefined();
-          db.stop((e) => {
-            expect(e).toBeNull();
-            done();
-          });
-        });
-      });
-    });
-  });
-  test('batch callback style', (done) => {
-    const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
-    db.start((e) => {
-      expect(e).toBeNull();
-      const ops: Array<DBOp> = [
-        {
-          type: 'put',
-          domain: [],
-          key: 'a',
-          value: 'something'
-        },
-        {
-          type: 'put',
-          domain: [],
-          key: 'b',
-          value: 'something'
-        },
-        {
-          type: 'del',
-          domain: [],
-          key: 'a'
-        }
-      ];
-      db.batch(ops, (e) => {
-        expect(e).toBeNull();
-        db.get([], 'a', (e, value) => {
-          expect(e).toBeNull();
-          expect(value).toBeUndefined();
-          db.get([], 'b', (e, value) => {
-            expect(e).toBeNull();
-            expect(value).toBe('something');
-            db.stop((e) => {
-              expect(e).toBeNull();
-              done();
-            });
-          });
-        });
-      });
-    });
-  });
+  // test('get and put and del callback style', (done) => {
+  //   const dbPath = `${dataDir}/db`;
+  //   const db = DB.createDB({ dbKey, dbPath, logger });
+  //   db.start((e) => {
+  //     expect(e).toBeNull();
+  //     db.put([], 'a', 'value0', () => {
+  //       expect(e).toBeNull();
+  //       db.get([], 'a', (_, value) => {
+  //         expect(value).toBe('value0');
+  //         db.del([], 'a', (e) => {
+  //           expect(e).toBeNull();
+  //           db.get([], 'a', (e, value) => {
+  //             expect(e).toBeNull();
+  //             expect(value).toBeUndefined();
+  //             db.level('level1', (e) => {
+  //               expect(e).toBeNull();
+  //               db.put(['level1'], 'a', 'value1', () => {
+  //                 db.get(['level1'], 'a', (e, value) => {
+  //                   expect(e).toBeNull();
+  //                   expect(value).toBe('value1');
+  //                   db.del(['level1'], 'a', () => {
+  //                     db.get(['level1'], 'a', (_, value) => {
+  //                       expect(value).toBeUndefined();
+  //                       db.stop(() => {
+  //                         done();
+  //                       })
+  //                     });
+  //                   });
+  //                 });
+  //               });
+  //             });
+  //           });
+  //         });
+  //       });
+  //     });
+  //   });
+  // });
+  // test('level callback style', (done) => {
+  //   const dbPath = `${dataDir}/db`;
+  //   const db = await DB.createDB({ dbKey, dbPath, logger });
+  //   db.start((e) => {
+  //     expect(e).toBeNull();
+  //     db.level('level1', (e, level1) => {
+  //       expect(e).toBeNull();
+  //       db.level('level2', level1, (e, level2) => {
+  //         expect(e).toBeNull();
+  //         expect(level2).toBeDefined();
+  //         db.stop((e) => {
+  //           expect(e).toBeNull();
+  //           done();
+  //         });
+  //       });
+  //     });
+  //   });
+  // });
+  // test('batch callback style', (done) => {
+  //   const dbPath = `${dataDir}/db`;
+  //   const db = await DB.createDB({ dbKey, dbPath, logger });
+  //   db.start((e) => {
+  //     expect(e).toBeNull();
+  //     const ops: Array<DBOp> = [
+  //       {
+  //         type: 'put',
+  //         domain: [],
+  //         key: 'a',
+  //         value: 'something'
+  //       },
+  //       {
+  //         type: 'put',
+  //         domain: [],
+  //         key: 'b',
+  //         value: 'something'
+  //       },
+  //       {
+  //         type: 'del',
+  //         domain: [],
+  //         key: 'a'
+  //       }
+  //     ];
+  //     db.batch(ops, (e) => {
+  //       expect(e).toBeNull();
+  //       db.get([], 'a', (e, value) => {
+  //         expect(e).toBeNull();
+  //         expect(value).toBeUndefined();
+  //         db.get([], 'b', (e, value) => {
+  //           expect(e).toBeNull();
+  //           expect(value).toBe('something');
+  //           db.stop((e) => {
+  //             expect(e).toBeNull();
+  //             done();
+  //           });
+  //         });
+  //       });
+  //     });
+  //   });
+  // });
   test('streams can be consumed with promises', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     await db.put([], 'a', 'value0');
     await db.put([], 'b', 'value1');
@@ -389,7 +383,7 @@ describe('DB', () => {
   });
   test('counting sublevels', async () => {
     const dbPath = `${dataDir}/db`;
-    const db = new DB({ dbKey, dbPath, logger });
+    const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     await db.put([], 'a', 'value0');
     await db.put([], 'b', 'value1');

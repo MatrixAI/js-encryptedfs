@@ -198,8 +198,14 @@ declare module 'virtualfs' {
   const MINOR_MIN: number;
   export class DeviceManager {
     public getChr(major: number, minor: number): DeviceInterface<CharacterDev> | undefined;
+    public registerChr(device: DeviceInterface<CharacterDev>, major?: number, minor?: number): void;
+    public deregisterChr(major: number, minor: number): void;
   }
   export class DeviceError extends Error {}
+  const nullDev: DeviceInterface<CharacterDev>;
+  const zeroDev: DeviceInterface<CharacterDev>;
+  const fullDev: DeviceInterface<CharacterDev>;
+  const randomDev: DeviceInterface<CharacterDev>;
   export function unmkDev(dev: number): [number, number];
   export function mkDev(major: number, minor: number): number;
 }

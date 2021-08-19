@@ -1,5 +1,3 @@
-import type { DBLevel, DBOp } from '@/db/types';
-
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
@@ -8,7 +6,6 @@ import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
-import { countReset } from 'console';
 
 describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [new StreamHandler()]);
@@ -20,12 +17,11 @@ describe('INodeManager', () => {
     dataDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'encryptedfs-test-'),
     );
-    db = new DB({
+    db = await DB.createDB({
       dbKey,
       dbPath: `${dataDir}/db`,
       logger
     });
-    await db.start();
   });
   afterEach(async () => {
     await db.stop();
@@ -34,175 +30,146 @@ describe('INodeManager', () => {
       recursive: true,
     });
   });
-  test.only('create and destroy directories', async () => {
+  test('inode manager is persistent across restarts', async () => {
+    let iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger
+    });
+    const rootIno = iNodeMgr.inoAllocate();
+    const childIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(rootIno);
+        iNodeMgr.inoDeallocate(childIno);
+      });
+      await iNodeMgr.dirCreate(tran, rootIno, {});
+      await iNodeMgr.dirCreate(tran, childIno, {}, rootIno);
+      await iNodeMgr.dirSetEntry(
+        tran,
+        rootIno,
+        'childdir',
+        childIno
+      );
+    }, [rootIno, childIno]);
+    await db.stop();
+    db = await DB.createDB({
+      dbKey,
+      dbPath: `${dataDir}/db`,
+      logger
+    });
+    iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger
+    });
+    await iNodeMgr.transact(async (tran) => {
+      const rootIno_ = await iNodeMgr.dirGetRoot(tran);
+      expect(rootIno_).toBeDefined();
+      expect(rootIno_).toBe(rootIno);
+      const childIno_ = await iNodeMgr.dirGetEntry(
+        tran,
+        rootIno,
+        'childdir'
+      );
+      expect(childIno_).toBeDefined();
+      expect(childIno_).toBe(childIno);
+    });
+  });
+  test('transactions are locked via inodes', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
       logger
     });
-    const parentIno = iNodeMgr.inoAllocate();
-    const childIno = iNodeMgr.inoAllocate()
-    await iNodeMgr.transaction(async (tran) => {
+    // demonstrate a counter increment race condition
+    await iNodeMgr.transact(async (tran) => {
+      await tran.put(iNodeMgr.mgrDomain, 'test', 0);
+    });
+    await Promise.all([
+      iNodeMgr.transact(async (tran) => {
+        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      }),
+      iNodeMgr.transact(async (tran) => {
+        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      })
+    ]);
+    await iNodeMgr.transact(async (tran) => {
+      const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+      // race condition clobbers the counter
+      expect(num).toBe(1);
+    });
+    // now with proper locking, the race condition doesn't happen
+    await iNodeMgr.transact(async (tran) => {
+      await tran.put(iNodeMgr.mgrDomain, 'test', 0);
+    });
+    const ino = iNodeMgr.inoAllocate();
+    await Promise.all([
+      iNodeMgr.transact(async (tran) => {
+        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      }, [ino]),
+      iNodeMgr.transact(async (tran) => {
+        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      }, [ino])
+    ]);
+    await iNodeMgr.transact(async (tran) => {
+      const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+      // race condition is solved by the locking the ino
+      expect(num).toBe(2);
+    });
+  });
+  test('inodes can be scheduled for deletion when there are references to them', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger
+    });
+    const rootIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
       tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(parentIno);
-        iNodeMgr.inoDeallocate(childIno);
+        iNodeMgr.inoDeallocate(rootIno);
       });
-      await iNodeMgr.dirCreate(tran, parentIno, {
+      await iNodeMgr.dirCreate(tran, rootIno, {
         mode: vfs.DEFAULT_ROOT_PERM,
         uid: vfs.DEFAULT_ROOT_UID,
         gid: vfs.DEFAULT_ROOT_GID
       });
+    }, [rootIno]);
+    const childIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(childIno);
+      });
       await iNodeMgr.dirCreate(tran, childIno, {
         mode: vfs.DEFAULT_DIRECTORY_PERM
-      }, parentIno);
+      }, rootIno);
       await iNodeMgr.dirSetEntry(
         tran,
-        parentIno,
+        rootIno,
         'childdir',
         childIno
       );
-      console.log(tran.ops);
-    }, [parentIno, childIno]);
+    }, [rootIno, childIno]);
+    await iNodeMgr.transact(async (tran) => {
+      iNodeMgr.ref(childIno);
+      await iNodeMgr.dirUnsetEntry(tran, rootIno, 'childdir');
+    }, [rootIno, childIno]);
+    await iNodeMgr.transact(async (tran) => {
+      const data = await iNodeMgr.get(tran, childIno);
+      expect(data).toBeDefined();
+      expect(data!.gc).toBe(true);
+      expect(data!.ino).toBe(childIno);
+    });
+    await iNodeMgr.transact(async (tran) => {
+      await iNodeMgr.unref(tran, childIno);
+    });
+    await iNodeMgr.transact(async (tran) => {
+      const data = await iNodeMgr.get(tran, childIno);
+      expect(data).toBeUndefined();
+    });
   });
-
-
-  // });
-  // test('create directories and subdirectories', async () => {
-  //   const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-  //   const [parentINode, parentINodeIndex] = await iNodeMgr.createINode(
-  //     'Directory',
-  //     {
-  //       params: {
-  //         mode: vfs.DEFAULT_ROOT_PERM,
-  //       }
-  //     }
-  //   );
-  //   const [childINode, childINodeIndex] = await iNodeMgr.createINode(
-  //     'Directory',
-  //     {
-  //       params: {
-  //         mode: vfs.DEFAULT_DIRECTORY_PERM
-  //       },
-  //       parent: parentINode
-  //     }
-  //   );
-  //   await parentINode.addEntry('child', childINode);
-  //   // child .. points to parent index
-  //   const childINodeIndex_ = await parentINode.getEntryIndex('child');
-  //   expect(childINodeIndex).toBe(childINodeIndex_);
-  //   const childINode_ = await parentINode.getEntry('child');
-  //   expect(childINode).toBe(childINode_);
-  //   // child .. points to parent
-  //   const parentINodeIndex_ = await childINode.getEntryIndex('..');
-  //   expect(parentINodeIndex).toBe(parentINodeIndex_);
-  //   const parentINode_ = await childINode.getEntry('..');
-  //   expect(parentINode).toBe(parentINode_);
-  //   // child points to itself and the parent points to to the child
-  //   const childNlink = await childINode.getStatProp('nlink');
-  //   expect(childNlink).toBe(2);
-  //   // parent points to itself twice and child points to it
-  //   const parentNlink = await parentINode.getStatProp('nlink');
-  //   expect(parentNlink).toBe(3);
-
-  //   // without a proper snapshot system
-  //   // the whole locking system won't work well
-  //   // so first you need leveldb transaction snapshots
-  //   // then you combine that with lock laziness
-
-  //   // await iNodeMgr.getAll();
-
-  // });
-  // test.only('remove child directories', async () => {
-  //   const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-  //   const [parentINode, parentINodeIndex] = await iNodeMgr.createINode(
-  //     'Directory',
-  //     {
-  //       params: {
-  //         mode: vfs.DEFAULT_ROOT_PERM,
-  //       }
-  //     }
-  //   );
-
-  //   // we can pass a lock here to acquire
-  //   // during the creation
-  //   // and then prevent it from other stuff
-  //   // nothing can delete it just yet
-  //   const lock = new Mutex;
-  //   await lock.runExclusive(async () => {
-
-  //     // this ensures that we run the lock relevant to the inode
-
-  //     const [childINode, childINodeIndex] = await iNodeMgr.createINode(
-  //       'Directory',
-  //       {
-  //         params: {
-  //           mode: vfs.DEFAULT_DIRECTORY_PERM
-  //         },
-  //         parent: parentINode,
-  //         lock
-  //       }
-  //     );
-  //     await parentINode.addEntry('child', childINode);
-
-  //     // deleteEntry occurs on the thing
-  //     // and it doesn't call GC
-  //     // it cals GCops
-  //     // cause it tries to compose
-  //     // so unlinkINodeops doesn't yet apply...
-  //     // deleteEntry -> unlinkINodeOps -> gcINodeOps -> destroyOps MULTIPLE
-  //     // but nobody calls GC
-  //     // cause it hasn't hapepned yet
-  //     // if it is SINGLETHREADED
-  //     // just use a lock in total for the FS
-  //     // let's say you put it in the other place
-  //     // then you create a deletion operation
-  //     // that also cycles and deletes other ones too
-  //     // so at the call to gcINodeOps
-  //     // you bundle up other ones
-  //     // but rather than cycling through all inodes you want to cycle through
-  //     // that which is currently "unlinked"
-  //     // so in the GC queue
-  //     // so deletion ends up removing and anything that was still just created
-  //     // but requires locking!
-
-  //     // unless you start it easlier!
-
-  //     await parentINode.transaction(async () => {
-  //       await lock.runExclusive(async () => {
-
-  //           dirCreateOps()
-  //           dirSetEntryOps(inode, inode);
-
-  //         // DO parent and child operations!
-
-  //       });
-  //     });
-
-
-  //     const ops = createINodeOps();
-  //     const ops = ops.concat(
-  //       createINodeOps(),
-  //       addEntryOps(),
-  //     );
-
-
-  //   });
-
-
-
-  //   // the idea is that we lock
-
-
-  //   // const parentNlink1 = await parentINode.getStatProp('nlink');
-  //   // expect(parentNlink1).toBe(3);
-  //   // await parentINode.deleteEntry('child');
-  //   // // this should be removed
-  //   // expect(await parentINode.getEntry('child')).toBeUndefined();
-  //   // expect(await parentINode.getEntryIndex('child')).toBeUndefined();
-  //   // // nlink should have reduced to 2
-  //   // const parentNlink2 = await parentINode.getStatProp('nlink');
-  //   // expect(parentNlink2).toBe(2);
-
-
-  // });
 });

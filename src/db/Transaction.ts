@@ -1,6 +1,7 @@
 import type DB from './DB';
 import type { DBDomain, DBOps, DBTransaction } from './types';
 
+import Logger from '@matrixai/logger';
 import * as dbUtils from './utils';
 import * as dbErrors from './errors';
 
@@ -19,6 +20,7 @@ import * as dbErrors from './errors';
 class Transaction implements DBTransaction {
 
   protected db: DB;
+  protected logger: Logger;
   protected _ops: DBOps = [];
   protected _snap: Map<string, any> = new Map;
   protected _callbacksSuccess: Array<() => any> = [];
@@ -26,7 +28,14 @@ class Transaction implements DBTransaction {
   protected _committed: boolean = false;
   protected _rollbacked: boolean = false;
 
-  public constructor (db: DB) {
+  public constructor({
+    db,
+    logger ,
+  }: {
+    db: DB;
+    logger?: Logger;
+  }) {
+    this.logger = logger ?? new Logger(this.constructor.name);
     this.db = db;
   }
 
