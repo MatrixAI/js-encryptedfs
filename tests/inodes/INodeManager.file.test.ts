@@ -15,7 +15,6 @@ describe('INodeManager File', () => {
   let dbKey: Buffer = utils.generateKeySync(256);
   let blockSize = 5;
   const buffer = Buffer.from('Test Buffer');
-  const compareBuffer = Buffer.alloc(blockSize);
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -29,6 +28,7 @@ describe('INodeManager File', () => {
   });
   afterEach(async () => {
     await db.stop();
+    await db.destroy();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -66,7 +66,7 @@ describe('INodeManager File', () => {
   test('create a file with supplied data', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
-    await db.transact(async (tran) => {
+    await iNodeMgr.transact(async (tran) => {
       tran.queueFailure(() => {
         iNodeMgr.inoDeallocate(fileIno);
       });
@@ -89,20 +89,27 @@ describe('INodeManager File', () => {
       expect(stat['atime']).toEqual(stat['mtime']);
       expect(stat['mtime']).toEqual(stat['ctime']);
       expect(stat['birthtime']).toEqual(stat['birthtime']);
-
-      let counter = 0;
-      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno)) {
-        buffer.copy(compareBuffer, 0, counter, counter + blockSize);
-        expect(block).toStrictEqual(compareBuffer);
+    }, [fileIno]);
+    let counter = 0;
+    const compareBuffer = Buffer.alloc(buffer.length);
+    await iNodeMgr.transact(async (tran) => {
+      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize)) {
+        block.copy(compareBuffer, counter);
         counter += blockSize;
       }
-    });
+    }, [fileIno]);
+    expect(compareBuffer).toStrictEqual(buffer);
+    let idx, block;
+    await iNodeMgr.transact(async (tran) => {
+      [idx, block] = await iNodeMgr.fileGetLastBlock(tran, fileIno);
+    }, [fileIno]);
+    expect(idx).toBe(2);
+    expect(block).toStrictEqual(Buffer.from('r'));
   });
   test('write data to a file', async () => {
-    let blockSize = 2;
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
-    await db.transact(async (tran) => {
+    await iNodeMgr.transact(async (tran) => {
       tran.queueFailure(() => {
         iNodeMgr.inoDeallocate(fileIno);
       });
@@ -115,36 +122,72 @@ describe('INodeManager File', () => {
           gid: vfs.DEFAULT_ROOT_GID,
         },
       );
-      await iNodeMgr.fileSetData(tran, fileIno, buffer, blockSize);
-      let counter = 0;
-      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno)) {
-        buffer.copy(compareBuffer, 0, counter, counter + blockSize);
-        expect(block).toStrictEqual(compareBuffer);
+    }, [fileIno]);
+    await iNodeMgr.transact(async (tran) => {
+      await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
+    }, [fileIno]);
+    let counter = 0;
+    const compareBuffer = Buffer.alloc(buffer.length);
+    await iNodeMgr.transact(async (tran) => {
+      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize)) {
+        block.copy(compareBuffer, counter);
+        counter += blockSize;
+      }
+    }, [fileIno]);
+    expect(compareBuffer).toStrictEqual(buffer);
+  });
+  test('read data from a file', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const fileIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        tran,
+        fileIno,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+      );
+      await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
+    }, [fileIno]);
+    let blockComp;
+    await iNodeMgr.transact(async (tran) => {
+      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize, 0, 1)) {
+        blockComp = block;
+      }
+    });
+    expect(blockComp).toStrictEqual(Buffer.from('Test '));
+  });
+  test('handle accessing data past the given data', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const fileIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        tran,
+        fileIno,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+      );
+      await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
+    }, [fileIno]);
+    let counter = 0;
+    const compareBuffer = Buffer.alloc(buffer.length);
+    await iNodeMgr.transact(async (tran) => {
+      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize, 0, 10)) {
+        block.copy(compareBuffer, counter);
         counter += blockSize;
       }
     });
-  });
-  test('read data from a file', async () => {
-    let blockSize = 2;
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-    const fileIno = iNodeMgr.inoAllocate();
-    await db.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(fileIno);
-      });
-      await iNodeMgr.fileCreate(
-        tran,
-        fileIno,
-        {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
-        },
-      );
-      await iNodeMgr.fileSetData(tran, fileIno, buffer, blockSize);
-      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, 1, 1)) {
-        expect(block).toStrictEqual(Buffer.from('Te'));
-      }
-    });
+    expect(compareBuffer).toStrictEqual(buffer);
   });
 });

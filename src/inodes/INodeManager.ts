@@ -225,7 +225,7 @@ class INodeManager {
       // calculate params.blockSize and params.blocks
       // based on the actual data
       let blockSize = 5;
-      await this.fileSetData(tran, ino, data, blockSize);
+      await this.fileSetBlocks(tran, ino, data, blockSize);
     }
   }
 
@@ -766,33 +766,84 @@ class INodeManager {
    public async *fileGetBlocks(
     tran: DBTransaction,
     ino: INodeIndex,
+    blockSize: number,
     startIdx = 0,
     endIdx?: number,
   ): AsyncGenerator<Buffer>{
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
-    const options = endIdx ? { gt: inodesUtils.bufferId(startIdx), lte: inodesUtils.bufferId(endIdx) } : { gt: inodesUtils.bufferId(startIdx) }
-    for await (const data of dataDb.createValueStream(options)) {
-      const plainTextData = await this.db.deserializeDecrypt<Buffer>((data as any) as Buffer, false);
-      yield plainTextData;
+    const options = endIdx ? { gte: inodesUtils.bufferId(startIdx), lt: inodesUtils.bufferId(endIdx) } : { gte: inodesUtils.bufferId(startIdx) }
+    let blockCount = startIdx;
+    for await (const data of dataDb.createReadStream(options)) {
+      // This is to account for the case where a some blocks are missing in a database
+      // i.e. blocks 0 -> 3 have data and a write operation was performed on blocks 7 -> 8
+      while (inodesUtils.unbufferId((data as any).key) != blockCount) {
+        yield Buffer.alloc(blockSize);
+      }
+      const plainTextData = await this.db.deserializeDecrypt<string>((data as any).value as Buffer, false);
+      yield Buffer.from(plainTextData);
+      blockCount++;
     }
   }
 
-  public async fileSetData(
+  public async fileGetLastBlock(
+    tran: DBTransaction,
+    ino: INodeIndex,
+  ): Promise<[number, Buffer]>{
+    const dataDb = await this.db.level(ino.toString(), this.dataDb);
+    const options = { limit: 1, reverse: true }
+    let key, value;
+    for await (const data of dataDb.createReadStream(options)) {
+      key = inodesUtils.unbufferId((data as any).key);
+      value = await this.db.deserializeDecrypt<string>((data as any).value as Buffer, false);
+    }
+    return [key, Buffer.from(value)];
+  }
+
+  protected async fileGetBlock(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    idx: number,
+  ): Promise<Buffer | undefined>{
+    const dataDomain = [...this.dataDomain, ino.toString()];
+    const key = inodesUtils.bufferId(idx);
+    const buffer = await tran.get<Buffer>(dataDomain, key);
+    return buffer;
+  }
+
+  public async fileSetBlocks(
     tran: DBTransaction,
     ino: INodeIndex,
     data: Buffer,
-    blockSize: number
-  ): Promise<void> {
-    const dataDomain = [...this.dataDomain, ino.toString()];
+    blockSize: number,
+    startIdx = 0,
+  ): Promise<void>{
     const bufferSegments = utils.segmentBuffer(blockSize, data);
-    let key, value;
-    let blockIdx = 1;
+    let blockIdx = startIdx;
     for (const dataSegment of bufferSegments) {
-      key = inodesUtils.bufferId(blockIdx);
-      value = dataSegment.toString();
-      await tran.put(dataDomain, key, value);
+      await this.fileWriteBlock(tran, ino, dataSegment, blockIdx);
       blockIdx++;
     }
+  }
+
+  public async fileWriteBlock(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    data: Buffer,
+    idx: number,
+    offset = 0,
+  ): Promise<number>{
+    const dataDomain = [...this.dataDomain, ino.toString()];
+    const block = await this.fileGetBlock(tran, ino, idx);
+    let bytesWritten;
+    if (!block) {
+      const key = inodesUtils.bufferId(idx);
+      const value = data.toString();
+      await tran.put(dataDomain, key, value);
+      bytesWritten = data.length;
+    } else {
+      bytesWritten = block.write(data.toString(), offset);
+    }
+    return bytesWritten;
   }
 
 }
