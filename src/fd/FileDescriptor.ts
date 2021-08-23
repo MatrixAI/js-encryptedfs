@@ -1,19 +1,27 @@
-import { File } from '../inodes';
+import type { INodeType } from '../inodes/types';
+import type { DBTransaction } from '../db/types';
+
+import { INodeIndex } from '@/inodes/types';
+import { INodeManager } from '../inodes';
 
 import * as utils from '../utils';
+import * as inodesUtils from '../inodes/utils';
+
 /*
  * File descriptor class which uses the INode type as a template
  * For now, this will just focus on the File INode, specifically the
  * read function
  * I have filled out the basic fd structure from js-virtualfs
  */
-class FileDescriptor<T> {
-  protected _iNode: T;
+class FileDescriptor {
+  protected _iNodeMgr: INodeManager;
+  protected _ino: INodeIndex;
   protected _flags: number;
   protected _pos: number;
 
-  constructor (iNode: T, flags: number) {
-    this._iNode = iNode;
+  constructor (iNodeMgr: INodeManager, ino: INodeIndex, flags: number) {
+    this._iNodeMgr = iNodeMgr;
+    this._ino = ino;
     this._flags = flags;
     this._pos = 0;
   }
@@ -25,22 +33,29 @@ class FileDescriptor<T> {
    * current position. The function will read up to the length of
    * the provided buffer.
    */
-  public static read(buffer: Buffer, position?: number): number {
+  public async read(
+    tran: DBTransaction,
+    buffer: Buffer,
+    position?: number
+  ): Promise<number> {
     // Check that the iNode is a valid type (for now, only File iNodes)
-    // if (this.iNode !instanceof File) {
-    //   throw Error();
-    // }
+    const type = await tran.get<INodeType>(
+      this._iNodeMgr.iNodesDomain,
+      inodesUtils.iNodeId(this._ino),
+    );
+    if (type != 'File') {
+      throw Error();
+    }
 
     // Determine the starting position within the data
-    // let currentPos = this.pos;
-    let currentPos = 2;
+    let currentPos = this._pos;
     if (position) {
       currentPos = position;
     }
 
     // Obtain the block size used by the iNode and the number
     // of bytes to read
-    const blockSize = 2;
+    const blockSize = 5;
     let bytesRead = buffer.length;
 
     // Get the starting block index
@@ -67,24 +82,24 @@ class FileDescriptor<T> {
     const blockCursorStart = utils.blockOffset(blockSize, currentPos);
     const blockCursorEnd = utils.blockOffset(blockSize, currentPos + bytesRead - 1);
     let retBufferPos = 0;
+    let blockCounter = blockStartIdx;
 
     // Iterate over the blocks ranges
-    for (const idx of utils.range(blockStartIdx, blockEndIdx + 1)) {
-      // Load the block from the database
-      // for await (const block of this.iNode.getBlock()) {
-          const buf = Buffer.from('Hello world, I am Computron - The Office 2016');
-      // }
+    for await (const block of this._iNodeMgr.fileGetBlocks(tran, this._ino, blockStartIdx, blockEndIdx)) {
 
       // Add the block to the return buffer (handle the start and end blocks)
-      if(idx === blockStartIdx && idx === blockEndIdx) {
-        retBufferPos += buf.copy(buffer, retBufferPos, blockCursorStart, blockCursorEnd + 1);
-      } else if (idx === blockStartIdx) {
-        retBufferPos += buf.copy(buffer, retBufferPos, blockCursorStart);
-      } else if (idx === blockEndIdx) {
-        retBufferPos += buf.copy(buffer, retBufferPos, 0, blockCursorEnd + 1);
+      if(blockCounter === blockStartIdx && blockCounter === blockEndIdx) {
+        retBufferPos += block.copy(buffer, retBufferPos, blockCursorStart, blockCursorEnd + 1);
+      } else if (blockCounter === blockStartIdx) {
+        retBufferPos += block.copy(buffer, retBufferPos, blockCursorStart);
+      } else if (blockCounter === blockEndIdx) {
+        retBufferPos += block.copy(buffer, retBufferPos, 0, blockCursorEnd + 1);
       } else {
-        retBufferPos += buf.copy(buffer, retBufferPos);
+        retBufferPos += block.copy(buffer, retBufferPos);
       }
+
+      // Increment the block counter
+      blockCounter++;
     }
 
     // Return the number of bytes read in

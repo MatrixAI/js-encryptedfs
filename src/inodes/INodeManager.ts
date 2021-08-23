@@ -219,10 +219,14 @@ class INodeManager {
       ino,
       mode
     });
-    // TODO:
-    // add in buffer creation (from data)
-    // calculate params.blockSize and params.blocks
-    // based on the actual data
+    if (data) {
+      // TODO:
+      // add in buffer creation (from data)
+      // calculate params.blockSize and params.blocks
+      // based on the actual data
+      let blockSize = 5;
+      await this.fileSetData(tran, ino, data, blockSize);
+    }
   }
 
   public async dirCreate(
@@ -764,11 +768,11 @@ class INodeManager {
     ino: INodeIndex,
     startIdx = 0,
     endIdx?: number,
-  ): AsyncGenerator<string>{
+  ): AsyncGenerator<Buffer>{
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
     const options = endIdx ? { gt: inodesUtils.bufferId(startIdx), lte: inodesUtils.bufferId(endIdx) } : { gt: inodesUtils.bufferId(startIdx) }
     for await (const data of dataDb.createValueStream(options)) {
-      const plainTextData = await this.db.deserializeDecrypt<string>((data as any) as Buffer, false);
+      const plainTextData = await this.db.deserializeDecrypt<Buffer>((data as any) as Buffer, false);
       yield plainTextData;
     }
   }
