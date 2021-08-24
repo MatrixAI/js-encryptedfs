@@ -1,5 +1,4 @@
 import type { INodeType } from '../inodes/types';
-import type { DBTransaction } from '../db/types';
 
 import { INodeIndex } from '@/inodes/types';
 import { INodeManager } from '../inodes';
@@ -30,10 +29,81 @@ class FileDescriptor {
   }
 
   /**
+   * Gets the INode index
+   */
+  get ino () {
+    return this._ino;
+  }
+
+  /**
+   * Gets the file descriptor flags
+   * Unlike Linux filesystems, this retains creation and status flags
+   */
+  get flags (): number {
+    return this._flags;
+  }
+
+  /**
+   * Sets the file descriptor flags.
+   */
+  set flags (flags: number) {
+    this._flags = flags;
+    return;
+  }
+
+  /**
    * Gets the file descriptor position.
    */
   get pos (): number {
     return this._pos;
+  }
+
+  /**
+   * Sets the file descriptor position.
+   */
+  public async setPos(pos: number, flags: number): Promise<void> {
+    let newPos, type, size;
+    await this._iNodeMgr.transact(async (tran) => {
+      type = await tran.get<INodeType>(
+        this._iNodeMgr.iNodesDomain,
+        inodesUtils.iNodeId(this._ino),
+      );
+      size = await this._iNodeMgr.statGetProp(tran, this._ino, 'size');
+    }, [this._ino]);
+    switch(type) {
+      case 'File':
+      case 'Directory':
+        switch (flags) {
+        case vfs.constants.SEEK_SET:
+          newPos = pos;
+          break;
+        case vfs.constants.SEEK_CUR:
+          newPos = this._pos + pos;
+          break;
+        case vfs.constants.SEEK_END:
+          newPos = size + pos;
+          break;
+        default:
+          newPos = this._pos;
+        }
+        if (newPos == undefined) {
+          throw Error('Invalid Flag');
+        }
+        this._pos = newPos;
+        break;
+      case 'CharacterDev':
+        // const fops = iNode.getFileDesOps();
+        // if (!fops) {
+        //   throw new VirtualFSError(errno.ENXIO);
+        // } else if (!fops.setPos) {
+        //   throw new VirtualFSError(errno.ESPIPE);
+        // } else {
+        //   fops.setPos(this, pos, flags);
+        // }
+        break;
+      default:
+        throw Error('Invalid INode Type');
+    }
   }
 
   /**
