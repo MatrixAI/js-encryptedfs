@@ -489,4 +489,22 @@ describe('INodeManager File', () => {
     const emptyBuffer = Buffer.alloc(origBuffer.length);
     await expect(fd.read(emptyBuffer, 0)).rejects.toThrow(Error);
   });
+  test.skip('write to CharacterDev iNode', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const charDevIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(charDevIno);
+      });
+      await iNodeMgr.charDevCreate(
+        tran,
+        charDevIno,
+        {
+          rdev: vfs.mkDev(1, 3)
+        }
+      );
+    }, [charDevIno]);
+    const fd = new FileDescriptor(iNodeMgr, charDevIno, 0);
+    bytesWritten = await fd.write(origBuffer);
+  });
 });
