@@ -91,22 +91,25 @@ describe('INodeManager File', () => {
       expect(stat['birthtime']).toEqual(stat['birthtime']);
     }, [fileIno]);
     let counter = 0;
+    // Alocate a buffer that will accept the blocks of the iNode
     const compareBuffer = Buffer.alloc(buffer.length);
     await iNodeMgr.transact(async (tran) => {
       for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize)) {
+        // Copy the blocks into the compare buffer
         block.copy(compareBuffer, counter);
         counter += blockSize;
       }
     }, [fileIno]);
     expect(compareBuffer).toStrictEqual(buffer);
     let idx, block;
+    // Check that we can also correctly get the last block of the data
     await iNodeMgr.transact(async (tran) => {
       [idx, block] = await iNodeMgr.fileGetLastBlock(tran, fileIno);
     }, [fileIno]);
     expect(idx).toBe(2);
     expect(block).toStrictEqual(Buffer.from('r'));
   });
-  test('write data to a file', async () => {
+  test('write and read data from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
     await iNodeMgr.transact(async (tran) => {
@@ -122,8 +125,6 @@ describe('INodeManager File', () => {
           gid: vfs.DEFAULT_ROOT_GID,
         },
       );
-    }, [fileIno]);
-    await iNodeMgr.transact(async (tran) => {
       await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
     }, [fileIno]);
     let counter = 0;
@@ -136,7 +137,7 @@ describe('INodeManager File', () => {
     }, [fileIno]);
     expect(compareBuffer).toStrictEqual(buffer);
   });
-  test('read data from a file', async () => {
+  test('read a single block from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
     await iNodeMgr.transact(async (tran) => {
@@ -151,8 +152,8 @@ describe('INodeManager File', () => {
           uid: vfs.DEFAULT_ROOT_UID,
           gid: vfs.DEFAULT_ROOT_GID,
         },
+        buffer,
       );
-      await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
     }, [fileIno]);
     let blockComp;
     await iNodeMgr.transact(async (tran) => {
@@ -162,7 +163,7 @@ describe('INodeManager File', () => {
     });
     expect(blockComp).toStrictEqual(Buffer.from('Test '));
   });
-  test('handle accessing data past the given data', async () => {
+  test('write a single block from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
     await iNodeMgr.transact(async (tran) => {
@@ -180,14 +181,47 @@ describe('INodeManager File', () => {
       );
       await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
     }, [fileIno]);
+    // Write the byte 'B' at the beginning of the first block
+    await iNodeMgr.transact(async (tran) => {
+      await iNodeMgr.fileWriteBlock(tran, fileIno, Buffer.from('B'), 0, 0);
+    });
+    let blockComp;
+    // Obtain blocks which have an index greater than or equal to 0 and less than 1
+    await iNodeMgr.transact(async (tran) => {
+      for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize, 0, 1)) {
+        blockComp = block;
+      }
+    });
+    expect(blockComp.toString()).toStrictEqual('Best ');
+  });
+  test('handle accessing blocks that the db does not have', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const fileIno = iNodeMgr.inoAllocate();
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        tran,
+        fileIno,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+        buffer,
+      );
+    }, [fileIno]);
     let counter = 0;
     const compareBuffer = Buffer.alloc(buffer.length);
     await iNodeMgr.transact(async (tran) => {
+      // Database only has blocks 0, 1 and 2 but we take up to block 9
       for await (const block of iNodeMgr.fileGetBlocks(tran, fileIno, blockSize, 0, 10)) {
         block.copy(compareBuffer, counter);
         counter += blockSize;
       }
     });
+    // Should only be the original buffer
     expect(compareBuffer).toStrictEqual(buffer);
   });
 });

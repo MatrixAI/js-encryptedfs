@@ -85,13 +85,17 @@ class FileDescriptor {
       blockStartIdx,
       blockLength,
     );
+
+    // Get the cursor offset for the start and end blocks
     const blockCursorStart = utils.blockOffset(blockSize, currentPos);
     const blockCursorEnd = utils.blockOffset(blockSize, currentPos + bytesRead - 1);
+
+    // Initialise counters for the read buffer and block position
     let retBufferPos = 0;
     let blockCounter = blockStartIdx;
 
     await this._iNodeMgr.transact(async (tran) => {
-    // Iterate over the blocks ranges
+    // Iterate over the blocks in the database
       for await (const block of this._iNodeMgr.fileGetBlocks(tran, this._ino, blockSize, blockStartIdx, blockEndIdx + 1)) {
         // Add the block to the return buffer (handle the start and end blocks)
         if(blockCounter === blockStartIdx && blockCounter === blockEndIdx) {
@@ -141,7 +145,7 @@ class FileDescriptor {
       currentPos = position;
     }
 
-    let bytesWritten;
+    let bytesWritten = 0;
 
     // Define the block size as constant (for now)
     const blockSize = 5;
@@ -151,7 +155,19 @@ class FileDescriptor {
       // To append we check the idx of the last block and write to this block
       await this._iNodeMgr.transact(async (tran) => {
         [idx, value] = await this._iNodeMgr.fileGetLastBlock(tran, this._ino);
-        bytesWritten = await this._iNodeMgr.fileWriteBlock(tran, this._ino, buffer, idx, value.length);
+        if (value.length == blockSize) {
+          await this._iNodeMgr.fileSetBlocks(tran, this._ino, buffer, blockSize, idx + 1);
+        } else if (value.length + buffer.length > blockSize) {
+          const startBuffer = Buffer.alloc(blockSize - value.length);
+          buffer.copy(startBuffer);
+          const writeBytes = await this._iNodeMgr.fileWriteBlock(tran, this._ino, startBuffer, idx, value.length);
+          const endBuffer = Buffer.alloc(buffer.length - writeBytes);
+          buffer.copy(endBuffer, 0, writeBytes);
+          await this._iNodeMgr.fileSetBlocks(tran, this._ino, endBuffer, blockSize, idx + 1);
+        } else {
+          await this._iNodeMgr.fileWriteBlock(tran, this._ino, buffer, idx, value.length);
+        }
+        bytesWritten = buffer.length;
       }, [this._ino]);
       // Move the cursor to the end of the existing data
       // TODO: Check this? should this really happen?
@@ -183,12 +199,13 @@ class FileDescriptor {
       const blockCursorStart = utils.blockOffset(blockSize, currentPos);
       const blockCursorEnd = utils.blockOffset(blockSize, currentPos + buffer.length - 1);
 
+      // Initialise write buffer and block position counters
       let writeBufferPos = 0;
       let blockCounter = blockStartIdx;
 
       await this._iNodeMgr.transact(async (tran) => {
         for (const idx of utils.range(blockStartIdx, blockEndIdx + 1)) {
-          // AFor each data segment write the data to the database
+          // For each data segment write the data to the index in the database
           if(blockCounter === blockStartIdx && blockCounter === blockEndIdx) {
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, buffer, idx, blockCursorStart);
           } else if (blockCounter === blockStartIdx) {
@@ -196,7 +213,7 @@ class FileDescriptor {
             buffer.copy(copyBuffer);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx, blockCursorStart);
           } else if (blockCounter === blockEndIdx) {
-            const copyBuffer = Buffer.alloc(blockCursorEnd);
+            const copyBuffer = Buffer.alloc(blockCursorEnd + 1);
             buffer.copy(copyBuffer, 0, writeBufferPos);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx);
           } else {
@@ -204,6 +221,9 @@ class FileDescriptor {
             buffer.copy(copyBuffer, 0, writeBufferPos);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx);
           }
+
+          // Increment the block counter
+          blockCounter++;
         }
       }, [this._ino]);
       // Set the amount of bytes written

@@ -807,7 +807,10 @@ class INodeManager {
     const dataDomain = [...this.dataDomain, ino.toString()];
     const key = inodesUtils.bufferId(idx);
     const buffer = await tran.get<Buffer>(dataDomain, key);
-    return buffer;
+    if (!buffer) {
+      return undefined;
+    }
+    return Buffer.from(buffer);
   }
 
   public async fileSetBlocks(
@@ -834,14 +837,26 @@ class INodeManager {
   ): Promise<number>{
     const dataDomain = [...this.dataDomain, ino.toString()];
     const block = await this.fileGetBlock(tran, ino, idx);
+    const key = inodesUtils.bufferId(idx);
     let bytesWritten;
     if (!block) {
-      const key = inodesUtils.bufferId(idx);
       const value = data.toString();
       await tran.put(dataDomain, key, value);
       bytesWritten = data.length;
     } else {
-      bytesWritten = block.write(data.toString(), offset);
+      if (offset >= block.length) {
+        // In this case we are not overwriting the data but appending
+        const newBlock = Buffer.alloc(block.length + data.length);
+        newBlock.write(block.toString());
+        bytesWritten = newBlock.write(data.toString(), offset);
+        const value = newBlock.toString();
+        await tran.put(dataDomain, key, value);
+      } else {
+        // In this case we are overwriting
+        bytesWritten = block.write(data.toString(), offset);
+        const value = block.toString();
+        await tran.put(dataDomain, key, value);
+      }
     }
     return bytesWritten;
   }
