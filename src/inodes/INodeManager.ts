@@ -213,6 +213,7 @@ class INodeManager {
     params: FileParams,
     data?: Buffer,
   ): Promise<void> {
+    const statDomain = [...this.statsDomain, ino.toString()];
     const mode = vfs.constants.S_IFREG | ((params.mode ?? 0) & (~vfs.constants.S_IFMT));
     await this.iNodeCreate(tran, 'File', {
       ...params,
@@ -226,6 +227,8 @@ class INodeManager {
       // based on the actual data
       let blockSize = 5;
       await this.fileSetBlocks(tran, ino, data, blockSize);
+      await tran.put(statDomain, 'size', data.length);
+      await tran.put(statDomain, 'blocks', Math.ceil(data.length / blockSize));
     }
   }
 
@@ -762,6 +765,7 @@ class INodeManager {
 
   /**
    * Iterators are not part of our snapshot yet
+   * Access time not updated here, handled at higher level
    */
    public async *fileGetBlocks(
     tran: DBTransaction,
@@ -784,7 +788,10 @@ class INodeManager {
       blockCount++;
     }
   }
-
+  /**
+   * Iterators are not part of our snapshot yet
+   * Access time not updated here, handled at higher level
+   */
   public async fileGetLastBlock(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -799,6 +806,9 @@ class INodeManager {
     return [key, Buffer.from(value)];
   }
 
+  /**
+   * Access time not updated here, handled at higher level
+   */
   protected async fileGetBlock(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -813,6 +823,9 @@ class INodeManager {
     return Buffer.from(buffer);
   }
 
+  /**
+   * Modified and Change time not updated here, handled at higher level
+   */
   public async fileSetBlocks(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -828,6 +841,9 @@ class INodeManager {
     }
   }
 
+  /**
+   * Modified and Change time not updated here, handled at higher level
+   */
   public async fileWriteBlock(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -846,7 +862,7 @@ class INodeManager {
     } else {
       if (offset >= block.length) {
         // In this case we are not overwriting the data but appending
-        const newBlock = Buffer.alloc(block.length + data.length);
+        const newBlock = Buffer.alloc(offset + data.length);
         newBlock.write(block.toString());
         bytesWritten = newBlock.write(data.toString(), offset);
         const value = newBlock.toString();

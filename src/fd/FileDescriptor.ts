@@ -29,6 +29,13 @@ class FileDescriptor {
     this._iNodeMgr.ref(this._ino);
   }
 
+  /**
+   * Gets the file descriptor position.
+   */
+  get pos (): number {
+    return this._pos;
+  }
+
   /*
    * The read function will take in the Buffer that the plaintext
    * will be returned into, and optionally the position to start
@@ -55,7 +62,7 @@ class FileDescriptor {
 
     // Determine the starting position within the data
     let currentPos = this._pos;
-    if (position) {
+    if (position != undefined) {
       currentPos = position;
     }
 
@@ -114,9 +121,16 @@ class FileDescriptor {
     }, [this._ino]);
 
     // If the default position used, increment by the bytes read in
-    if (position === null) {
+    if (position == undefined) {
       this._pos = currentPos + bytesRead;
     }
+
+    // Set the access time in the metadata
+    await this._iNodeMgr.transact(async (tran) => {
+      const now = new Date;
+      await this._iNodeMgr.statSetProp(tran, this._ino, 'atime', now);
+    }, [this._ino]);
+
     // Return the number of bytes read in
     return retBufferPos;
   }
@@ -141,36 +155,40 @@ class FileDescriptor {
 
     // Determine the starting position within the data
     let currentPos = this._pos;
-    if (position) {
+    if (position != undefined) {
       currentPos = position;
     }
 
-    let bytesWritten = 0;
-
     // Define the block size as constant (for now)
     const blockSize = 5;
+    let bytesWritten = 0;
 
     if ((this._flags | extraFlags) & vfs.constants.O_APPEND) {
       let idx, value;
-      // To append we check the idx of the last block and write to this block
+      // To append we check the idx and length of the last block
       await this._iNodeMgr.transact(async (tran) => {
         [idx, value] = await this._iNodeMgr.fileGetLastBlock(tran, this._ino);
         if (value.length == blockSize) {
+          // If the last block is full, begin writing from the next block index
           await this._iNodeMgr.fileSetBlocks(tran, this._ino, buffer, blockSize, idx + 1);
         } else if (value.length + buffer.length > blockSize) {
+          // If the last block is not full and additional data will exceed block size
+          // Copy the bytes until block size is reached and write into the last block at offset
           const startBuffer = Buffer.alloc(blockSize - value.length);
           buffer.copy(startBuffer);
           const writeBytes = await this._iNodeMgr.fileWriteBlock(tran, this._ino, startBuffer, idx, value.length);
+          // Copy the remaining bytes and write this into the next block(s)
           const endBuffer = Buffer.alloc(buffer.length - writeBytes);
           buffer.copy(endBuffer, 0, writeBytes);
           await this._iNodeMgr.fileSetBlocks(tran, this._ino, endBuffer, blockSize, idx + 1);
         } else {
+          // If the last block is not full and additional data will not exceed block size
+          // Write the data into this block at the offset
           await this._iNodeMgr.fileWriteBlock(tran, this._ino, buffer, idx, value.length);
         }
         bytesWritten = buffer.length;
       }, [this._ino]);
       // Move the cursor to the end of the existing data
-      // TODO: Check this? should this really happen?
       currentPos = idx * blockSize + value.length;
     } else {
       // Get the starting block index
@@ -207,16 +225,22 @@ class FileDescriptor {
         for (const idx of utils.range(blockStartIdx, blockEndIdx + 1)) {
           // For each data segment write the data to the index in the database
           if(blockCounter === blockStartIdx && blockCounter === blockEndIdx) {
+            // If this block is both the start and end block, write the data in at the offset
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, buffer, idx, blockCursorStart);
           } else if (blockCounter === blockStartIdx) {
+            // If this block is only the start block, copy the relevant bytes from the data to
+            // satisfy the offset and write these to the block at the offset
             const copyBuffer = Buffer.alloc(blockSize - blockCursorStart);
             buffer.copy(copyBuffer);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx, blockCursorStart);
           } else if (blockCounter === blockEndIdx) {
+            // If this block is only the end block, copy the relevant bytes from the data to
+            // satisfy the offset and write these to the block
             const copyBuffer = Buffer.alloc(blockCursorEnd + 1);
             buffer.copy(copyBuffer, 0, writeBufferPos);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx);
           } else {
+            // If the block is a middle block, overwrite the whole block with the relevant bytes
             const copyBuffer = Buffer.alloc(blockSize);
             buffer.copy(copyBuffer, 0, writeBufferPos);
             writeBufferPos += await this._iNodeMgr.fileWriteBlock(tran, this._ino, copyBuffer, idx);
@@ -230,10 +254,20 @@ class FileDescriptor {
       bytesWritten = writeBufferPos;
     }
 
-    // TODO: Set Metadata
+    // Set the modified time, changed time, size and blocks of the file iNode
+    await this._iNodeMgr.transact(async (tran) => {
+      const now = new Date;
+      await this._iNodeMgr.statSetProp(tran, this._ino, 'mtime', now);
+      await this._iNodeMgr.statSetProp(tran, this._ino, 'ctime', now);
+      // Calculate the size of the new data
+      let size = await this._iNodeMgr.statGetProp(tran, this._ino, 'size');
+      size = currentPos + buffer.length > size ? currentPos + buffer.length : size;
+      await this._iNodeMgr.statSetProp(tran, this._ino, 'size', size);
+      await this._iNodeMgr.statSetProp(tran, this._ino, 'blocks', Math.ceil(size / blockSize));
+    }, [this._ino]);
 
     // If the default position used, increment by the bytes read in
-    if (position === null) {
+    if (position == undefined) {
       this._pos = currentPos + bytesWritten;
     }
     // Return the number of bytes written

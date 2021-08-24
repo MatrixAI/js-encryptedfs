@@ -55,8 +55,12 @@ describe('INodeManager File', () => {
       expect(stat.isDirectory()).toBe(false);
       expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
       expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
+      // the size, blocks and block size should be 0 if no data supplied
+      expect(stat['size']).toBe(0);
+      expect(stat['blksize']).toBe(0);
+      expect(stat['blocks']).toBe(0);
       // the mode should start at the default file permissions
-      // expect(stat['mode']).toBe(vfs.DEFAULT_FILE_PERM);
+      expect(stat['mode']).toBe(vfs.constants.S_IFREG | ((vfs.DEFAULT_FILE_PERM) & (~vfs.constants.S_IFMT)));
       // all timestamps should be the same at creation
       expect(stat['atime']).toEqual(stat['mtime']);
       expect(stat['mtime']).toEqual(stat['ctime']);
@@ -85,6 +89,10 @@ describe('INodeManager File', () => {
       expect(stat.isDirectory()).toBe(false);
       expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
       expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
+      // the size, blocks and block size should be set if data supplied
+      expect(stat['size']).toBe(buffer.length);
+      expect(stat['blksize']).toBe(0);
+      expect(stat['blocks']).toBe(3);
       // all timestamps should be the same at creation
       expect(stat['atime']).toEqual(stat['mtime']);
       expect(stat['mtime']).toEqual(stat['ctime']);
