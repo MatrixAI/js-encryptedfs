@@ -40,8 +40,50 @@ describe('INodeManager File', () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
     const fileIno = iNodeMgr.inoAllocate();
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
-    expect(fd.pos).toBe(0);
     expect(fd).toBeInstanceOf(FileDescriptor);
+    expect(fd.pos).toBe(0);
+    expect(fd.ino).toBe(fileIno);
+    expect(fd.flags).toBe(0);
+  });
+  test('can set flags', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const fileIno = iNodeMgr.inoAllocate();
+    const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
+    fd.flags = vfs.constants.O_APPEND;
+    expect(fd.flags).toBe(vfs.constants.O_APPEND);
+  });
+  test('can set position', async () => {
+    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const fileIno = iNodeMgr.inoAllocate();
+    const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
+    // Rejects as the iNode has not been created
+    await expect(fd.setPos(1, vfs.constants.SEEK_SET)).rejects.toThrow(Error);
+    await iNodeMgr.transact(async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        tran,
+        fileIno,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+        origBuffer,
+      );
+    }, [fileIno]);
+    // Rejects as the new position would be a negativ number
+    await expect(fd.setPos(-10, 0)).rejects.toThrow(Error);
+    // Will seek the absolute position given
+    await fd.setPos(5, vfs.constants.SEEK_SET);
+    expect(fd.pos).toBe(5);
+    // Will seek the current position plus the absolute position
+    await fd.setPos(5, vfs.constants.SEEK_CUR);
+    expect(fd.pos).toBe(5 + 5);
+    // Will seek the end of the data plus the absolute position
+    await fd.setPos(5, vfs.constants.SEEK_END);
+    expect(fd.pos).toBe(origBuffer.length + 5);
   });
   test('read all the data on the file iNode', async () => {
     // Allocate the size of the buffer to be read into

@@ -70,7 +70,7 @@ class FileDescriptor {
       );
       size = await this._iNodeMgr.statGetProp(tran, this._ino, 'size');
     }, [this._ino]);
-    switch(type) {
+    switch (type) {
       case 'File':
       case 'Directory':
         switch (flags) {
@@ -86,8 +86,8 @@ class FileDescriptor {
         default:
           newPos = this._pos;
         }
-        if (newPos == undefined) {
-          throw Error('Invalid Flag');
+        if (newPos < 0) {
+          throw Error('Invalid Position');
         }
         this._pos = newPos;
         break;
