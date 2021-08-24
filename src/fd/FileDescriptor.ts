@@ -36,6 +36,17 @@ class FileDescriptor {
     return this._pos;
   }
 
+  /**
+   * Deletes a file descriptor.
+   * This effectively closes the file descriptor.
+   * This will decrement the reference to the iNode allowing garbage collection by the INodeManager.
+   */
+  public async destroy(): Promise<void> {
+    await this._iNodeMgr.transact(async (tran) => {
+      await this._iNodeMgr.unref(tran, this._ino);
+    });
+  }
+
   /*
    * The read function will take in the Buffer that the plaintext
    * will be returned into, and optionally the position to start
@@ -56,7 +67,6 @@ class FileDescriptor {
       );
     }, [this._ino]);
     if (type != 'File') {
-      console.log(type);
       throw Error();
     }
 
