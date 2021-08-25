@@ -8,8 +8,8 @@ import { INodeManager } from '@/inodes';
 import { FileDescriptor } from '@/fd';
 import * as utils from '@/utils';
 
-describe('INodeManager File', () => {
-  const logger = new Logger('INodeManager File Test', LogLevel.WARN, [new StreamHandler()]);
+describe('File Descriptor', () => {
+  const logger = new Logger('File Descriptor', LogLevel.WARN, [new StreamHandler()]);
   const devMgr = new vfs.DeviceManager();
   let dataDir: string;
   let db: DB;
@@ -432,62 +432,6 @@ describe('INodeManager File', () => {
       expect(stat['size']).toBe(origBuffer.length + appendBufferOver.length + appendBufferUnder.length + appendBufferOver.length);
       expect(stat['blocks']).toBe(10);
     });
-  });
-  test('read/write to fd when inode deleted from directory', async () => {
-    // Allocate the size of the buffer to be read into
-    const readBuffer = Buffer.alloc(origBuffer.length);
-    // Allocate the buffer that will be written
-    const overwriteBuffer = Buffer.from('Nice');
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
-    const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(rootIno);
-      });
-      await iNodeMgr.dirCreate(tran, rootIno, {});
-    }, [rootIno]);
-    const fileIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(fileIno);
-      });
-      await iNodeMgr.fileCreate(
-        tran,
-        fileIno,
-        {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
-        },
-        origBuffer,
-      );
-    }, [fileIno]);
-    // The file is 'added' to the directory
-    await iNodeMgr.transact(async (tran) => {
-        await iNodeMgr.dirSetEntry(tran, rootIno, 'file', fileIno);
-    }, [rootIno, fileIno]);
-    // The ref to the file iNode is made here
-    const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
-    // The file is 'deleted' from the directory
-    await iNodeMgr.transact(async (tran) => {
-      await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');
-    }, [rootIno, fileIno]);
-    bytesRead = await fd.read(readBuffer);
-    expect(fd.pos).toBe(origBuffer.length);
-    expect(readBuffer).toStrictEqual(origBuffer);
-    expect(bytesRead).toBe(readBuffer.length);
-    // Overwrite the existing buffer at position 0
-    bytesWritten = await fd.write(overwriteBuffer, 0);
-    expect(fd.pos).toBe(origBuffer.length);
-    expect(bytesWritten).toBe(overwriteBuffer.length);
-    await fd.read(readBuffer, 0);
-    expect(fd.pos).toBe(origBuffer.length);
-    expect(readBuffer).toStrictEqual(Buffer.from('Nice Buffer for File Descriptor'));
-    // Now the file iNode is unreffed through the fd
-    await fd.destroy();
-    // When the fd attempts a read (or write), an Error should be thrown
-    const emptyBuffer = Buffer.alloc(origBuffer.length);
-    await expect(fd.read(emptyBuffer, 0)).rejects.toThrow(Error);
   });
   test.skip('write to CharacterDev iNode', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });

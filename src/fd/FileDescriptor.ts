@@ -25,7 +25,6 @@ class FileDescriptor {
     this._ino = ino;
     this._flags = flags;
     this._pos = 0;
-    this._iNodeMgr.ref(this._ino);
   }
 
   /**
@@ -105,17 +104,6 @@ class FileDescriptor {
       default:
         throw Error('Invalid INode Type');
     }
-  }
-
-  /**
-   * Deletes a file descriptor.
-   * This effectively closes the file descriptor.
-   * This will decrement the reference to the iNode allowing garbage collection by the INodeManager.
-   */
-  public async destroy(): Promise<void> {
-    await this._iNodeMgr.transact(async (tran) => {
-      await this._iNodeMgr.unref(tran, this._ino);
-    });
   }
 
   /*
