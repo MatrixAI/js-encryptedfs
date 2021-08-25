@@ -1,6 +1,7 @@
 import type fs from 'fs';
 import type * as vfs from 'virtualfs';
 import type { Mutex } from 'async-mutex';
+import { INodeIndex } from './inodes/types';
 
 /**
  * Plain data dictionary
@@ -46,6 +47,26 @@ type NonFunctionPropertyNames<T> = {
  */
 type NonFunctionProperties<T> = Pick<T, NonFunctionPropertyNames<T>>;
 
+type Navigated = {
+  dir: INodeIndex;
+  target: INodeIndex | undefined;
+  name: string;
+  remaining: string;
+  pathStack: string[];
+};
+
+type ParsedPath = {
+  segment: string,
+  rest: string,
+}
+
+type path = string | Buffer | URL;
+
+type options = {
+  encoding?: BufferEncoding | undefined,
+  mode?: number,
+  flag?: string
+};
 
 // we want to take in types from the relevant db types
 // queue
@@ -123,4 +144,8 @@ export type {
   FileSystem,
   EncryptedFSLayer,
   BlockMeta,
+  Navigated,
+  ParsedPath,
+  path,
+  options,
 };
