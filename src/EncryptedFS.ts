@@ -143,6 +143,35 @@ class EncryptedFS {
     await this.db.destroy();
   }
 
+  public async access(path: path, mode?: number): Promise<void>;
+  public async access(path: path, callback: Callback): Promise<void>;
+  public async access(path: path, mode: number, callback: Callback): Promise<void>;
+  public async access(
+    path: path,
+    modeOrCallback: number | Callback = vfs.constants.F_OK,
+    callback?: Callback,
+  ): Promise<void> {
+    const mode = (typeof modeOrCallback !== 'function') ? modeOrCallback: vfs.constants.F_OK;
+    callback = (typeof modeOrCallback === 'function') ? modeOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, true)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `access ${path} does not exist`);
+      }
+      if (mode === vfs.constants.F_OK) {
+        return;
+      }
+      let targetStat;
+      await this._iNodeMgr.transact(async (tran) => {
+        targetStat = await this._iNodeMgr.statGet(tran, target);
+      });
+      if (!this.checkPermissions(mode, targetStat)) {
+        throw new EncryptedFSError(errno.EACCES, `access ${path} does not exist`);
+      }
+    }, callback);
+  }
+
   public async mkdir(path: path, mode?: number): Promise<void>;
   public async mkdir(path: path, callback: Callback): Promise<void>;
   public async mkdir(path: path, mode: number, callback: Callback): Promise<void>;
