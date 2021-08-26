@@ -176,45 +176,55 @@ class EncryptedFS {
     }, callback);
   }
 
-  // public async appendFile(file: path | FdIndex, data: data, options?: options): Promise<void>;
-  // public async appendFile(file: path | FdIndex, data: data, callback: Callback): Promise<void>;
-  // public async appendFile(file: path | FdIndex, data: data, options: options, callback: Callback): Promise<void>;
-  // public async appendFile(
-  //   file: path | FdIndex,
-  //   data: data = 'undefined',
-  //   optionsOrCallback: options | Callback = { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' },
-  //   callback?: Callback,
-  // ): Promise<void> {
-  //   const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' }, optionsOrCallback): { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' } as options;
-  //   callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
-  //   return maybeCallback(async () => {
-  //     data = this.getBuffer(data, options.encoding);
-  //     let fdIndex;
-  //     try {
-  //       let fd;
-  //       if (typeof file === 'number') {
-  //         fd = this._fdMgr.getFd(file);
-  //         if (!fd) throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalid File Descriptor`);
-  //         if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
-  //           throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalide File Descriptor flags`);
-  //         }
-  //       } else {
-  //         [fd, fdIndex] = await this.open(file, options.flag, options.mode);
-  //       }
-  //       try {
-  //         fd.write(data, undefined, vfs.constants.O_APPEND);
-  //       } catch (e) {
-  //         if (e instanceof RangeError) {
-  //           throw new EncryptedFSError(errno.EFBIG, 'appendFile');
-  //         }
-  //         throw e;
-  //       }
-  //     } finally {
-  //       if (fdIndex !== undefined) this.close(fdIndex);
-  //     }
-  //     return;
-  //   }, callback);
-  // }
+  public async appendFile(file: path | FdIndex, data: data, options?: options): Promise<void>;
+  public async appendFile(file: path | FdIndex, data: data, callback: Callback): Promise<void>;
+  public async appendFile(file: path | FdIndex, data: data, options: options, callback: Callback): Promise<void>;
+  public async appendFile(
+    file: path | FdIndex,
+    data: data = 'undefined',
+    optionsOrCallback: options | Callback = { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' },
+    callback?: Callback,
+  ): Promise<void> {
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' as BufferEncoding, mode: vfs.DEFAULT_FILE_PERM }, optionsOrCallback): { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      options.flag = 'a';
+      data = this.getBuffer(data, options.encoding);
+      let fdIndex;
+      try {
+        let fd;
+        if (typeof file === 'number') {
+          fd = this._fdMgr.getFd(file);
+          if (!fd) throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalid File Descriptor`);
+          if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+            throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalide File Descriptor flags`);
+          }
+        } else {
+          [fd, fdIndex] = await this._open(file, options.flag, options.mode);
+        }
+        try {
+          fd.write(data, undefined, vfs.constants.O_APPEND);
+        } catch (e) {
+          if (e instanceof RangeError) {
+            throw new EncryptedFSError(errno.EFBIG, 'appendFile');
+          }
+          throw e;
+        }
+      } finally {
+        if (fdIndex !== undefined) this.close(fdIndex);
+      }
+      return;
+    }, callback);
+  }
+
+  public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      if (!this._fdMgr.getFd(fdIndex)) {
+        throw new EncryptedFSError(errno.EBADF, 'close');
+      }
+      this._fdMgr.deleteFd(fdIndex);
+    }, callback);
+  }
 
   public async mkdir(path: path, mode?: number): Promise<void>;
   public async mkdir(path: path, callback: Callback): Promise<void>;
