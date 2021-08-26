@@ -196,6 +196,74 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async mkdirp(path: path, mode?: number): Promise<void>;
+  public async mkdirp(path: path, callback: Callback): Promise<void>;
+  public async mkdirp(path: path, mode: number, callback: Callback): Promise<void>;
+  public async mkdirp(
+    path: path,
+    modeOrCallback: number | Callback = vfs.DEFAULT_DIRECTORY_PERM,
+    callback?: Callback,
+  ): Promise<void> {
+    const mode = (typeof modeOrCallback !== 'function') ? modeOrCallback: vfs.DEFAULT_DIRECTORY_PERM;
+    callback = (typeof modeOrCallback === 'function') ? modeOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      // we expect a directory
+      path = path.replace(/(.+?)\/+$/, '$1');
+      let currentDir, navigatedTargetType;
+      let navigated = await this.navigate(path, true);
+      while (true) {
+        if (!navigated.target) {
+          let navigatedDirStat;
+          await this._iNodeMgr.transact(async (tran) => {
+            navigatedDirStat = (await this._iNodeMgr.statGet(tran, navigated.dir));
+          }, [navigated.dir]);
+          if (navigatedDirStat.nlink < 2) {
+            throw new EncryptedFSError(errno.ENOENT, `mkdirp '${path}' does not exist`);
+          }
+          if (!this.checkPermissions(
+            vfs.constants.W_OK,
+            navigatedDirStat
+          )) {
+            throw new EncryptedFSError(errno.EACCES, `mkdirp '${path}' does not have correct permissions`);
+          }
+          const dirInode = this._iNodeMgr.inoAllocate();
+          await this._iNodeMgr.transact(async (tran) => {
+            await this._iNodeMgr.dirCreate(
+              tran,
+              dirInode,
+              {
+                mode: vfs.applyUmask(mode, this._umask),
+                uid: this._uid,
+                gid: this._gid,
+              },
+              await this._iNodeMgr.dirGetEntry(tran, navigated.dir, '.'),
+            );
+            }, [dirInode]);
+          await this._iNodeMgr.transact(async (tran) => {
+            await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, dirInode);
+          }, [navigated.dir]);
+          if (navigated.remaining) {
+            currentDir = dirInode;
+            navigated = await this.navigateFrom(currentDir, navigated.remaining, true);
+          } else {
+            break;
+          }
+        } else {
+          await this._iNodeMgr.transact(async (tran) => {
+            // TODO: Investigate this
+            if (!navigated.target) throw Error;
+            navigatedTargetType = (await this._iNodeMgr.get(tran, navigated.target))?.type;
+          }, [navigated.target]);
+          if (navigatedTargetType !== 'Directory') {
+            throw new EncryptedFSError(errno.ENOTDIR, `mkdirp '${path}' is not a directory`);
+          }
+          break;
+        }
+      }
+    }, callback);
+  }
+
   public async readdir(path: path, options?: options): Promise<Array<string | Buffer>>;
   public async readdir(path: path, callback: Callback): Promise<void>;
   public async readdir(path: path, options: options, callback: Callback): Promise<void>;
@@ -215,7 +283,7 @@ class EncryptedFS {
       let navigatedTargetType, navigatedTargetStat;
       await this._iNodeMgr.transact(async (tran) => {
         if (!navigated.target) throw new EncryptedFSError(errno.ENOENT, `readdir '${path}' does not exist`);
-        navigatedTargetType = await this._iNodeMgr.get(tran, navigated.target);
+        navigatedTargetType = (await this._iNodeMgr.get(tran, navigated.target))?.type;
         navigatedTargetStat = await this._iNodeMgr.statGet(tran, navigated.target);
       }, [navigated.target]);
       if (navigatedTargetType !== 'Directory') {
@@ -257,6 +325,9 @@ class EncryptedFS {
     activeSymlinks: Set<INodeIndex> = (new Set),
     origPathS: string = pathS,
   ): Promise<Navigated> {
+    if (!pathS) {
+      throw new EncryptedFSError(errno.ENOENT, origPathS);
+    }
     // multiple consecutive slashes are considered to be 1 slash
     pathS = pathS.replace(/\/+/, '/');
     // a trailing slash is considered to refer to a directory, thus it is converted to /.
@@ -308,6 +379,9 @@ class EncryptedFS {
     pathStack: Array<string> = [],
     origPathS: string = pathS
   ): Promise<Navigated> {
+    if (!pathS) {
+      throw new EncryptedFSError(errno.ENOENT, origPathS);
+    }
     let curdirStat;
     await this._iNodeMgr.transact(async (tran) => {
       curdirStat = await this._iNodeMgr.statGet(tran, curdir);
@@ -326,79 +400,91 @@ class EncryptedFS {
     }
     let nextDir, nextPath, target, targetType;
     await this._iNodeMgr.transact(async (tran) => {
-      const curdirData = await this._iNodeMgr.get(tran, curdir);
-      targetType = curdirData?.type;
       target = await this._iNodeMgr.dirGetEntry(tran, curdir, parse.segment);
     }, [curdir]);
-    switch(targetType) {
-      case 'File':
-      case 'CharacterDev':
-        if (!parse.rest) {
+    if(target) {
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetData = await this._iNodeMgr.get(tran, target);
+        targetType = targetData?.type;
+      }, [target]);
+      switch(targetType) {
+        case 'File':
+        case 'CharacterDev':
+          if (!parse.rest) {
+            return {
+              dir: curdir,
+              target: target,
+              name: parse.segment,
+              remaining: '',
+              pathStack: pathStack
+            };
+          }
+          throw new EncryptedFSError(errno.ENOTDIR, `navigateFrom '${origPathS}' not a directory`);
+        case 'Directory':
+          if (!parse.rest) {
+            // if parse.segment is ., dir is not the same directory as target
+            // if parse.segment is .., dir is the child directory
+            return {
+              dir: curdir,
+              target: target,
+              name: parse.segment,
+              remaining: '',
+              pathStack: pathStack
+            };
+          }
+          nextDir = target;
+          nextPath = parse.rest;
+          break;
+        case 'Symlink':
+          if (!resolveLastLink && !parse.rest) {
+            return {
+              dir: curdir,
+              target: target,
+              name: parse.segment,
+              remaining: '',
+              pathStack: pathStack
+            };
+          }
+          if (activeSymlinks.has(target)) {
+            throw new EncryptedFSError(errno.ELOOP, `navigateFrom '${origPathS}' linked to itself`);
+          } else {
+            activeSymlinks.add(target);
+          }
+          // although symlinks should not have an empty links, it's still handled correctly here
+          let targetLinks;
+          await this._iNodeMgr.transact(async (tran) => {
+            targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
+          }, [target]);
+          nextPath = pathJoin(targetLinks, parse.rest);
+          if (nextPath[0] === '/') {
+            return this.navigate(
+              nextPath,
+              resolveLastLink,
+              activeSymlinks,
+              origPathS
+            );
+          } else {
+            pathStack.pop();
+            nextDir = curdir;
+          }
+          break;
+        default:
           return {
             dir: curdir,
-            target: target,
+            target: undefined,
             name: parse.segment,
-            remaining: '',
+            remaining: parse.rest,
             pathStack: pathStack
           };
-        }
-        throw new EncryptedFSError(errno.ENOTDIR, `navigateFrom '${origPathS}' not a directory`);
-      case 'Directory':
-        if (!parse.rest) {
-          // if parse.segment is ., dir is not the same directory as target
-          // if parse.segment is .., dir is the child directory
-          return {
-            dir: curdir,
-            target: target,
-            name: parse.segment,
-            remaining: '',
-            pathStack: pathStack
-          };
-        }
-        nextDir = target;
-        nextPath = parse.rest;
-        break;
-      case 'Symlink':
-        if (!resolveLastLink && !parse.rest) {
-          return {
-            dir: curdir,
-            target: target,
-            name: parse.segment,
-            remaining: '',
-            pathStack: pathStack
-          };
-        }
-        if (activeSymlinks.has(target)) {
-          throw new EncryptedFSError(errno.ELOOP, `navigateFrom '${origPathS}' linked to itself`);
-        } else {
-          activeSymlinks.add(target);
-        }
-        // although symlinks should not have an empty links, it's still handled correctly here
-        let targetLinks;
-        await this._iNodeMgr.transact(async (tran) => {
-          targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
-        }, [target]);
-        nextPath = pathJoin(targetLinks, parse.rest);
-        if (nextPath[0] === '/') {
-          return this.navigate(
-            nextPath,
-            resolveLastLink,
-            activeSymlinks,
-            origPathS
-          );
-        } else {
-          pathStack.pop();
-          nextDir = curdir;
-        }
-        break;
-      default:
-        return {
-          dir: curdir,
-          target: undefined,
-          name: parse.segment,
-          remaining: parse.rest,
-          pathStack: pathStack
-        };
+      }
+    } else {
+      return {
+        dir: curdir,
+        target: undefined,
+        name: parse.segment,
+        remaining: parse.rest,
+        pathStack: pathStack
+      };
     }
     return this.navigateFrom(
       nextDir,

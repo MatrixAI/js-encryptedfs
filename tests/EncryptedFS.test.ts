@@ -55,6 +55,27 @@ describe('EncryptedFS', () => {
     });
     expect(efs).toBeInstanceOf(EncryptedFS);
   });
+  test('making directories', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    await expect(efs.mkdir('test/test2')).rejects.toThrow();
+    await efs.mkdir('test');
+    let test = await efs.readdir('.');
+    expect(test).toStrictEqual(['test']);
+    await efs.mkdirp('test3/test4');
+    test = await efs.readdir('.');
+    expect(test).toStrictEqual(['test', 'test3']);
+    test = await efs.readdir('./test3');
+    expect(test).toStrictEqual(['test4']);
+
+  });
   // test('translating paths at current directory', async () => {
   //   const efs = new EncryptedFS(key);
   //   expect(efs.getCwd()).toBe('/');
