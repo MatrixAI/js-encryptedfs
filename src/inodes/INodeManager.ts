@@ -20,6 +20,8 @@ type DirectoryParams = Partial<Omit<INodeParams, 'ino'>>;
 type SymlinkParams = Partial<Omit<INodeParams, 'ino'>>;
 type CharDevParams = Partial<Omit<INodeParams, 'ino'>>;
 
+const blockSize = 5;
+
 class INodeManager {
 
   public static async createINodeManager(
@@ -764,8 +766,30 @@ class INodeManager {
   }
 
   /**
+   * Modified and Change Time are both updated here as this is
+   * exposed to the EFS functions to be used
+   */
+    public async fileSetData(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    data: Buffer,
+  ): Promise<void>{
+    // To set the data we must first clear all existing data, which is
+    // how VFS handles it
+    const dataDb = await this.db.level(ino.toString(), this.dataDb);
+    await dataDb.clear();
+    await this.fileSetBlocks(tran, ino, data, blockSize);
+    const now = new Date;
+    await this.statSetProp(tran, ino, 'mtime', now);
+    await this.statSetProp(tran, ino, 'ctime', now);
+    await this.statSetProp(tran, ino, 'size', data.length);
+  }
+
+
+  /**
    * Iterators are not part of our snapshot yet
-   * Access time not updated here, handled at higher level
+   * Access time not updated here, handled at higher level as this is only
+   * accessed by fds and and other INodeMgr functions
    */
    public async *fileGetBlocks(
     tran: DBTransaction,
@@ -775,6 +799,7 @@ class INodeManager {
     endIdx?: number,
   ): AsyncGenerator<Buffer>{
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
+    dataDb.clear();
     const options = endIdx ? { gte: inodesUtils.bufferId(startIdx), lt: inodesUtils.bufferId(endIdx) } : { gte: inodesUtils.bufferId(startIdx) }
     let blockCount = startIdx;
     for await (const data of dataDb.createReadStream(options)) {
@@ -788,9 +813,11 @@ class INodeManager {
       blockCount++;
     }
   }
+
   /**
    * Iterators are not part of our snapshot yet
-   * Access time not updated here, handled at higher level
+   * Access time not updated here, handled at higher level as this is only
+   * accessed by fds and and other INodeMgr functions
    */
   public async fileGetLastBlock(
     tran: DBTransaction,
@@ -807,7 +834,8 @@ class INodeManager {
   }
 
   /**
-   * Access time not updated here, handled at higher level
+   * Access time not updated here, handled at higher level as this is only
+   * accessed by fds and and other INodeMgr functions
    */
   protected async fileGetBlock(
     tran: DBTransaction,
@@ -824,7 +852,8 @@ class INodeManager {
   }
 
   /**
-   * Modified and Change time not updated here, handled at higher level
+   * Modified and Change time not updated here, handled at higher level as this
+   * is only accessed by fds and and other INodeMgr functions
    */
   public async fileSetBlocks(
     tran: DBTransaction,
@@ -842,7 +871,8 @@ class INodeManager {
   }
 
   /**
-   * Modified and Change time not updated here, handled at higher level
+   * Modified and Change time not updated here, handled at higher level as this
+   * is only accessed by fds and other INodeMgr functions
    */
   public async fileWriteBlock(
     tran: DBTransaction,

@@ -68,6 +68,8 @@ type options = {
   flag?: string
 };
 
+type data = string | Buffer | Uint8Array;
+
 // we want to take in types from the relevant db types
 // queue
 // that's the common types
@@ -148,4 +150,5 @@ export type {
   ParsedPath,
   path,
   options,
+  data,
 };

@@ -1,5 +1,6 @@
-import type { Navigated, ParsedPath, Callback, path, options } from './types';
+import type { Navigated, ParsedPath, Callback, path, options, data } from './types';
 import type { INodeIndex } from './inodes/types';
+import type { FdIndex } from './fd/types';
 
 import pathNode from 'path';
 import Logger from '@matrixai/logger';
@@ -7,6 +8,7 @@ import * as vfs from 'virtualfs';
 import { DB } from './db';
 import { INodeManager } from './inodes';
 import CurrentDirectory from './CurrentDirectory';
+import { FileDescriptor, FileDescriptorManager } from './fd';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
 
@@ -21,12 +23,13 @@ class EncryptedFS {
   protected db: DB;
   protected devMgr: vfs.DeviceManager;
   protected _iNodeMgr: INodeManager;
-  protected logger: Logger;
+  protected _fdMgr: FileDescriptorManager;
   protected _root: INodeIndex;
   protected _cwd: CurrentDirectory;
   protected _uid: number;
   protected _gid: number;
   protected _umask: number;
+  protected logger: Logger;
 
   public static async createEncryptedFS({
     dbKey,
@@ -104,6 +107,7 @@ class EncryptedFS {
     this.db = db;
     this.devMgr = devMgr;
     this._iNodeMgr = iNodeMgr;
+    this._fdMgr = new FileDescriptorManager(this._iNodeMgr);
     this._root = rootIno;
     this._cwd = new CurrentDirectory(this._iNodeMgr, this._root);
     this._uid = vfs.DEFAULT_ROOT_UID;
@@ -171,6 +175,46 @@ class EncryptedFS {
       }
     }, callback);
   }
+
+  // public async appendFile(file: path | FdIndex, data: data, options?: options): Promise<void>;
+  // public async appendFile(file: path | FdIndex, data: data, callback: Callback): Promise<void>;
+  // public async appendFile(file: path | FdIndex, data: data, options: options, callback: Callback): Promise<void>;
+  // public async appendFile(
+  //   file: path | FdIndex,
+  //   data: data = 'undefined',
+  //   optionsOrCallback: options | Callback = { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' },
+  //   callback?: Callback,
+  // ): Promise<void> {
+  //   const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' }, optionsOrCallback): { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'a' } as options;
+  //   callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+  //   return maybeCallback(async () => {
+  //     data = this.getBuffer(data, options.encoding);
+  //     let fdIndex;
+  //     try {
+  //       let fd;
+  //       if (typeof file === 'number') {
+  //         fd = this._fdMgr.getFd(file);
+  //         if (!fd) throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalid File Descriptor`);
+  //         if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+  //           throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalide File Descriptor flags`);
+  //         }
+  //       } else {
+  //         [fd, fdIndex] = await this.open(file, options.flag, options.mode);
+  //       }
+  //       try {
+  //         fd.write(data, undefined, vfs.constants.O_APPEND);
+  //       } catch (e) {
+  //         if (e instanceof RangeError) {
+  //           throw new EncryptedFSError(errno.EFBIG, 'appendFile');
+  //         }
+  //         throw e;
+  //       }
+  //     } finally {
+  //       if (fdIndex !== undefined) this.close(fdIndex);
+  //     }
+  //     return;
+  //   }, callback);
+  // }
 
   public async mkdir(path: path, mode?: number): Promise<void>;
   public async mkdir(path: path, callback: Callback): Promise<void>;
@@ -330,6 +374,215 @@ class EncryptedFS {
         }
       }
     }, callback);
+  }
+
+  public async open(path: path, flags: string | number, mode?: number): Promise<FdIndex>;
+  public async open(path: path, flags: string | number, callback: Callback): Promise<void>;
+  public async open(path: path, flags: string | number, mode: number, callback: Callback): Promise<void>;
+  public async open(
+    path: path,
+    flags: string | number,
+    modeOrCallback: number | Callback = vfs.DEFAULT_FILE_PERM,
+    callback?: Callback,
+  ): Promise<FdIndex | void> {
+    const mode = (typeof modeOrCallback !== 'function') ? modeOrCallback : vfs.DEFAULT_FILE_PERM;
+    callback = (typeof modeOrCallback === 'function') ? modeOrCallback : callback;
+    return maybeCallback(async () => {
+      return (await this._open(path, flags, mode))[1];
+    }, callback);
+  }
+
+  protected async _open(
+    path: path,
+    flags: string | number,
+    mode: number = vfs.DEFAULT_FILE_PERM,
+  ): Promise<[FileDescriptor, FdIndex]> {
+    path = this.getPath(path);
+    if (typeof flags === 'string') {
+      switch(flags) {
+      case 'r':
+      case 'rs':
+        flags = vfs.constants.O_RDONLY;
+        break;
+      case 'r+':
+      case 'rs+':
+        flags = vfs.constants.O_RDWR;
+        break;
+      case 'w':
+        flags = (vfs.constants.O_WRONLY |
+                 vfs.constants.O_CREAT  |
+                 vfs.constants.O_TRUNC);
+        break;
+      case 'wx':
+        flags = (vfs.constants.O_WRONLY |
+                 vfs.constants.O_CREAT  |
+                 vfs.constants.O_TRUNC  |
+                 vfs.constants.O_EXCL);
+        break;
+      case 'w+':
+        flags = (vfs.constants.O_RDWR  |
+                 vfs.constants.O_CREAT |
+                 vfs.constants.O_TRUNC);
+        break;
+      case 'wx+':
+        flags = (vfs.constants.O_RDWR  |
+                 vfs.constants.O_CREAT |
+                 vfs.constants.O_TRUNC |
+                 vfs.constants.O_EXCL);
+        break;
+      case 'a':
+        flags = (vfs.constants.O_WRONLY |
+                 vfs.constants.O_APPEND |
+                 vfs.constants.O_CREAT);
+        break;
+      case 'ax':
+        flags = (vfs.constants.O_WRONLY |
+                 vfs.constants.O_APPEND |
+                 vfs.constants.O_CREAT  |
+                 vfs.constants.O_EXCL);
+        break;
+      case 'a+':
+        flags = (vfs.constants.O_RDWR   |
+                 vfs.constants.O_APPEND |
+                 vfs.constants.O_CREAT);
+        break;
+      case 'ax+':
+        flags = (vfs.constants.O_RDWR   |
+                 vfs.constants.O_APPEND |
+                 vfs.constants.O_CREAT  |
+                 vfs.constants.O_EXCL);
+        break;
+      default:
+        throw new TypeError('Unknown file open flag: ' + flags);
+      }
+    }
+    if (typeof flags !== 'number') {
+      throw new TypeError('Unknown file open flag: ' + flags);
+    }
+    let navigated = await this.navigate(path, false);
+    let target = navigated.target;
+    // This is needed for the purpose of symlinks, if the navigated target exists
+    // and is a symlink we need to go inside and check the target again. So a while
+    // loop suits us best. In VFS this was easier as the type checking wasn't as strict
+    while(true) {
+      if(!target) {
+        // O_CREAT only applies if there's a left over name without any remaining path
+        if (!navigated.remaining && (flags & vfs.constants.O_CREAT)) {
+          let navigatedDirStat;
+          await this._iNodeMgr.transact(async (tran) => {
+            navigatedDirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
+          }, [navigated.dir]);
+          // cannot create if the current directory has been unlinked from its parent directory
+          if (navigatedDirStat.nlink < 2) {
+            throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
+          }
+          if (!this.checkPermissions(
+            vfs.constants.W_OK,
+            navigatedDirStat
+          )) {
+            throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+          }
+          const fileINode = this._iNodeMgr.inoAllocate();
+          await this._iNodeMgr.transact(async (tran) => {
+            await this._iNodeMgr.fileCreate(
+              tran,
+              fileINode,
+              {
+                mode: vfs.applyUmask(mode, this._umask),
+                uid: this._uid,
+                gid: this._gid
+              }
+            );
+          }, [fileINode]);
+          await this._iNodeMgr.transact(async (tran) => {
+            await this._iNodeMgr.fileCreate(
+              tran,
+              fileINode,
+              {
+                mode: vfs.applyUmask(mode, this._umask),
+                uid: this._uid,
+                gid: this._gid
+              }
+            );
+            await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, fileINode);
+          }, [fileINode, navigated.dir]);
+        } else {
+          throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
+        }
+      } else {
+        const targetIno = target;
+        let targetType;
+        await this._iNodeMgr.transact(async (tran) => {
+          targetType = (await this._iNodeMgr.get(tran, targetIno))?.type;
+        });
+        if (targetType === 'Symlink') {
+          // cannot be symlink if O_NOFOLLOW
+          if (flags & vfs.constants.O_NOFOLLOW) {
+            throw new EncryptedFSError(errno.ELOOP, `open '${path}'`);
+          }
+          navigated = await this.navigateFrom(
+            navigated.dir,
+            navigated.name + navigated.remaining,
+            true,
+            undefined,
+            undefined,
+            path
+          );
+          target = navigated.target;
+        } else {
+          // target already exists cannot be created exclusively
+          if ((flags & vfs.constants.O_CREAT) && (flags & vfs.constants.O_EXCL)) {
+            throw new EncryptedFSError(errno.EEXIST, `open '${path}'`);
+          }
+          // cannot be directory if write capabilities are requested
+          if ((targetType === 'Directory') &&
+              (flags & (vfs.constants.O_WRONLY | flags & vfs.constants.O_RDWR)))
+          {
+            throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
+          }
+          // must be directory if O_DIRECTORY
+          if ((flags & vfs.constants.O_DIRECTORY) && !(targetType === 'Directory')) {
+            throw new EncryptedFSError(errno.ENOTDIR, `open '${path}'`);
+          }
+          // must truncate a file if O_TRUNC
+          if ((flags & vfs.constants.O_TRUNC) &&
+              (targetType === 'File') &&
+              (flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)))
+          {
+            await this._iNodeMgr.transact(async (tran) => {
+              await this._iNodeMgr.fileSetData(tran, targetIno, Buffer.alloc(0));
+            }, [target]);
+          }
+          break;
+        }
+      }
+    }
+    // convert file descriptor access flags into bitwise permission flags
+    let access;
+    if (flags & vfs.constants.O_RDWR) {
+      access = vfs.constants.R_OK | vfs.constants.W_OK;
+    } else if (flags & vfs.constants.O_WRONLY) {
+      access = vfs.constants.W_OK;
+    } else {
+      access = vfs.constants.R_OK;
+    }
+    const finalTarget = target;
+    let targetStat;
+    await this._iNodeMgr.transact(async (tran) => {
+      targetStat = await this._iNodeMgr.statGet(tran, finalTarget);
+    }, [target]);
+    if (!this.checkPermissions(access, targetStat)) {
+      throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+    }
+    try {
+      let fd = this._fdMgr.createFd(target, flags);
+      return fd;
+    } catch (e) {
+      if (e instanceof EncryptedFSError) {
+        throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+      }
+      throw e;
+    }
   }
 
   public async readdir(path: path, options?: options): Promise<Array<string | Buffer>>;
@@ -643,6 +896,28 @@ class EncryptedFS {
     } else {
       return {...defaultOptions, ...options};
     }
+  }
+
+  /**
+   * Processes data types and collapses it to a Buffer.
+   * The data types can be Buffer or Uint8Array or string.
+   */
+   protected getBuffer(data: data, encoding: BufferEncoding | undefined = undefined): Buffer {
+    if (data instanceof Buffer) {
+      return data;
+    }
+    if (data instanceof Uint8Array) {
+      // zero copy implementation
+      // also sliced to the view's constraint
+      return Buffer.from(data.buffer).slice(
+        data.byteOffset,
+        data.byteOffset + data.byteLength
+      );
+    }
+    if (typeof data === 'string') {
+      return Buffer.from(data, encoding);
+    }
+    throw new TypeError('data must be Buffer or Uint8Array or string');
   }
 }
 
