@@ -74,7 +74,9 @@ describe('EncryptedFS', () => {
     expect(test).toStrictEqual(['test', 'test3']);
     test = await efs.readdir('./test3');
     expect(test).toStrictEqual(['test4']);
-
+    const temp = await efs.mkdtemp('test');
+    test = await efs.readdir('.');
+    expect(test).toStrictEqual(['test', 'test3', temp]);
   });
   // test('translating paths at current directory', async () => {
   //   const efs = new EncryptedFS(key);

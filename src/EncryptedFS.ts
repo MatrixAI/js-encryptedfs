@@ -264,6 +264,45 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async mkdtemp(pathSPrefix: string, options?: options): Promise<string | Buffer>;
+  public async mkdtemp(pathSPrefix: string, callback: Callback): Promise<void>;
+  public async mkdtemp(pathSPrefix: string, options: options, callback: Callback): Promise<void>;
+  public async mkdtemp(
+    pathSPrefix: path,
+    optionsOrCallback: options | Callback = { encoding: 'utf8' },
+    callback?: Callback,
+  ): Promise<string | Buffer | void> {
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback) : { encoding: 'utf8' } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      if (!pathSPrefix || typeof pathSPrefix !== 'string') {
+        throw new TypeError('filename prefix is required');
+      }
+      const getChar = () => {
+        const possibleChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        return possibleChars[Math.floor(Math.random() * possibleChars.length)];
+      };
+      let pathS;
+      while (true) {
+        pathS = pathSPrefix.concat(
+          Array.from({length: 6}, () => getChar).map((f) => f()).join('')
+        );
+        try {
+          await this.mkdir(pathS);
+          if (options.encoding === 'binary') {
+            return Buffer.from(pathS);
+          } else {
+            return Buffer.from(pathS).toString(options.encoding);
+          }
+        } catch (e) {
+          if (e.code !== errno.EEXIST) {
+            throw e;
+          }
+        }
+      }
+    }, callback);
+  }
+
   public async readdir(path: path, options?: options): Promise<Array<string | Buffer>>;
   public async readdir(path: path, callback: Callback): Promise<void>;
   public async readdir(path: path, options: options, callback: Callback): Promise<void>;
