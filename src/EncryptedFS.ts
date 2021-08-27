@@ -200,10 +200,10 @@ class EncryptedFS {
             throw new EncryptedFSError(errno.EBADF, `appendFile '${fd}' invalide File Descriptor flags`);
           }
         } else {
-          [fd, fdIndex] = await this._open(file, options.flag, options.mode);
+          [fd, fdIndex] = await this._open(file as path, options.flag, options.mode);
         }
         try {
-          fd.write(data, undefined, vfs.constants.O_APPEND);
+          await fd.write(data, undefined, vfs.constants.O_APPEND);
         } catch (e) {
           if (e instanceof RangeError) {
             throw new EncryptedFSError(errno.EFBIG, 'appendFile');
@@ -211,7 +211,7 @@ class EncryptedFS {
           throw e;
         }
       } finally {
-        if (fdIndex !== undefined) this.close(fdIndex);
+        if (fdIndex !== undefined) await this.close(fdIndex);
       }
       return;
     }, callback);
@@ -222,7 +222,7 @@ class EncryptedFS {
       if (!this._fdMgr.getFd(fdIndex)) {
         throw new EncryptedFSError(errno.EBADF, 'close');
       }
-      this._fdMgr.deleteFd(fdIndex);
+      await this._fdMgr.deleteFd(fdIndex);
     }, callback);
   }
 
@@ -516,6 +516,8 @@ class EncryptedFS {
             );
             await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, fileINode);
           }, [fileINode, navigated.dir]);
+          target = fileINode;
+          break;
         } else {
           throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
         }
@@ -585,8 +587,7 @@ class EncryptedFS {
       throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
     }
     try {
-      let fd = this._fdMgr.createFd(target, flags);
-      return fd;
+      return await this._fdMgr.createFd(target, flags);
     } catch (e) {
       if (e instanceof EncryptedFSError) {
         throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
@@ -612,10 +613,10 @@ class EncryptedFS {
         throw new EncryptedFSError(errno.ENOENT, `readdir '${path}' does not exist`);
       }
       let navigatedTargetType, navigatedTargetStat;
+      const target = navigated.target;
       await this._iNodeMgr.transact(async (tran) => {
-        if (!navigated.target) throw new EncryptedFSError(errno.ENOENT, `readdir '${path}' does not exist`);
-        navigatedTargetType = (await this._iNodeMgr.get(tran, navigated.target))?.type;
-        navigatedTargetStat = await this._iNodeMgr.statGet(tran, navigated.target);
+        navigatedTargetType = (await this._iNodeMgr.get(tran, target))?.type;
+        navigatedTargetStat = await this._iNodeMgr.statGet(tran, target);
       }, [navigated.target]);
       if (navigatedTargetType !== 'Directory') {
         throw new EncryptedFSError(errno.ENOTDIR, `readdir '${path}' not a directory`);
@@ -625,8 +626,7 @@ class EncryptedFS {
       }
       const navigatedTargetEntries: Array<[string | Buffer, INodeIndex]> = [];
       await this._iNodeMgr.transact(async (tran) => {
-        if (!navigated.target) throw new EncryptedFSError(errno.ENOENT, `readdir '${path}' does not exist`);
-        for await (const dirEntry of this._iNodeMgr.dirGet(tran, navigated.target)) {
+        for await (const dirEntry of this._iNodeMgr.dirGet(tran, target)) {
           navigatedTargetEntries.push(dirEntry);
         }
       }, [navigated.target]);

@@ -68,15 +68,30 @@ describe('EncryptedFS', () => {
     await expect(efs.mkdir('test/test2')).rejects.toThrow();
     await efs.mkdir('test');
     let test = await efs.readdir('.');
-    expect(test).toStrictEqual(['test']);
+    expect(test.sort()).toStrictEqual(['test'].sort());
     await efs.mkdirp('test3/test4');
     test = await efs.readdir('.');
-    expect(test).toStrictEqual(['test', 'test3']);
+    expect(test.sort()).toStrictEqual(['test', 'test3'].sort());
     test = await efs.readdir('./test3');
-    expect(test).toStrictEqual(['test4']);
+    expect(test.sort()).toStrictEqual(['test4'].sort());
     const temp = await efs.mkdtemp('test');
     test = await efs.readdir('.');
-    expect(test).toStrictEqual(['test', 'test3', temp]);
+    expect(test.sort()).toStrictEqual(['test', 'test3', temp].sort());
+  });
+  test('opening files', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const fd = await efs.open('testFile', vfs.constants.O_CREAT);
+    let test = await efs.readdir('.');
+    expect(test).toStrictEqual(['testFile']);
+    await efs.close(fd);
   });
   // test('translating paths at current directory', async () => {
   //   const efs = new EncryptedFS(key);
