@@ -769,20 +769,14 @@ class INodeManager {
    * Modified and Change Time are both updated here as this is
    * exposed to the EFS functions to be used
    */
-    public async fileSetData(
+    public async fileClearData(
     tran: DBTransaction,
     ino: INodeIndex,
-    data: Buffer,
   ): Promise<void>{
     // To set the data we must first clear all existing data, which is
     // how VFS handles it
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
     await dataDb.clear();
-    await this.fileSetBlocks(tran, ino, data, blockSize);
-    const now = new Date;
-    await this.statSetProp(tran, ino, 'mtime', now);
-    await this.statSetProp(tran, ino, 'ctime', now);
-    await this.statSetProp(tran, ino, 'size', data.length);
   }
 
 
@@ -799,7 +793,6 @@ class INodeManager {
     endIdx?: number,
   ): AsyncGenerator<Buffer>{
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
-    dataDb.clear();
     const options = endIdx ? { gte: inodesUtils.bufferId(startIdx), lt: inodesUtils.bufferId(endIdx) } : { gte: inodesUtils.bufferId(startIdx) }
     let blockCount = startIdx;
     for await (const data of dataDb.createReadStream(options)) {

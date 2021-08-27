@@ -139,6 +139,12 @@ describe('EncryptedFS', () => {
     await efs.write(fd, writeBuffer, 0, 25, 0);
     await efs.read(fd, readBuffer, 0, 25, 0);
     expect(readBuffer).toStrictEqual(writeBuffer);
+    let readString = await efs.readFile(fd, { encoding: 'utf8' });
+    expect(readString).toStrictEqual(writeBuffer.toString());
+    const writeFileBuffer = Buffer.from('New Test EncryptedFS');
+    await efs.writeFile(fd, writeFileBuffer);
+    readString = await efs.readFile('testFile', { encoding: 'utf8' });
+    expect(readString).toEqual(writeFileBuffer.toString());
     await efs.close(fd);
   });
   // test('translating paths at current directory', async () => {

@@ -133,7 +133,6 @@ class FileDescriptor {
     }
     let bytesRead = buffer.length;
 
-
     switch (type) {
       case 'File':
         // Obtain the block size used by the iNode
@@ -193,6 +192,8 @@ class FileDescriptor {
           const now = new Date;
           await this._iNodeMgr.statSetProp(tran, this._ino, 'atime', now);
         }, [this._ino]);
+
+        bytesRead = retBufferPos;
         break;
       case 'CharacterDev':
         let fops;

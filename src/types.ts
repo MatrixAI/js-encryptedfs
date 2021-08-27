@@ -1,7 +1,8 @@
 import type fs from 'fs';
 import type * as vfs from 'virtualfs';
 import type { Mutex } from 'async-mutex';
-import { INodeIndex } from './inodes/types';
+import type { INodeIndex } from './inodes/types';
+import type { FdIndex } from './fd/types';
 
 /**
  * Plain data dictionary
@@ -69,6 +70,8 @@ type options = {
 };
 
 type data = string | Buffer | Uint8Array;
+
+type file = FdIndex | path;
 
 // we want to take in types from the relevant db types
 // queue
@@ -151,4 +154,5 @@ export type {
   path,
   options,
   data,
+  file,
 };

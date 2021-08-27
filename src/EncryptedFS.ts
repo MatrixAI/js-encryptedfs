@@ -1,4 +1,4 @@
-import type { Navigated, ParsedPath, Callback, path, options, data } from './types';
+import type { Navigated, ParsedPath, Callback, path, options, data, file } from './types';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
 
@@ -570,7 +570,8 @@ class EncryptedFS {
               (flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)))
           {
             await this._iNodeMgr.transact(async (tran) => {
-              await this._iNodeMgr.fileSetData(tran, targetIno, Buffer.alloc(0));
+              await this._iNodeMgr.fileClearData(tran, targetIno);
+              await this._iNodeMgr.fileSetBlocks(tran, targetIno, Buffer.alloc(0), 5);
             }, [target]);
           }
           break;
@@ -733,6 +734,42 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async readFile(file: file, options?: options): Promise<string | Buffer>;
+  public async readFile(file: file, callback: Callback): Promise<void>;
+  public async readFile(file: file, options: options, callback: Callback): Promise<void>;
+  public async readFile(
+    file: file,
+    optionsOrCallback?: options | Callback<[string | Buffer]>,
+    callback?: Callback<[string | Buffer]>
+    ): Promise<string | Buffer | void> {
+    let options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback): { encoding: 'utf8' as BufferEncoding } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      options.flag = 'r';
+      let fdIndex;
+      try {
+        const buffer = Buffer.allocUnsafe(4096);
+        let totalBuffer = Buffer.alloc(0);
+        let bytesRead;
+        if (typeof file === 'number') {
+          while (bytesRead !== 0) {
+            bytesRead = await this.read(file, buffer, 0, buffer.length);
+            totalBuffer = Buffer.concat([totalBuffer, buffer.slice(0, bytesRead)]);
+          }
+        } else {
+          fdIndex = await this.open(file as path, options.flag);
+          while (bytesRead !== 0) {
+            bytesRead = await this.read(fdIndex, buffer, 0, buffer.length);
+            totalBuffer = Buffer.concat([totalBuffer, buffer.slice(0, bytesRead)]);
+          }
+        }
+        return (options.encoding) ? totalBuffer.toString(options.encoding) : totalBuffer;
+      } finally {
+        if (fdIndex !== undefined) await this.close(fdIndex);
+      }
+    }, callback);
+  }
+
   public async stat(path: path, callback?: Callback<[vfs.Stat]>): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -832,6 +869,41 @@ class EncryptedFS {
           throw new EncryptedFSError(e, 'write');
         }
         throw e;
+      }
+    }, callback);
+  }
+
+  public async writeFile(file: file, data?: data): Promise<void>;
+  public async writeFile(file: file, data: data, callback: Callback): Promise<void>;
+  public async writeFile(file: file, data: data, options: options, callback: Callback): Promise<void>;
+  public async writeFile(
+    file: file,
+    data: data = 'undefined',
+    optionsOrCallback: options | Callback = { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM, flag: 'w' },
+    callback?: Callback
+  ): Promise<void> {
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM }, optionsOrCallback): { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback: callback;
+    return maybeCallback(async () => {
+      let fdIndex;
+      options.flag = 'w';
+      const buffer = this.getBuffer(data, options.encoding);
+      let fdCheck = false;
+      if (typeof file !== 'number') {
+        fdIndex = await this.open(file as path, options.flag, options.mode);
+        fdCheck = true;
+      } else {
+        fdIndex = file;
+      }
+      const fd = this._fdMgr.getFd(fdIndex) as FileDescriptor;
+      await this._iNodeMgr.transact(async (tran) => {
+        options.flag = 'w';
+        await this._iNodeMgr.fileClearData(tran, fd.ino);
+      }, [fd.ino]);
+      try {
+        await this.write(fdIndex, buffer, 0, buffer.length, 0);
+      } finally {
+        if (fdIndex !== undefined && fdCheck) await this.close(fdIndex);
       }
     }, callback);
   }
