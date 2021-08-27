@@ -306,23 +306,24 @@ class EncryptedFS {
       while (true) {
         if (!navigated.target) {
           let navigatedDirStat;
+          const dirINode = this._iNodeMgr.inoAllocate();
           await this._iNodeMgr.transact(async (tran) => {
+            tran.queueFailure(() => {
+              this._iNodeMgr.inoDeallocate(dirINode);
+            });
             navigatedDirStat = (await this._iNodeMgr.statGet(tran, navigated.dir));
-          }, [navigated.dir]);
-          if (navigatedDirStat.nlink < 2) {
-            throw new EncryptedFSError(errno.ENOENT, `mkdirp '${path}' does not exist`);
-          }
-          if (!this.checkPermissions(
-            vfs.constants.W_OK,
-            navigatedDirStat
-          )) {
-            throw new EncryptedFSError(errno.EACCES, `mkdirp '${path}' does not have correct permissions`);
-          }
-          const dirInode = this._iNodeMgr.inoAllocate();
-          await this._iNodeMgr.transact(async (tran) => {
+            if (navigatedDirStat.nlink < 2) {
+              throw new EncryptedFSError(errno.ENOENT, `mkdirp '${path}' does not exist`);
+            }
+            if (!this.checkPermissions(
+              vfs.constants.W_OK,
+              navigatedDirStat
+            )) {
+              throw new EncryptedFSError(errno.EACCES, `mkdirp '${path}' does not have correct permissions`);
+            }
             await this._iNodeMgr.dirCreate(
               tran,
-              dirInode,
+              dirINode,
               {
                 mode: vfs.applyUmask(mode, this._umask),
                 uid: this._uid,
@@ -330,21 +331,18 @@ class EncryptedFS {
               },
               await this._iNodeMgr.dirGetEntry(tran, navigated.dir, '.'),
             );
-            }, [dirInode]);
-          await this._iNodeMgr.transact(async (tran) => {
-            await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, dirInode);
-          }, [navigated.dir]);
+            await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, dirINode);
+          }, [navigated.dir, dirINode]);
           if (navigated.remaining) {
-            currentDir = dirInode;
+            currentDir = dirINode;
             navigated = await this.navigateFrom(currentDir, navigated.remaining, true);
           } else {
             break;
           }
         } else {
+          const navigatedTarget = navigated.target;
           await this._iNodeMgr.transact(async (tran) => {
-            // TODO: Investigate this
-            if (!navigated.target) throw Error;
-            navigatedTargetType = (await this._iNodeMgr.get(tran, navigated.target))?.type;
+            navigatedTargetType = (await this._iNodeMgr.get(tran, navigatedTarget))?.type;
           }, [navigated.target]);
           if (navigatedTargetType !== 'Directory') {
             throw new EncryptedFSError(errno.ENOTDIR, `mkdirp '${path}' is not a directory`);
@@ -487,32 +485,22 @@ class EncryptedFS {
         // O_CREAT only applies if there's a left over name without any remaining path
         if (!navigated.remaining && (flags & vfs.constants.O_CREAT)) {
           let navigatedDirStat;
-          await this._iNodeMgr.transact(async (tran) => {
-            navigatedDirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
-          }, [navigated.dir]);
-          // cannot create if the current directory has been unlinked from its parent directory
-          if (navigatedDirStat.nlink < 2) {
-            throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
-          }
-          if (!this.checkPermissions(
-            vfs.constants.W_OK,
-            navigatedDirStat
-          )) {
-            throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
-          }
           const fileINode = this._iNodeMgr.inoAllocate();
           await this._iNodeMgr.transact(async (tran) => {
-            await this._iNodeMgr.fileCreate(
-              tran,
-              fileINode,
-              {
-                mode: vfs.applyUmask(mode, this._umask),
-                uid: this._uid,
-                gid: this._gid
-              }
-            );
-          }, [fileINode]);
-          await this._iNodeMgr.transact(async (tran) => {
+            tran.queueFailure(() => {
+              this._iNodeMgr.inoDeallocate(fileINode);
+            });
+            navigatedDirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
+            // cannot create if the current directory has been unlinked from its parent directory
+            if (navigatedDirStat.nlink < 2) {
+              throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
+            }
+            if (!this.checkPermissions(
+              vfs.constants.W_OK,
+              navigatedDirStat
+            )) {
+              throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+            }
             await this._iNodeMgr.fileCreate(
               tran,
               fileINode,
@@ -534,7 +522,7 @@ class EncryptedFS {
         let targetType;
         await this._iNodeMgr.transact(async (tran) => {
           targetType = (await this._iNodeMgr.get(tran, targetIno))?.type;
-        });
+        }, [targetIno]);
         if (targetType === 'Symlink') {
           // cannot be symlink if O_NOFOLLOW
           if (flags & vfs.constants.O_NOFOLLOW) {
@@ -572,7 +560,7 @@ class EncryptedFS {
             await this._iNodeMgr.transact(async (tran) => {
               await this._iNodeMgr.fileClearData(tran, targetIno);
               await this._iNodeMgr.fileSetBlocks(tran, targetIno, Buffer.alloc(0), 5);
-            }, [target]);
+            }, [targetIno]);
           }
           break;
         }
@@ -706,18 +694,16 @@ class EncryptedFS {
       }
       let navigatedTargetType, navigatedTargetStat;
       const target = navigated.target;
-      await this._iNodeMgr.transact(async (tran) => {
-        navigatedTargetType = (await this._iNodeMgr.get(tran, target))?.type;
-        navigatedTargetStat = await this._iNodeMgr.statGet(tran, target);
-      }, [navigated.target]);
-      if (navigatedTargetType !== 'Directory') {
-        throw new EncryptedFSError(errno.ENOTDIR, `readdir '${path}' not a directory`);
-      }
-      if (!this.checkPermissions(vfs.constants.R_OK, navigatedTargetStat)) {
-        throw new EncryptedFSError(errno.EACCES, `readdir '${path}' does ot have correct permissions`);
-      }
       const navigatedTargetEntries: Array<[string | Buffer, INodeIndex]> = [];
       await this._iNodeMgr.transact(async (tran) => {
+          navigatedTargetType = (await this._iNodeMgr.get(tran, target))?.type;
+          navigatedTargetStat = await this._iNodeMgr.statGet(tran, target);
+        if (navigatedTargetType !== 'Directory') {
+          throw new EncryptedFSError(errno.ENOTDIR, `readdir '${path}' not a directory`);
+        }
+        if (!this.checkPermissions(vfs.constants.R_OK, navigatedTargetStat)) {
+          throw new EncryptedFSError(errno.EACCES, `readdir '${path}' does ot have correct permissions`);
+        }
         for await (const dirEntry of this._iNodeMgr.dirGet(tran, target)) {
           navigatedTargetEntries.push(dirEntry);
         }
@@ -742,7 +728,7 @@ class EncryptedFS {
     optionsOrCallback?: options | Callback<[string | Buffer]>,
     callback?: Callback<[string | Buffer]>
     ): Promise<string | Buffer | void> {
-    let options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback): { encoding: 'utf8' as BufferEncoding } as options;
+    let options = (typeof optionsOrCallback !== 'function') ? this.getOptions({}, optionsOrCallback): {} as options;
     callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
     return maybeCallback(async () => {
       options.flag = 'r';
@@ -873,7 +859,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async writeFile(file: file, data?: data): Promise<void>;
+  public async writeFile(file: file, data?: data, options?: options): Promise<void>;
   public async writeFile(file: file, data: data, callback: Callback): Promise<void>;
   public async writeFile(file: file, data: data, options: options, callback: Callback): Promise<void>;
   public async writeFile(
