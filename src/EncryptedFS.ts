@@ -733,6 +733,22 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async stat(path: path, callback?: Callback<[vfs.Stat]>): Promise<vfs.Stat | void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, true)).target;
+      if (target) {
+        let targetStat;
+        await this._iNodeMgr.transact(async (tran) => {
+          targetStat = await this._iNodeMgr.statGet(tran, target);
+        }, [target]);
+        return new vfs.Stat({...targetStat});
+      } else {
+        throw new EncryptedFSError(errno.ENOENT, `stat '${path}`);
+      }
+    }, callback);
+  }
+
   public async write(
     fdIndex: FdIndex,
     data: data,

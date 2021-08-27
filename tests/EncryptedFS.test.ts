@@ -98,9 +98,9 @@ describe('EncryptedFS', () => {
     expect((await efs.readdir(`first/`)).sort()).toStrictEqual(['sub', 'sub2'].sort());
     await efs.mkdirp(`a/depth/sub/dir`);
     await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
-    // const stat = efs.statSync(`a/depth/sub`);
-    // expect(stat.isFile()).toStrictEqual(false);
-    // expect(stat.isDirectory()).toStrictEqual(true);
+    const stat = await efs.stat(`a/depth/sub`) as vfs.Stat;
+    expect(stat.isFile()).toStrictEqual(false);
+    expect(stat.isDirectory()).toStrictEqual(true);
   });
   test('opening files', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
