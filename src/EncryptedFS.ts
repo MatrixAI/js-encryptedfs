@@ -60,16 +60,14 @@ class EncryptedFS {
       logger: logger.getChild(INodeManager.name)
     });
     // create root inode here
+    const iNodeManager = iNodeMgr;
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      // When this is not included TS thinks that it could be
-      // undefined but I cant see why?
-      if (!iNodeMgr) throw Error;
+    await iNodeManager.transact(async (tran) => {
       tran.queueFailure(() => {
-        if (!iNodeMgr) throw Error;
-        iNodeMgr.inoDeallocate(rootIno);
+        if (!iNodeManager) throw Error;
+        iNodeManager.inoDeallocate(rootIno);
       });
-      await iNodeMgr.dirCreate(tran, rootIno, {
+      await iNodeManager.dirCreate(tran, rootIno, {
         mode: vfs.DEFAULT_ROOT_PERM,
         uid: vfs.DEFAULT_ROOT_UID,
         gid: vfs.DEFAULT_ROOT_GID
@@ -247,20 +245,21 @@ class EncryptedFS {
         throw new EncryptedFSError(errno.ENOENT, `mkdir '${path}' does not exist`);
       } else if (!navigated.target) {
         let navigatedDirStats;
-        await this._iNodeMgr.transact(async (tran) => {
-          navigatedDirStats = await this._iNodeMgr.statGet(tran, navigated.dir);
-        }, [navigated.dir]);
-        if (navigatedDirStats['nlink'] < 2) {
-          throw new EncryptedFSError(errno.ENOENT, `mkdir '${path}' does not exist`);
-        }
-        if (!this.checkPermissions(
-            vfs.constants.W_OK,
-            navigatedDirStats
-        )) {
-          throw new EncryptedFSError(errno.EACCES, `mkdir '${path}' does not have correct permissions`);
-        }
         const dirINode = this._iNodeMgr.inoAllocate();
         await this._iNodeMgr.transact(async (tran) => {
+          tran.queueFailure(() => {
+            this._iNodeMgr.inoDeallocate(dirINode);
+          });
+          navigatedDirStats = await this._iNodeMgr.statGet(tran, navigated.dir);
+          if (navigatedDirStats['nlink'] < 2) {
+            throw new EncryptedFSError(errno.ENOENT, `mkdir '${path}' does not exist`);
+          }
+          if (!this.checkPermissions(
+              vfs.constants.W_OK,
+              navigatedDirStats
+          )) {
+            throw new EncryptedFSError(errno.EACCES, `mkdir '${path}' does not have correct permissions`);
+          }
           await this._iNodeMgr.dirCreate(
             tran,
             dirINode,
@@ -271,8 +270,6 @@ class EncryptedFS {
             },
             await this._iNodeMgr.dirGetEntry(tran, navigated.dir, '.'),
           );
-        }, [dirINode]);
-        await this._iNodeMgr.transact(async (tran) => {
           await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, dirINode);
         }, [navigated.dir, dirINode]);
       }
@@ -596,6 +593,89 @@ class EncryptedFS {
     }
   }
 
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    offset?: number,
+    length?: number,
+    position?: number
+  ): Promise<number>;
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    offset: number,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    offset: number,
+    length: number,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    offset: number,
+    length: number,
+    position: number,
+    callback: Callback<[number]>): Promise<void>;
+  public async read(
+    fdIndex: FdIndex,
+    buffer: data,
+    offsetOrCallback: number | Callback<[number]> = 0,
+    lengthOrCallback: number | Callback<[number]> = 0,
+    positionOrCallback: number | undefined | Callback<[number]> = undefined,
+    callback?: Callback<[number]>,
+  ): Promise<number | void> {
+    const position = (typeof positionOrCallback !== 'function') ? positionOrCallback: undefined;
+    const offset = (typeof offsetOrCallback !== 'function') ? offsetOrCallback: 0;
+    const length = (typeof lengthOrCallback !== 'function') ? lengthOrCallback: 0;
+    callback = (typeof positionOrCallback === 'function') ? positionOrCallback : callback;
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, 'read');
+      }
+      if (typeof position === 'number' && position < 0) {
+        throw new EncryptedFSError(errno.EINVAL, 'read');
+      }
+      let fdStat;
+      await this._iNodeMgr.transact(async (tran) =>{
+        fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
+      }, [fd.ino]);
+      if (fdStat.isDirectory()) {
+        throw new EncryptedFSError(errno.EISDIR, 'read');
+      }
+      const flags = fd.flags;
+      if (flags & vfs.constants.O_WRONLY) {
+        throw new EncryptedFSError(errno.EBADF, 'read');
+      }
+      if (offset < 0 || offset > buffer.length) {
+        throw new RangeError('Offset is out of bounds');
+      }
+      if (length < 0 || length > buffer.length) {
+        throw new RangeError('Length extends beyond buffer');
+      }
+      buffer = this.getBuffer(buffer).slice(offset, offset + length);
+      let bytesRead;
+      try {
+        bytesRead = await fd.read(buffer as Buffer, position);
+      } catch (e) {
+        if (e instanceof EncryptedFSError) {
+          throw new EncryptedFSError(e, 'read');
+        }
+        throw e;
+      }
+      return bytesRead;
+    }, callback);
+  }
+
   public async readdir(path: path, options?: options): Promise<Array<string | Buffer>>;
   public async readdir(path: path, callback: Callback): Promise<void>;
   public async readdir(path: path, options: options, callback: Callback): Promise<void>;
@@ -639,6 +719,93 @@ class EncryptedFS {
             return Buffer.from(name).toString(options.encoding);
           }
         });
+    }, callback);
+  }
+
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    offsetOrPos?: number,
+    lengthOrEncoding?: number | string,
+    position?: number
+  ): Promise<number>;
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    offsetOrPos: number,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    offsetOrPos: number,
+    lengthOrEncoding: number | string,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    offsetOrPos: number,
+    lengthOrEncoding: number | string,
+    position: number,
+    callback: Callback<[number]>
+  ): Promise<void>;
+  public async write(
+    fdIndex: FdIndex,
+    data: data,
+    offsetOrPosOrCallback?: number | Callback<[number]>,
+    lengthOrEncodingOrCallback?: number | string | Callback<[number]>,
+    positionOrCallback: number | undefined | Callback<[number]> = undefined,
+    callback?: Callback<[number]>,
+  ): Promise<number | void> {
+    let position = (typeof positionOrCallback !== 'function') ? positionOrCallback: undefined;
+    let offsetOrPos = (typeof offsetOrPosOrCallback !== 'function') ? offsetOrPosOrCallback: undefined;
+    let lengthOrEncoding = (typeof lengthOrEncodingOrCallback !== 'function') ? lengthOrEncodingOrCallback: undefined;
+    callback = (typeof positionOrCallback === 'function') ? positionOrCallback: callback;
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, 'write');
+      }
+      if (typeof position === 'number' && position < 0) {
+        throw new EncryptedFSError(errno.EINVAL, 'write');
+      }
+      const flags = fd.flags;
+      if (!(flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+        throw new EncryptedFSError(errno.EBADF, 'write');
+      }
+      let buffer;
+      if (typeof data === 'string') {
+        position = (typeof offsetOrPos === 'number') ? offsetOrPos : undefined;
+        lengthOrEncoding = (typeof lengthOrEncoding === 'string') ? lengthOrEncoding : 'utf8';
+        buffer = this.getBuffer(data, lengthOrEncoding as BufferEncoding);
+      } else {
+        offsetOrPos = (typeof offsetOrPos === 'number') ? offsetOrPos : 0;
+        if (offsetOrPos < 0 || offsetOrPos > data.length) {
+          throw new RangeError('Offset is out of bounds');
+        }
+        lengthOrEncoding = (typeof lengthOrEncoding === 'number') ? lengthOrEncoding : data.length;
+        if (lengthOrEncoding < 0 || lengthOrEncoding > data.length) {
+          throw new RangeError('Length is out of bounds');
+        }
+        buffer = this.getBuffer(data).slice(offsetOrPos, offsetOrPos + lengthOrEncoding);
+      }
+      try {
+        return await fd.write(buffer, position);
+      } catch (e) {
+        if (e instanceof RangeError) {
+          throw new EncryptedFSError(errno.EFBIG, 'write');
+        }
+        if (e instanceof EncryptedFSError) {
+          throw new EncryptedFSError(e, 'write');
+        }
+        throw e;
+      }
     }, callback);
   }
 

@@ -93,6 +93,30 @@ describe('EncryptedFS', () => {
     expect(test).toStrictEqual(['testFile']);
     await efs.close(fd);
   });
+  test('reading and writing files', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const fd = await efs.open('testFile', 'w+');
+    let test = await efs.readdir('.');
+    expect(test).toStrictEqual(['testFile']);
+    let readBuffer = Buffer.alloc(25);
+    const compBuffer = Buffer.alloc(25);
+    await efs.read(fd, readBuffer, 0, 25);
+    expect(readBuffer).toStrictEqual(compBuffer);
+    const writeBuffer = Buffer.from('Test Encrypted FileSystem');
+    readBuffer = Buffer.alloc(25);
+    await efs.write(fd, writeBuffer, 0, 25, 0);
+    await efs.read(fd, readBuffer, 0, 25, 0);
+    expect(readBuffer).toStrictEqual(writeBuffer);
+    await efs.close(fd);
+  });
   // test('translating paths at current directory', async () => {
   //   const efs = new EncryptedFS(key);
   //   expect(efs.getCwd()).toBe('/');
