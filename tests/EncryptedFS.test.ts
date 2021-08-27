@@ -78,6 +78,30 @@ describe('EncryptedFS', () => {
     test = await efs.readdir('.');
     expect(test.sort()).toStrictEqual(['test', 'test3', temp].sort());
   });
+  test('is able to make directories', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    await efs.mkdir(`first`);
+    await expect(efs.exists('first')).resolves.toBe(true);
+    await efs.mkdir(`first//sub/`);
+    await efs.mkdir(`first/sub/subsub`);
+    await efs.mkdir(`first/sub2`);
+    await efs.mkdir(`backslash\\dir`);
+    expect((await efs.readdir(`.`)).sort()).toStrictEqual(['backslash\\dir', 'first'].sort());
+    expect((await efs.readdir(`first/`)).sort()).toStrictEqual(['sub', 'sub2'].sort());
+    await efs.mkdirp(`a/depth/sub/dir`);
+    await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
+    // const stat = efs.statSync(`a/depth/sub`);
+    // expect(stat.isFile()).toStrictEqual(false);
+    // expect(stat.isDirectory()).toStrictEqual(true);
+  });
   test('opening files', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,

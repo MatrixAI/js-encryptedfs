@@ -224,6 +224,17 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async exists(path: path, callback?: Callback<[boolean]>): Promise<boolean | void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      try {
+        return !!((await this.navigate(path, true)).target);
+      } catch (e) {
+        return false;
+      }
+    }, callback);
+  }
+
   public async mkdir(path: path, mode?: number): Promise<void>;
   public async mkdir(path: path, callback: Callback): Promise<void>;
   public async mkdir(path: path, mode: number, callback: Callback): Promise<void>;
