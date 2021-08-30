@@ -127,6 +127,14 @@ class EncryptedFS {
     return this;
   }
 
+  set uid (uid: number) {
+    this._uid = uid;
+  }
+
+  set gid (gid: number) {
+    this._gid = gid;
+  }
+
   public async start () {
     // start it up again
     // requires decryption keys
@@ -217,6 +225,73 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async chmod(path: path, mode: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, true)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `chmod '${path}'`);
+      }
+      if (typeof mode !== 'number') {
+        throw new TypeError('mode must be an integer');
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetStat = await this._iNodeMgr.statGet(tran, target);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID && this._uid !== targetStat.uid) {
+          throw new EncryptedFSError(errno.EPERM, `chmod '${path}'`);
+        }
+        await this._iNodeMgr.statSetProp(tran, target, 'mode', (targetStat.mode & vfs.constants.S_IFMT) | mode);
+      }, [target]);
+    }, callback);
+  }
+
+  public async chown(path: path, uid: number, gid: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, true)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `chown '${path}'`);
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetStat = await this._iNodeMgr.statGet(tran, target);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          // you don't own the file
+          if (targetStat.uid !== this._uid) {
+            throw new EncryptedFSError(errno.EPERM, `chown '${path}'`);
+          }
+          // you cannot give files to others
+          if (this._uid !== uid) {
+            throw new EncryptedFSError(errno.EPERM, `chown '${path}'`);
+          }
+          // because we don't have user group hierarchies, we allow chowning to any group
+        }
+        await this._iNodeMgr.statSetProp(tran, target, 'uid', uid);
+        await this._iNodeMgr.statSetProp(tran, target, 'gid', gid);
+      }, [target]);
+    }, callback);
+  }
+
+  public async chownr(path: path, uid: number, gid: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path)
+      await this.chown(path, uid, gid);
+      let children;
+      try {
+        children = await this.readdir(path);
+      } catch (e) {
+        if (e && e.code === 'ENOTDIR') return;
+        throw e;
+      }
+      for (const child of children) {
+        const pathChild = pathJoin(path as string, child);
+        // don't traverse symlinks
+        if (!(await this.lstat(pathChild) as vfs.Stat).isSymbolicLink()) {
+          await this.chownr(pathChild, uid, gid);
+        }
+      };
+    }, callback);
+  }
+
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       if (!this._fdMgr.getFd(fdIndex)) {
@@ -234,6 +309,32 @@ class EncryptedFS {
       } catch (e) {
         return false;
       }
+    }, callback);
+  }
+
+  public async lchown(path: path, uid: number, gid: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, false)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `lchown '${path}'`);
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetStat = await this._iNodeMgr.statGet(tran, target);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          // you don't own the file
+          if (targetStat.uid !== this._uid) {
+            throw new EncryptedFSError(errno.EPERM, `lchown '${path}'`);
+          }
+          // you cannot give files to others
+          if (this._uid !== uid) {
+            throw new EncryptedFSError(errno.EPERM, `lchown '${path}'`);
+          }
+          // because we don't have user group hierarchies, we allow chowning to any group
+        }
+        await this._iNodeMgr.statSetProp(tran, target, 'uid', uid);
+        await this._iNodeMgr.statSetProp(tran, target, 'gid', gid);
+      }, [target]);
     }, callback);
   }
 
@@ -267,6 +368,22 @@ class EncryptedFS {
           throw new EncryptedFSError(errno.EEXIST, `link '${existingPath}', '${newPath}'`);
         }
       }, [navigatedExisting.target, navigatedNew.dir]);
+    }, callback);
+  }
+
+  public async lstat(path: path, callback?: Callback<[vfs.Stat]>): Promise<vfs.Stat | void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, false)).target;
+      if (target) {
+        let targetStat;
+        await this._iNodeMgr.transact(async (tran) => {
+          targetStat = await this._iNodeMgr.statGet(tran, target);
+        }, [target]);
+        return new vfs.Stat({...targetStat});
+      } else {
+        throw new EncryptedFSError(errno.ENOENT, `lstat '${path}'`);
+      }
     }, callback);
   }
 
@@ -974,6 +1091,46 @@ class EncryptedFS {
         await this._iNodeMgr.statSetProp(tran, target, 'ctime', now);
         await this._iNodeMgr.dirUnsetEntry(tran, navigated.dir, navigated.name);
       }, [navigated.dir, navigated.target]);
+    }, callback);
+  }
+
+  public async utimes(
+    path: path,
+    atime: number|string|Date,
+    mtime: number|string|Date,
+    callback?: Callback,
+  ): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, true)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `utimes '${path}'`);
+      }
+      let newAtime;
+      let newMtime;
+      if (typeof atime === 'number') {
+        newAtime = new Date(atime * 1000);
+      } else if (typeof atime === 'string') {
+        newAtime = new Date(parseInt(atime) * 1000);
+      } else if (atime instanceof Date) {
+        newAtime = atime;
+      } else {
+        throw TypeError('atime and mtime must be dates or unixtime in seconds');
+      }
+      if (typeof mtime === 'number') {
+        newMtime = new Date(mtime * 1000);
+      } else if (typeof mtime === 'string') {
+        newMtime = new Date(parseInt(mtime) * 1000);
+      } else if (mtime instanceof Date) {
+        newMtime = mtime;
+      } else {
+        throw TypeError('atime and mtime must be dates or unixtime in seconds');
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        await this._iNodeMgr.statSetProp(tran, target, 'atime', newAtime);
+        await this._iNodeMgr.statSetProp(tran, target, 'mtime', newMtime);
+        await this._iNodeMgr.statSetProp(tran, target, 'ctime', new Date);
+      }, [target]);
     }, callback);
   }
 
