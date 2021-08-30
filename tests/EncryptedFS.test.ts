@@ -350,6 +350,115 @@ describe('EncryptedFS', () => {
         expect(files).toStrictEqual(content);
       }
     });
+    test('read calling styles', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello World';
+      const buf = Buffer.from(str).fill(0);
+      await efs.writeFile(`test`, str);
+      const fd = await efs.open(`test`, 'r+');
+      let bytesRead: number;
+      bytesRead = await efs.read(fd, buf);
+      expect(bytesRead).toEqual(0);
+      bytesRead = await efs.read(fd, buf, 0);
+      expect(bytesRead).toEqual(0);
+      bytesRead = await efs.read(fd, buf, 0, 0);
+      expect(bytesRead).toEqual(0);
+      bytesRead = await efs.read(fd, buf, 0, 1);
+      expect(bytesRead).toEqual(1);
+      bytesRead = await efs.read(fd, buf, 0, 0);
+      expect(bytesRead).toEqual(0);
+      bytesRead = await efs.read(fd, buf, 0, 1);
+      expect(bytesRead).toEqual(1);
+      await efs.close(fd);
+    });
+    test('write calling styles', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open(`test`, 'w');
+      const str = 'Hello World';
+      const buf = Buffer.from(str);
+      let bytesWritten;
+      bytesWritten = await efs.write(fd, buf);
+      expect(bytesWritten).toEqual(11);
+      bytesWritten = await efs.write(fd, buf, 0);
+      expect(bytesWritten).toEqual(11);
+      await efs.write(fd, buf, 0, buf.length);
+      await efs.write(fd, buf, 0, buf.length);
+      await efs.writeFile(fd, str);
+      await efs.writeFile(fd, str);
+      await efs.writeFile(fd, str);
+      await efs.close(fd);
+    });
+    test('readFile calling styles', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello World';
+      const buf = Buffer.from(str);
+      await efs.writeFile(`test`, buf);
+      const fd = await efs.open(`test`, 'r+');
+      let contents: Buffer | string;
+      contents = await efs.readFile(`test`);
+      expect(contents).toEqual(buf);
+      contents = await efs.readFile(`test`, {
+        encoding: 'utf8',
+        flag: 'r',
+      });
+      expect(contents).toEqual(str);
+      await efs.close(fd);
+    });
+    test('writeFileSync calling styles', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open(`test`, 'w+');
+      const str = 'Hello World';
+      const buf = Buffer.from(str);
+      await efs.writeFile(`test`, str);
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.writeFile(`test`, str, {
+        encoding: 'utf8',
+        mode: 0o666,
+        flag: 'w',
+      });
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.writeFile(`test`, buf);
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.writeFile(fd, str);
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.writeFile(fd, str, { encoding: 'utf8', mode: 0o666, flag: 'w' });
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.writeFile(fd, buf);
+      await expect(efs.readFile(`test`)).resolves.toEqual(buf);
+      await efs.close(fd);
+    });
   });
   describe('Symlinks', () => {
     test('rmdir does not traverse the last symlink', async () => {
@@ -403,46 +512,60 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile(`linktofile`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
       await expect(efs.readFile(`linktolink`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
     });
-    // test('unlink does not traverse symlinks', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   efs.mkdirSync(`test`);
-    //   const buffer = Buffer.from('Hello World');
-    //   efs.writeFileSync(`test/hello-world.txt`, buffer);
-    //   efs.symlinkSync(`test`, `linktotestdir`, 'dir');
-    //   efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
-    //   efs.unlinkSync(`linktofile`);
-    //   efs.unlinkSync(`linktotestdir`);
-    //   expect(efs.readdirSync(`test`)).toContain('hello-world.txt');
-    // });
+    test('unlink does not traverse symlinks', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`test`);
+      const buffer = Buffer.from('Hello World');
+      await efs.writeFile(`test/hello-world.txt`, buffer);
+      await efs.symlink(`test`, `linktotestdir`, 'dir');
+      await efs.symlink(`linktotestdir/hello-world.txt`, `linktofile`);
+      await efs.unlink(`linktofile`);
+      await efs.unlink(`linktotestdir`);
+      await expect(efs.readdir(`test`)).resolves.toContain('hello-world.txt');
+    });
   });
-//   test('should not create hardlinks to directories - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`test`);
-
-//     expect(() => {
-//       efs.linkSync(`test`, `hardlinkttotest`);
-//     }).toThrow('EPERM');
-//   });
-// });    // test('multiple hardlinks to the same file', async () => {
-    //   const efs = new EncryptedFS(key, fs, dataDir);
-    //   efs.mkdirSync(`test`);
-    //   efs.writeFileSync(`test/a`, '');
-    //   efs.linkSync(`test/a`, `test/b`);
-    //   const inoA = efs.statSync(`test/a`).ino;
-    //   const inoB = efs.statSync(`test/b`).ino;
-    //   expect(inoA).toEqual(inoB);
-    //   expect(efs.readFileSync(`test/a`, {})).toEqual(
-    //     efs.readFileSync(`test/b`, {}),
-    //   );
-    // });
+  describe('Hardlinks', () => {
+    test('should not create hardlinks to directories', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`test`);
+      await expect(efs.link(`test`, `hardlinkttotest`)).rejects.toThrow();
+    });
+    test('multiple hardlinks to the same file', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`test`);
+      await efs.writeFile(`test/a`, '');
+      await efs.link(`test/a`, `test/b`);
+      const inoA = (await efs.stat(`test/a`) as vfs.Stat).ino;
+      const inoB = (await efs.stat(`test/b`) as vfs.Stat).ino;
+      expect(inoA).toEqual(inoB);
+      const readB = await efs.readFile(`test/b`);
+      await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
+    });
+  });
 
 // /////////////
 // // streams //
@@ -789,263 +912,6 @@ describe('EncryptedFS', () => {
 
 //     efs.closeSync(dirfd);
 //     done();
-//   });
-// });
-
-// //////////////////////////////////////////////////////////////////////////
-// // function calling styles (involving intermediate optional parameters) //
-// //////////////////////////////////////////////////////////////////////////
-// describe('function calling styles', () => {
-//   test('openSync calling styles work - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     expect(() => {
-//       let fd: number;
-//       fd = efs.openSync(`test`, 'w+');
-//       efs.closeSync(fd);
-//       fd = efs.openSync(`test2`, 'w+', 0o666);
-//       efs.closeSync(fd);
-//     }).not.toThrow();
-//   });
-
-//   test('open calling styles work - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.open(`test`, 'w+', (e, fd) => {
-//       expect(e).toBeNull();
-//       efs.closeSync(fd!);
-//       efs.open(`test2`, 'w+', 0o666, (e, fd) => {
-//         expect(e).toBeNull();
-//         efs.close(fd!, (e) => {
-//           expect(e).toBeNull();
-//           done();
-//         });
-//       });
-//     });
-//   });
-
-//   test('readSync calling styles work - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str).fill(0);
-//     efs.writeFileSync(`test`, str);
-//     const fd = efs.openSync(`test`, 'r+');
-//     let bytesRead: number;
-//     bytesRead = efs.readSync(fd, buf);
-//     expect(bytesRead).toEqual(buf.length);
-//     bytesRead = efs.readSync(fd, buf, 0);
-//     expect(bytesRead).toEqual(buf.length);
-//     bytesRead = efs.readSync(fd, buf, 0, 0);
-//     expect(bytesRead).toEqual(0);
-//     bytesRead = efs.readSync(fd, buf, 0, 1);
-//     expect(bytesRead).toEqual(1);
-//     bytesRead = efs.readSync(fd, buf, 0, 0);
-//     expect(bytesRead).toEqual(0);
-//     bytesRead = efs.readSync(fd, buf, 0, 1);
-//     expect(bytesRead).toEqual(1);
-//     efs.closeSync(fd);
-//   });
-
-//   test('read calling styles work - cb', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     // fs.read does not have intermediate optional parameters
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str).fill(0);
-//     efs.writeFile('test', str, (e) => {
-//       expect(e).toBeNull();
-//       efs.open('test', 'r+', (e, fd) => {
-//         expect(e).toBeNull();
-//         const readBuf = Buffer.allocUnsafe(buf.length);
-//         efs.read(fd, readBuf, 0, buf.length, 0, (e, bytesRead) => {
-//           expect(e).toBeNull();
-//           expect(readBuf.toString().slice(0, str.length)).toEqual(str);
-//           expect(bytesRead).toEqual(Buffer.from(str).length);
-//           efs.close(fd, (e) => {
-//             expect(e).toBeNull();
-//             done();
-//           });
-//         });
-//       });
-//     });
-//   });
-
-//   test('writeSync calling styles work - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const fd = efs.openSync(`test`, 'w');
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     let bytesWritten;
-//     bytesWritten = efs.writeSync(fd, buf);
-//     expect(bytesWritten).toEqual(11);
-//     bytesWritten = efs.writeSync(fd, buf, 0);
-//     expect(bytesWritten).toEqual(11);
-//     efs.writeSync(fd, buf, 0, buf.length);
-//     efs.writeSync(fd, buf, 0, buf.length);
-//     efs.writeFileSync(fd, str);
-//     efs.writeFileSync(fd, str);
-//     efs.writeFileSync(fd, str);
-//     efs.closeSync(fd);
-//   });
-
-//   test('write calling styles work - cb', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     // fs.write has intermediate optional parameters
-//     const fd = efs.openSync(`test`, 'w+');
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     efs.write(fd, buf, 0, buf.length, 0, (e, bytesWritten) => {
-//       expect(e).toBeNull();
-//       expect(bytesWritten).toEqual(buf.length);
-//       const readBuf = Buffer.allocUnsafe(buf.length);
-//       efs.readSync(fd, readBuf);
-//       expect(readBuf).toEqual(buf);
-//       efs.write(fd, buf, 0, buf.length, 0, (e, bytesWritten) => {
-//         expect(e).toBeNull();
-//         expect(bytesWritten).toEqual(buf.length);
-//         const readBuf = Buffer.allocUnsafe(buf.length);
-//         efs.readSync(fd, readBuf);
-//         expect(readBuf).toEqual(buf);
-//         efs.write(fd, buf, undefined, buf.length, 0, (e, bytesWritten) => {
-//           expect(e).toBeNull();
-//           expect(bytesWritten).toEqual(buf.length);
-//           const readBuf = Buffer.allocUnsafe(buf.length);
-//           efs.readSync(fd, readBuf);
-//           expect(readBuf).toEqual(buf);
-//           efs.write(fd, buf, undefined, buf.length, 0, (e, bytesWritten) => {
-//             expect(e).toBeNull();
-//             expect(bytesWritten).toEqual(buf.length);
-//             const readBuf = Buffer.allocUnsafe(buf.length);
-//             efs.readSync(fd, readBuf);
-//             expect(readBuf).toEqual(buf);
-//             efs.writeFile(fd, str, {}, (e) => {
-//               expect(e).toBeNull();
-//               const readBuf = Buffer.allocUnsafe(buf.length);
-//               efs.readSync(fd, readBuf);
-//               expect(readBuf).toEqual(buf);
-//               efs.writeFile(fd, str, {}, (e) => {
-//                 expect(e).toBeNull();
-//                 const readBuf = Buffer.allocUnsafe(buf.length);
-//                 efs.readSync(fd, readBuf);
-//                 expect(readBuf).toEqual(buf);
-//                 efs.writeFile(fd, str, {}, (e) => {
-//                   expect(e).toBeNull();
-//                   const readBuf = Buffer.allocUnsafe(buf.length);
-//                   efs.readSync(fd, readBuf);
-//                   expect(readBuf).toEqual(buf);
-//                   efs.closeSync(fd);
-//                   done();
-//                 });
-//               });
-//             });
-//           });
-//         });
-//       });
-//     });
-//   });
-
-//   test('readFileSync calling styles work - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     efs.writeFileSync(`test`, buf);
-//     const fd = efs.openSync(`test`, 'r+');
-//     let contents: Buffer | string;
-//     contents = efs.readFileSync(`test`, {});
-//     expect(contents).toEqual(buf);
-//     contents = efs.readFileSync(`test`, {
-//       encoding: 'utf8',
-//       flag: 'r',
-//     });
-//     expect(contents).toEqual(str);
-//     efs.closeSync(fd);
-//   });
-
-//   test('readFile calling styles work - cb', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     efs.writeFileSync(`test`, buf);
-//     const fd = efs.openSync(`test`, 'r+');
-//     efs.readFile(`test`, {}, (e, data) => {
-//       expect(e).toBeNull();
-//       expect(data).toEqual(buf);
-//       efs.readFile(`test`, { encoding: 'utf8', flag: 'r' }, (e, buffer) => {
-//         expect(e).toBeNull();
-//         expect(buffer.toString()).toEqual(str);
-//         efs.readFile(fd, (e, buffer2) => {
-//           expect(e).toBeNull();
-//           expect(buffer2).toEqual(buf);
-//           done();
-//         });
-//       });
-//     });
-//   });
-
-//   test('writeFileSync calling styles work - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const fd = efs.openSync(`test`, 'w+');
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     efs.writeFileSync(`test`, str);
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.writeFileSync(`test`, str, {
-//       encoding: 'utf8',
-//       mode: 0o666,
-//       flag: 'w',
-//     });
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.writeFileSync(`test`, buf);
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.writeFileSync(fd, str);
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.writeFileSync(fd, str, { encoding: 'utf8', mode: 0o666, flag: 'w' });
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.writeFileSync(fd, buf);
-//     expect(efs.readFileSync(`test`, {})).toEqual(buf);
-//     efs.closeSync(fd);
-//   });
-
-//   test('writeFile calling styles work - cb', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const fd = efs.openSync(`test`, 'w+');
-//     const str = 'Hello World';
-//     const buf = Buffer.from(str);
-//     efs.writeFile(`test`, str, {}, (e) => {
-//       expect(e).toBeNull();
-//       efs.writeFile(
-//         `test`,
-//         str,
-//         {
-//           encoding: 'utf8',
-//           mode: 0o666,
-//           flag: 'w',
-//         },
-//         (e) => {
-//           expect(e).toBeNull();
-//           efs.writeFile(`test`, buf, {}, (e) => {
-//             expect(e).toBeNull();
-//             efs.writeFile(fd, str, {}, (e) => {
-//               expect(e).toBeNull();
-//               efs.writeFile(
-//                 fd,
-//                 str,
-//                 {
-//                   encoding: 'utf8',
-//                   mode: 0o666,
-//                   flag: 'w',
-//                 },
-//                 (e) => {
-//                   expect(e).toBeNull();
-//                   efs.writeFile(fd, buf, {}, (e) => {
-//                     expect(e).toBeNull();
-//                     efs.closeSync(fd);
-//                     done();
-//                   });
-//                 },
-//               );
-//             });
-//           });
-//         },
-//       );
-//     });
 //   });
 // });
 
