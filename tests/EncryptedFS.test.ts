@@ -351,35 +351,78 @@ describe('EncryptedFS', () => {
       }
     });
   });
-
-//   test('rmdir does not traverse the last symlink', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`directory`);
-//     efs.symlinkSync(`directory`, `linktodirectory`);
-//     expect(() => {
-//       efs.rmdirSync(`linktodirectory`);
-//     }).toThrow('ENOTDIR');
-//     efs.unlinkSync('linktodirectory');
-//   });
-
-// ///////////////
-// // hardlinks //
-// ///////////////
-
-// describe('hardlinks', () => {
-//   test('multiple hardlinks to the same file - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`test`);
-//     efs.writeFileSync(`test/a`, '');
-//     efs.linkSync(`test/a`, `test/b`);
-//     const inoA = efs.statSync(`test/a`).ino;
-//     const inoB = efs.statSync(`test/b`).ino;
-//     expect(inoA).toEqual(inoB);
-//     expect(efs.readFileSync(`test/a`, {})).toEqual(
-//       efs.readFileSync(`test/b`, {}),
-//     );
-//   });
-
+  describe('Symlinks', () => {
+    test('rmdir does not traverse the last symlink', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`directory`);
+      await efs.symlink(`directory`, `linktodirectory`);
+      await expect(efs.rmdir(`linktodirectory`)).rejects.toThrow();
+    });
+    test('symlink paths can contain multiple slashes', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`dir`);
+      await efs.writeFile(`dir/test`, 'hello');
+      await efs.symlink(`///dir////test`, `linktodirtest`);
+      const linkContents = await efs.readFile(`linktodirtest`);
+      await expect(efs.readFile(`dir/test`)).resolves.toEqual(linkContents);
+    });
+    test('is able to add and traverse symlinks transitively', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir(`test`);
+      const buffer = Buffer.from('Hello World');
+      await efs.writeFile(`test/hello-world.txt`, buffer);
+      await efs.symlink(`test`, `linktotestdir`, 'dir');
+      await expect(efs.readlink(`linktotestdir`)).resolves.toEqual(`test`);
+      await expect(efs.readdir(`linktotestdir`)).resolves.toContain('hello-world.txt');
+      await efs.symlink(`linktotestdir/hello-world.txt`, `linktofile`);
+      await efs.symlink(`linktofile`, `linktolink`);
+      await expect(efs.readFile(`linktofile`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
+      await expect(efs.readFile(`linktolink`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
+    });
+    // test('unlink does not traverse symlinks', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   efs.mkdirSync(`test`);
+    //   const buffer = Buffer.from('Hello World');
+    //   efs.writeFileSync(`test/hello-world.txt`, buffer);
+    //   efs.symlinkSync(`test`, `linktotestdir`, 'dir');
+    //   efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
+    //   efs.unlinkSync(`linktofile`);
+    //   efs.unlinkSync(`linktotestdir`);
+    //   expect(efs.readdirSync(`test`)).toContain('hello-world.txt');
+    // });
+  });
 //   test('should not create hardlinks to directories - sync', () => {
 //     const efs = new EncryptedFS(key, fs, dataDir);
 //     efs.mkdirSync(`test`);
@@ -388,76 +431,18 @@ describe('EncryptedFS', () => {
 //       efs.linkSync(`test`, `hardlinkttotest`);
 //     }).toThrow('EPERM');
 //   });
-// });
-
-// //////////////
-// // symlinks //
-// //////////////
-
-// describe('symlinks', () => {
-//   test('symlink paths can contain multiple slashes', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`dir`);
-//     efs.writeFileSync(`dir/test`, 'hello');
-//     efs.symlinkSync(`///dir////test`, `linktodirtest`);
-//     expect(efs.readFileSync(`dir/test`, {})).toEqual(
-//       efs.readFileSync(`linktodirtest`, {}),
-//     );
-//     efs.unlinkSync('linktodirtest');
-//   });
-
-//   test('symlink paths can contain multiple slashes - cb', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdir(`dir`, { recursive: true }, (err) => {
-//       expect(err).toBeNull();
-//       efs.writeFileSync(`dir/test`, 'hello');
-//       efs.symlink(`///dir////test`, `linktodirtest`, (err) => {
-//         expect(err).toBeNull();
-//         expect(efs.readFileSync(`dir/test`, {})).toEqual(
-//           efs.readFileSync(`linktodirtest`, {}),
-//         );
-//         efs.readlink('linktodirtest', {}, (e, data) => {
-//           expect(e).toBeNull();
-//           expect(data).toEqual('///dir////test');
-//           efs.unlinkSync('linktodirtest');
-//         });
-//       });
-//     });
-//   });
-
-//   test('is able to add and traverse symlinks transitively - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`test`);
-//     const buffer = Buffer.from('Hello World');
-//     efs.writeFileSync(`test/hello-world.txt`, buffer);
-//     efs.symlinkSync(`test`, `linktotestdir`, 'dir');
-//     expect(efs.readlinkSync(`linktotestdir`, {})).toEqual(`test`);
-//     expect(efs.readdirSync(`linktotestdir`)).toContain('hello-world.txt');
-//     efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
-//     efs.symlinkSync(`linktofile`, `linktolink`);
-//     expect(efs.readFileSync(`linktofile`, { encoding: 'utf-8' })).toEqual(
-//       'Hello World',
-//     );
-//     expect(efs.readFileSync(`linktolink`, { encoding: 'utf-8' })).toEqual(
-//       'Hello World',
-//     );
-//     efs.unlinkSync('linktolink');
-//     efs.unlinkSync('linktofile');
-//     efs.unlinkSync('linktotestdir');
-//   });
-
-//   test('unlink does not traverse symlinks - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`test`);
-//     const buffer = Buffer.from('Hello World');
-//     efs.writeFileSync(`test/hello-world.txt`, buffer);
-//     efs.symlinkSync(`test`, `linktotestdir`, 'dir');
-//     efs.symlinkSync(`linktotestdir/hello-world.txt`, `linktofile`);
-//     efs.unlinkSync(`linktofile`);
-//     efs.unlinkSync(`linktotestdir`);
-//     expect(efs.readdirSync(`test`)).toContain('hello-world.txt');
-//   });
-// });
+// });    // test('multiple hardlinks to the same file', async () => {
+    //   const efs = new EncryptedFS(key, fs, dataDir);
+    //   efs.mkdirSync(`test`);
+    //   efs.writeFileSync(`test/a`, '');
+    //   efs.linkSync(`test/a`, `test/b`);
+    //   const inoA = efs.statSync(`test/a`).ino;
+    //   const inoB = efs.statSync(`test/b`).ino;
+    //   expect(inoA).toEqual(inoB);
+    //   expect(efs.readFileSync(`test/a`, {})).toEqual(
+    //     efs.readFileSync(`test/b`, {}),
+    //   );
+    // });
 
 // /////////////
 // // streams //

@@ -758,6 +758,48 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async readlink(
+    path: path,
+    options?: options,
+  ): Promise<string | Buffer>;
+  public async readlink(
+    path: path,
+    callback: Callback<[string | Buffer]>
+  ): Promise<void>;
+  public async readlink(
+    path: path,
+    options: options,
+    callback: Callback<[string | Buffer]>
+  ): Promise<void>;
+  public async readlink(
+    path: path,
+    optionsOrCallback: options | Callback<[string | Buffer]> = { encoding: 'utf8' },
+    callback?: Callback<[string | Buffer]>
+  ): Promise<string | Buffer | void> {
+    let options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback): { encoding: 'utf8' } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, false)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `readlink '${path}'`);
+      }
+      let link;
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetType = (await this._iNodeMgr.get(tran, target))?.type;
+        if (!(targetType === 'Symlink')) {
+          throw new EncryptedFSError(errno.EINVAL, `readlink '${path}'`);
+        }
+        link = await this._iNodeMgr.symlinkGetLink(tran, target);
+      }, [target]);
+      if (options.encoding === 'binary') {
+        return Buffer.from(link);
+      } else {
+        return Buffer.from(link).toString(options.encoding);
+      }
+    }, callback);
+  }
+
   public async rmdir(path: path, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -815,6 +857,65 @@ class EncryptedFS {
         return new vfs.Stat({...targetStat});
       } else {
         throw new EncryptedFSError(errno.ENOENT, `stat '${path}`);
+      }
+    }, callback);
+  }
+
+  public async symlink(
+    dstPath: path,
+    srcPath: path,
+    type?: string,
+  ): Promise<void>;
+  public async symlink(
+    dstPath: path,
+    srcPath: path,
+    callback: Callback
+  ): Promise<void>;
+  public async symlink(
+    dstPath: path,
+    srcPath: path,
+    type: string,
+    callback: Callback,
+  ): Promise<void>;
+  public async symlink(
+    dstPath: path,
+    srcPath: path,
+    typeOrCallback: string | Callback = 'file',
+    callback?: Callback
+  ): Promise<void> {
+    const type = (typeof typeOrCallback !== 'function') ? typeOrCallback: 'file';
+    callback = (typeof typeOrCallback === 'function') ? typeOrCallback : callback;
+    return maybeCallback(async () => {
+      dstPath = this.getPath(dstPath);
+      srcPath = this.getPath(srcPath);
+      if (!dstPath) {
+        throw new EncryptedFSError(errno.ENOENT, `symlink '${srcPath}', '${dstPath}'`);
+      }
+      let navigated = await this.navigate(srcPath, false);
+      if (!navigated.target) {
+        const symlinkINode = this._iNodeMgr.inoAllocate();
+        await this._iNodeMgr.transact(async (tran) => {
+          const dirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
+          if (dirStat.nlink < 2) {
+            throw new EncryptedFSError(errno.ENOENT, `symlink '${srcPath}', '${dstPath}'`);
+          }
+          if (!this.checkPermissions(vfs.constants.W_OK, dirStat)) {
+            throw new EncryptedFSError(errno.EACCES, `symlink '${srcPath}', '${dstPath}'`);
+          }
+          await this._iNodeMgr.symlinkCreate(
+            tran,
+            symlinkINode,
+            {
+              mode: vfs.DEFAULT_SYMLINK_PERM,
+              uid: this._uid,
+              gid: this._gid,
+            },
+            dstPath as string,
+          );
+          await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, symlinkINode);
+        }, [navigated.dir, symlinkINode]);
+      } else {
+        throw new EncryptedFSError(errno.EEXIST, `symlink '${srcPath}', '${dstPath}'`);
       }
     }, callback);
   }
