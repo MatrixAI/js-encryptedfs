@@ -758,6 +758,51 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async rmdir(path: path, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      // if the path has trailing slashes, navigation would traverse into it
+      // we must trim off these trailing slashes to allow these directories to be removed
+      path = path.replace(/(.+?)\/+$/, '$1');
+      let navigated = await this.navigate(path, false);
+      // this is for if the path resolved to root
+      if (!navigated.name) {
+        throw new EncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
+      }
+      // on linux, when .. is used, the parent directory becomes unknown
+      // in that case, they return with ENOTEMPTY
+      // but the directory may in fact be empty
+      // for this edge case, we instead use EINVAL
+      if (navigated.name === '.' || navigated.name === '..') {
+        throw new EncryptedFSError(errno.EINVAL, `rmdir '${path}'`);
+      }
+      if (!navigated.target) {
+        throw new EncryptedFSError(errno.ENOENT, `rmdir'${path}'`);
+      }
+      const target = navigated.target;
+      const dir = navigated.dir;
+      let targetType, dirStat;
+      const targetEntries: Array<[string | Buffer, INodeIndex]> = [];
+      await this._iNodeMgr.transact(async (tran) => {
+        targetType = (await this._iNodeMgr.get(tran, target))?.type;
+        dirStat = await this._iNodeMgr.statGet(tran, dir);
+        for await (const entry of this._iNodeMgr.dirGet(tran, target)) {
+          targetEntries.push(entry);
+        }
+        if (!(targetType === 'Directory')) {
+          throw new EncryptedFSError(errno.ENOTDIR, `rmdir'${path}'`);
+        }
+        if (targetEntries.length - 2) {
+          throw new EncryptedFSError(errno.ENOTEMPTY, `rmdir'${path}'`);
+        }
+        if (!this.checkPermissions(vfs.constants.W_OK, dirStat)) {
+          throw new EncryptedFSError(errno.EACCES, `rmdir '${path}'`);
+        }
+        await this._iNodeMgr.dirUnsetEntry(tran, dir, navigated.name);
+      }, [target, dir]);
+    }, callback);
+  }
+
   public async stat(path: path, callback?: Callback<[vfs.Stat]>): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
       path = this.getPath(path);

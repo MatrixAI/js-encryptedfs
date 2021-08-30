@@ -212,6 +212,31 @@ describe('EncryptedFS', () => {
         efs.readFile(`${tempSubDir}/test`, { encoding: 'utf8' }),
       ).resolves.toEqual(buffer.toString());
     });
+    test('should be able to remove directories', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('first');
+      await efs.mkdir('first//sub/');
+      await efs.mkdir('first/sub2');
+      await efs.mkdir('backslash\\dir');
+      await efs.rmdir('first/sub//');
+      const firstlist = await efs.readdir('/first');
+      expect(firstlist).toEqual(['sub2']);
+      await efs.rmdir('first/sub2');
+      await efs.rmdir('first');
+      await expect(efs.exists('first')).resolves.toBeFalsy();
+      await expect(efs.access('first')).rejects.toThrow();
+      await expect(efs.readdir('first')).rejects.toThrow();
+      const rootlist = await efs.readdir('.');
+      expect(rootlist).toEqual(['backslash\\dir']);
+    });
   });
   describe('Files', () => {
     test('file stat makes sense', async () => {
@@ -326,29 +351,6 @@ describe('EncryptedFS', () => {
       }
     });
   });
-
-//   test('should be able to remove directories - sync', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     efs.mkdirSync(`first`);
-//     efs.mkdirSync(`first//sub/`);
-//     efs.mkdirSync(`first/sub2`);
-//     efs.mkdirSync(`backslash\\dir`);
-//     efs.rmdirSync(`first/sub//`);
-//     const firstlist = efs.readdirSync(`/first`);
-//     expect(firstlist).toEqual(['sub2']);
-//     efs.rmdirSync(`first/sub2`);
-//     efs.rmdirSync(`first`);
-//     const exists = efs.existsSync(`first`);
-//     expect(exists).toEqual(false);
-//     expect(() => {
-//       efs.accessSync(`first`);
-//     }).toThrow('ENOENT');
-//     expect(() => {
-//       efs.readdirSync(`first`);
-//     }).toThrow('ENOENT');
-//     const rootlist = efs.readdirSync(``);
-//     expect(rootlist).toEqual(['backslash\\dir']);
-//   });
 
 //   test('rmdir does not traverse the last symlink', () => {
 //     const efs = new EncryptedFS(key, fs, dataDir);
