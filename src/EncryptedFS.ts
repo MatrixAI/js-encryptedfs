@@ -29,6 +29,7 @@ class EncryptedFS {
   protected _uid: number;
   protected _gid: number;
   protected _umask: number;
+  protected _blkSize: number;
   protected logger: Logger;
 
   public static async createEncryptedFS({
@@ -111,6 +112,7 @@ class EncryptedFS {
     this._uid = vfs.DEFAULT_ROOT_UID;
     this._gid = vfs.DEFAULT_ROOT_GID;
     this._umask = umask;
+    this._blkSize = 5;
     this.logger = logger;
   }
 
@@ -559,7 +561,7 @@ class EncryptedFS {
           {
             await this._iNodeMgr.transact(async (tran) => {
               await this._iNodeMgr.fileClearData(tran, targetIno);
-              await this._iNodeMgr.fileSetBlocks(tran, targetIno, Buffer.alloc(0), 5);
+              await this._iNodeMgr.fileSetBlocks(tran, targetIno, Buffer.alloc(0), this._blkSize);
             }, [targetIno]);
           }
           break;
@@ -881,11 +883,6 @@ class EncryptedFS {
       } else {
         fdIndex = file;
       }
-      const fd = this._fdMgr.getFd(fdIndex) as FileDescriptor;
-      await this._iNodeMgr.transact(async (tran) => {
-        options.flag = 'w';
-        await this._iNodeMgr.fileClearData(tran, fd.ino);
-      }, [fd.ino]);
       try {
         await this.write(fdIndex, buffer, 0, buffer.length, 0);
       } finally {

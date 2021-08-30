@@ -1,6 +1,6 @@
 import type { MutexInterface } from 'async-mutex';
 import type { DeviceManager } from 'virtualfs';
-import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
+import type { INodeIndex, INodeId, INodeType, INodeData, BufferId } from './types';
 import type { DB } from '../db';
 import type { StatProps } from '../Stat';
 import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
@@ -776,7 +776,10 @@ class INodeManager {
     // To set the data we must first clear all existing data, which is
     // how VFS handles it
     const dataDb = await this.db.level(ino.toString(), this.dataDb);
-    await dataDb.clear();
+    const dataDomain = [...this.dataDomain, ino.toString()];
+    for await (const key of dataDb.createKeyStream()) {
+      await tran.del(dataDomain, key);
+    }
   }
 
 

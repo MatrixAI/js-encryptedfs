@@ -259,7 +259,7 @@ describe('EncryptedFS', () => {
         umask: 0o022,
         logger,
       });
-      const fd = await efs.open('testFile', 'w+');
+      let fd = await efs.open('testFile', 'w+');
       let test = await efs.readdir('.');
       expect(test).toStrictEqual(['testFile']);
       let readBuffer = Buffer.alloc(25);
@@ -273,6 +273,8 @@ describe('EncryptedFS', () => {
       expect(readBuffer).toStrictEqual(writeBuffer);
       let readString = await efs.readFile(fd, { encoding: 'utf8' });
       expect(readString).toStrictEqual(writeBuffer.toString());
+      await efs.close(fd);
+      fd = await efs.open('testFile', 'w+');
       const writeFileBuffer = Buffer.from('New Test EncryptedFS');
       await efs.writeFile(fd, writeFileBuffer);
       readString = await efs.readFile('testFile', { encoding: 'utf8' });
