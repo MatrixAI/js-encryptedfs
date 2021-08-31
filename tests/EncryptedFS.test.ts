@@ -120,6 +120,32 @@ describe('EncryptedFS', () => {
       await efs.mkdir(`abc`)
       await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
     });
+    test('navigating invalid paths', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/test/a/b/c');
+      await efs.mkdirp('/test/a/bc');
+      await efs.mkdirp('/test/abc');
+      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow();
+      await expect(efs.readdir('/abc')).rejects.toThrow();
+      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow();
+      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow();
+      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow();
+      await expect(efs.readFile('/test/abc/a/b/c')).rejects.toThrow();
+      await expect(efs.readFile('/test/abcd')).rejects.toThrow();
+      await expect(efs.mkdir('/test/abcd/dir')).rejects.toThrow();
+      await expect(efs.unlink('/test/abcd')).rejects.toThrow();
+      await expect(efs.unlink('/test/abcd/file')).rejects.toThrow();
+      await expect(efs.stat('/test/a/d/b/c')).rejects.toThrow();
+      await expect(efs.stat('/test/abcd')).rejects.toThrow();
+    });
   });
   describe('Directories', () => {
     test('dir stat makes sense', async () => {
@@ -672,7 +698,7 @@ describe('EncryptedFS', () => {
     // });
   });
   describe('Symlinks', () => {
-    test('symlink stat makes sense - sync', async () => {
+    test('symlink stat makes sense', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -782,6 +808,72 @@ describe('EncryptedFS', () => {
       await efs.symlink('../linktotest', '/dirwithlinks/linktolink');
       const realPath = await efs.realpath('/dirwithlinks/linktolink');
       expect(realPath).toBe('/test');
+    });
+    test('resolves symlink loops 1', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.symlink('/test', '/test');
+      await expect(efs.readFile('/test')).rejects.toThrow();
+    });
+
+    test('resolves symlink loops 2', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/dirtolink');
+      await efs.symlink('/dirtolink/test', '/test');
+      await efs.symlink('/test', '/dirtolink/test');
+      await expect(efs.readFile('/test/non-existent')).rejects.toThrow();
+    });
+    test('is able to add and traverse symlinks transitively', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/test');
+      const buf = Buffer.from('Hello World');
+      await efs.writeFile('/test/hello-world.txt', buf);
+      await efs.symlink('/test', '/linktotestdir');
+      await expect(efs.readlink('/linktotestdir')).resolves.toBe('/test');
+      await expect(efs.readdir('/linktotestdir')).resolves.toEqual(['hello-world.txt']);
+      await efs.symlink('/linktotestdir/hello-world.txt', '/linktofile');
+      await efs.symlink('/linktofile', '/linktolink');
+      await expect(efs.readFile('/linktofile', { encoding: 'utf8' })).resolves.toBe('Hello World');
+      await expect(efs.readFile('/linktolink', { encoding: 'utf8' })).resolves.toBe('Hello World');
+    });
+    test('is able to traverse relative symlinks', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/test');
+      const buf = Buffer.from('Hello World');
+      await efs.writeFile('/a', buf);
+      await efs.symlink('../a', '/test/linktoa');
+      await expect(efs.readFile('/test/linktoa', { encoding: 'utf-8' })).resolves.toBe('Hello World');
     });
   });
   describe('Hardlinks', () => {
