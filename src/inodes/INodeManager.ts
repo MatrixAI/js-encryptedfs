@@ -826,6 +826,9 @@ class INodeManager {
       key = inodesUtils.unbufferId((data as any).key);
       value = await this.db.deserializeDecrypt<string>((data as any).value as Buffer, false);
     }
+    if (value == undefined || key == undefined) {
+      return [0, Buffer.alloc(0)];
+    }
     return [key, Buffer.from(value)];
   }
 

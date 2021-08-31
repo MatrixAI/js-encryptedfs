@@ -278,6 +278,55 @@ describe('EncryptedFS', () => {
       await efs.rename('/test', '/test-rename');
       await expect(efs.readdir('.')).resolves.toEqual(['test-rename']);
     });
+    test('directory file descriptors capabilities', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const dirName = `dir`;
+      await efs.mkdir(dirName);
+      const dirfd = await efs.open(dirName, 'r');
+      await efs.fsync(dirfd);
+      await efs.fdatasync(dirfd);
+      await efs.fchmod(dirfd, 0o666);
+      await efs.fchown(dirfd, 0, 0);
+      const date = new Date();
+      await efs.futimes(dirfd, date, date);
+      const stats = await efs.fstat(dirfd) as vfs.Stat;
+      expect(stats.atime.toJSON()).toEqual(date.toJSON());
+      expect(stats.mtime.toJSON()).toEqual(date.toJSON());
+      await efs.close(dirfd);
+    });
+    test('directory file descriptor errors', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const dirName = `dir`;
+      await efs.mkdir(dirName);
+      // opening it without O_RDONLY would result in EISDIR
+      const dirfd = await efs.open(
+        dirName,
+        vfs.constants.O_RDONLY | vfs.constants.O_DIRECTORY,
+      );
+      const buffer = Buffer.alloc(10);
+      // await expect(efs.ftruncate(dirfd)).rejects.toThrow();
+      await expect(efs.read(dirfd, buffer, 0, 10)).rejects.toThrow();
+      await expect(efs.write(dirfd, buffer)).rejects.toThrow();
+      await expect(efs.readFile(dirfd)).rejects.toThrow();
+      await expect(efs.writeFile(dirfd, `test`)).rejects.toThrow();
+      await efs.close(dirfd);
+    });
   });
   describe('Files', () => {
     test('file stat makes sense', async () => {
@@ -515,6 +564,205 @@ describe('EncryptedFS', () => {
       await efs.writeFile(`dir/hello-world`, buffer);
       await efs.copyFile('dir/hello-world', 'hello-universe');
       await expect(efs.readFile('hello-universe')).resolves.toEqual(buffer);
+    });
+    test('appendFileSync moves with the fd position', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('/fdtest', 'w+');
+      await efs.appendFile(fd, 'a');
+      await efs.appendFile(fd, 'a');
+      await efs.appendFile(fd, 'a');
+      await expect(efs.readFile('/fdtest', { encoding:'utf8' })).resolves.toBe('aaa');
+      await efs.close(fd);
+    });
+    test('readSync moves with the fd position', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'abc';
+      const buf = Buffer.from(str).fill(0);
+      await efs.writeFile('/fdtest', str);
+      const fd = await efs.open('/fdtest', 'r+');
+      await efs.read(fd, buf, 0, 1);
+      await efs.read(fd, buf, 1, 1);
+      await efs.read(fd, buf, 2, 1);
+      expect(buf).toEqual(Buffer.from(str));
+      await efs.close(fd);
+    });
+    test('writeSync moves with the fd position', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('/fdtest', 'w+');
+      await efs.write(fd, 'a');
+      await efs.write(fd, 'a');
+      await efs.write(fd, 'a');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe('aaa');
+      await efs.close(fd);
+    });
+
+    test('readSync does not change fd position according to position parameter', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      let buf = Buffer.alloc(3);
+      let fd;
+      let bytesRead;
+      // reading from position 0 doesn't move the fd from the end
+      fd = await efs.open('/fdtest', 'w+');
+      await efs.write(fd, 'abcdef');
+      buf = Buffer.alloc(3);
+      bytesRead = await efs.read(fd, buf, 0, buf.length);
+      expect(bytesRead).toBe(0);
+      bytesRead = await efs.read(fd, buf, 0, buf.length, 0);
+      expect(bytesRead).toBe(3);
+      expect(buf).toEqual(Buffer.from('abc'));
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      await efs.close(fd);
+      // reading with position null does move the fd
+      await efs.writeFile('/fdtest', 'abcdef');
+      fd = await efs.open('/fdtest', 'r+');
+      bytesRead = await efs.read(fd, buf, 0, buf.length);
+      expect(bytesRead).toBe(3);
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe('abcghi');
+      await efs.close(fd);
+      // reading with position 0 doesn't move the fd from the start
+      await efs.writeFile('/fdtest', 'abcdef');
+      fd = await efs.open('/fdtest', 'r+');
+      buf = Buffer.alloc(3);
+      bytesRead = await efs.read(fd, buf, 0, buf.length, 0);
+      expect(bytesRead).toBe(3);
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('ghidef');
+      await efs.close(fd);
+      // reading with position 3 doesn't move the fd from the start
+      await efs.writeFile('/fdtest', 'abcdef');
+      fd = await efs.open('/fdtest', 'r+');
+      buf = Buffer.alloc(3);
+      bytesRead = await efs.read(fd, buf, 0, buf.length, 3);
+      expect(bytesRead).toBe(3);
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('ghidef');
+      await efs.close(fd);
+    });
+
+    test('writeSync does not change fd position according to position parameter', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('./testy', 'w+');
+      await efs.write(fd, 'abcdef');
+      await efs.write(fd, 'ghi', 0);
+      await efs.write(fd, 'jkl');
+      await expect(efs.readFile('./testy', { encoding: 'utf8' })).resolves.toEqual('ghidefjkl');
+      await efs.close(fd);
+    });
+
+    test('readFileSync moves with fd position', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      let fd;
+      fd = await efs.open('/fdtest', 'w+');
+      await efs.write(fd, 'starting');
+      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual('');
+      await efs.close(fd);
+      fd = await efs.open('/fdtest', 'r+');
+      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual('starting');
+      await efs.write(fd, 'ending');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf-8' })).resolves.toEqual('startingending');
+      await efs.close(fd);
+    });
+    test('writeFileSync writes from the beginning, and does not move the fd position', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('/fdtest', 'w+');
+      await efs.write(fd, 'a');
+      await efs.write(fd, 'a');
+      await efs.writeFile(fd, 'b');
+      await efs.write(fd, 'c');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('bac');
+      await efs.close(fd);
+    });
+    test('O_APPEND makes sure that writes always set their fd position to the end', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('/fdtest', 'abc');
+      let buf, fd, bytesRead;
+      buf = Buffer.alloc(3);
+      // there's only 1 fd position both writes and reads
+      fd = await efs.open('/fdtest', 'a+');
+      await efs.write(fd, 'def');
+      bytesRead = await efs.read(fd, buf, 0, buf.length);
+      expect(bytesRead).toBe(0);
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      await efs.close(fd);
+      // even if read moves to to position 3, write will jump the position to the end
+      await efs.writeFile('/fdtest', 'abcdef');
+      fd = await efs.open('/fdtest', 'a+');
+      buf = Buffer.alloc(3);
+      bytesRead = await efs.read(fd, buf, 0, buf.length);
+      expect(bytesRead).toBe(3);
+      expect(buf).toEqual(Buffer.from('abc'));
+      await efs.write(fd, 'ghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      bytesRead = await efs.read(fd, buf, 0, buf.length);
+      expect(bytesRead).toBe(0);
+      await efs.close(fd);
     });
     // test('write then read - single block', async () => {
     //   const efs = await EncryptedFS.createEncryptedFS({
@@ -1669,63 +1917,6 @@ describe('EncryptedFS', () => {
 //     });
 //   });
 // });
-
-// ////////////////////////////////
-// // directory file descriptors //
-// ////////////////////////////////
-// describe('directory file descriptors', () => {
-//   test('directory file descriptors capabilities - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const dirName = `dir`;
-//     efs.mkdirSync(dirName);
-//     const dirfd = efs.openSync(dirName, 'r');
-//     efs.fsyncSync(dirfd);
-//     efs.fdatasyncSync(dirfd);
-//     efs.fchmodSync(dirfd, 0o666);
-//     efs.fchownSync(dirfd, 0, 0);
-//     const date = new Date();
-//     efs.futimesSync(dirfd, date, date);
-//     const stats: Stats = efs.fstatSync(dirfd);
-//     expect(stats.atime.toJSON()).toEqual(date.toJSON());
-//     expect(stats.mtime.toJSON()).toEqual(date.toJSON());
-//     efs.closeSync(dirfd);
-//     done();
-//   });
-
-//   test('directory file descriptor errors - sync', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const dirName = `dir`;
-//     efs.mkdirSync(dirName);
-
-//     // opening it without fs.constants.O_RDONLY would result in EISDIR
-//     const dirfd = efs.openSync(
-//       dirName,
-//       undefined,
-//       efs.constants.O_RDONLY | efs.constants.O_DIRECTORY,
-//     );
-//     const buffer = Buffer.alloc(10);
-
-//     expect(() => {
-//       efs.ftruncateSync(dirfd);
-//     }).toThrow('EINVAL');
-//     expect(() => {
-//       efs.readSync(dirfd, buffer, 0, 10);
-//     }).toThrow('EISDIR');
-//     expect(() => {
-//       efs.writeSync(dirfd, buffer);
-//     }).toThrow('EISDIR');
-//     expect(() => {
-//       efs.readFileSync(dirfd, {});
-//     }).toThrow('EISDIR');
-//     expect(() => {
-//       efs.writeFileSync(dirfd, `test`);
-//     }).toThrow('EISDIR');
-
-//     efs.closeSync(dirfd);
-//     done();
-//   });
-// });
-
 
 // ////////////////////////
 // // Bisimulation tests //
