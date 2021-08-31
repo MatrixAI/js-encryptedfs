@@ -376,6 +376,80 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async fchmod(fdIndex: FdIndex, mode: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `fchmod '${fdIndex}'`);
+      }
+      if (typeof mode !== 'number') {
+        throw new TypeError('mode must be an integer');
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID && this._uid !== fdStat.uid) {
+          throw new EncryptedFSError(errno.EPERM, `fchmod '${fdIndex}'`);
+        }
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'mode', (fdStat.mode & vfs.constants.S_IFMT) | mode);
+      }, [fd.ino]);
+    }, callback);
+  }
+
+  public async fchown(fdIndex: FdIndex, uid: number, gid: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `fchown '${fdIndex}'`);
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          // you don't own the file
+          if (fdStat.uid !== this._uid) {
+            throw new EncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
+          }
+          // you cannot give files to others
+          if (this._uid !== uid) {
+            throw new EncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
+          }
+          // because we don't have user group hierarchies, we allow chowning to any group
+        }
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'uid', uid);
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'gid', gid);
+      }, [fd.ino]);
+    }, callback);
+  }
+
+  public async fdatasync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      if (!this._fdMgr.getFd(fdIndex)) {
+        throw new EncryptedFSError(errno.EBADF, `fdatasync '${fdIndex}`);
+      }
+    }, callback);
+  }
+
+  public async fstat(fdIndex: FdIndex, callback?: Callback<[vfs.Stat]>): Promise<vfs.Stat | void> {
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `fstat '${fdIndex}'`);
+      }
+      let fdStat;
+      await this._iNodeMgr.transact(async (tran) => {
+        fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
+      }, [fd.ino]);
+      return new vfs.Stat(fdStat);
+    }, callback);
+  }
+
+  public async fsync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      if (!this._fdMgr.getFd(fdIndex)) {
+        throw new EncryptedFSError(errno.EBADF, `fsync '${fdIndex}'`);
+      }
+    }, callback);
+  }
+
   public async futimes(
     fdIndex: FdIndex,
     atime: number | string | Date,
