@@ -312,6 +312,65 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async futimes(
+    fdIndex: FdIndex,
+    atime: number | string | Date,
+    mtime: number |string | Date,
+    callback?: Callback
+  ): Promise<void> {
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `futimes '${fdIndex}`);
+      }
+      let newAtime;
+      let newMtime;
+      if (typeof atime === 'number') {
+        newAtime = new Date(atime * 1000);
+      } else if (typeof atime === 'string') {
+        newAtime = new Date(parseInt(atime) * 1000);
+      } else if (atime instanceof Date) {
+        newAtime = atime;
+      } else {
+        throw TypeError('atime and mtime must be dates or unixtime in seconds');
+      }
+      if (typeof mtime === 'number') {
+        newMtime = new Date(mtime * 1000);
+      } else if (typeof mtime === 'string') {
+        newMtime = new Date(parseInt(mtime) * 1000);
+      } else if (mtime instanceof Date) {
+        newMtime = mtime;
+      } else {
+        throw TypeError('atime and mtime must be dates or unixtime in seconds');
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'atime', newAtime);
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'mtime', newMtime);
+        await this._iNodeMgr.statSetProp(tran, fd.ino, 'ctime', new Date);
+      });
+    }, callback);
+  }
+
+  public async lchmod(path: path, mode: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const target = (await this.navigate(path, false)).target;
+      if (!target) {
+        throw new EncryptedFSError(errno.ENOENT, `lchmod '${path}'`);
+      }
+      if (typeof mode !== 'number') {
+        throw new TypeError('mode must be an integer');
+      }
+      await this._iNodeMgr.transact(async (tran) => {
+        const targetStat = await this._iNodeMgr.statGet(tran, target);
+        if (this._uid !== vfs.DEFAULT_ROOT_UID && this._uid !== targetStat.uid) {
+          throw new EncryptedFSError(errno.EPERM, `lchmod '${path}'`);
+        }
+        await this._iNodeMgr.statSetProp(tran, target, 'mode', (targetStat.mode & vfs.constants.S_IFMT) | mode);
+      }, [target]);
+    }, callback);
+  }
+
   public async lchown(path: path, uid: number, gid: number, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -946,6 +1005,40 @@ class EncryptedFS {
         return Buffer.from(link);
       } else {
         return Buffer.from(link).toString(options.encoding);
+      }
+    }, callback);
+  }
+
+  public async realpath(
+    path: path,
+    options?: options,
+  ): Promise<string | Buffer>;
+  public async realpath(
+    path: path,
+    callback: Callback<[string | Buffer]>
+  ): Promise<void>;
+  public async realpath(
+    path: path,
+    options: options,
+    callback: Callback<[string | Buffer]>
+  ): Promise<void>;
+  public async realpath(
+    path: path,
+    optionsOrCallback: options | Callback<[string | Buffer]> = { encoding: 'utf8' },
+    callback?: Callback<[string | Buffer]>
+  ): Promise<string | Buffer | void> {
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback): { encoding: 'utf8' } as options;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const navigated = await this.navigate(path, true);
+      if (!navigated.target) {
+        throw new EncryptedFSError(errno.ENOENT, `realpath '${path}'`);
+      }
+      if (options.encoding === 'binary') {
+        return Buffer.from('/' + navigated.pathStack.join('/'));
+      } else {
+        return Buffer.from('/' + navigated.pathStack.join('/')).toString(options.encoding);
       }
     }, callback);
   }

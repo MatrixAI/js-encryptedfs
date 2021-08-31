@@ -750,6 +750,23 @@ describe('EncryptedFS', () => {
       await efs.unlink(`linktotestdir`);
       await expect(efs.readdir(`test`)).resolves.toContain('hello-world.txt');
     });
+    test('realpath expands symlinks', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('/test', Buffer.from('Hello'));
+      await efs.symlink('./test', '/linktotest');
+      await efs.mkdir('/dirwithlinks');
+      await efs.symlink('../linktotest', '/dirwithlinks/linktolink');
+      const realPath = await efs.realpath('/dirwithlinks/linktolink');
+      expect(realPath).toBe('/test');
+    });
   });
   describe('Hardlinks', () => {
     test('should not create hardlinks to directories', async () => {
