@@ -396,6 +396,49 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async fallocate(fdIndex: FdIndex, offset: number, len: number, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      if (offset < 0 || len <= 0) {
+        throw new EncryptedFSError(errno.EINVAL, `fallocate '${fdIndex}'`);
+      }
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
+      }
+      const iNode = fd.ino;
+      await this._iNodeMgr.transact(async (tran) => {
+        const iNodeType = (await this._iNodeMgr.get(tran, iNode))?.type;
+        if (!(iNodeType === 'File')) {
+          throw new EncryptedFSError(errno.ENODEV, `fallocate '${fdIndex}'`);
+        }
+        if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+          throw new EncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
+        }
+        let data = Buffer.alloc(0);
+        for await (const block of this._iNodeMgr.fileGetBlocks(tran, iNode, this._blkSize)) {
+          data = Buffer.concat([data, block]);
+        }
+        if ((offset + len) > data.length) {
+          let newData;
+          try {
+            newData = Buffer.concat([
+              data,
+              Buffer.alloc((offset + len) - data.length)
+            ]);
+          } catch (e) {
+            if (e instanceof RangeError) {
+              throw new EncryptedFSError(errno.EFBIG, `fallocate '${fdIndex}'`);
+            }
+            throw e;
+          }
+          await this._iNodeMgr.fileSetBlocks(tran, iNode, newData, this._blkSize);
+          await this._iNodeMgr.statSetProp(tran, iNode, 'size', newData.length);
+        }
+        await this._iNodeMgr.statSetProp(tran, iNode, 'ctime', new Date);
+      }, [iNode]);
+    }, callback);
+  }
+
   public async fchmod(fdIndex: FdIndex, mode: number, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       const fd = this._fdMgr.getFd(fdIndex);
@@ -585,6 +628,48 @@ class EncryptedFS {
           throw new EncryptedFSError(errno.EEXIST, `link '${existingPath}', '${newPath}'`);
         }
       }, [navigatedExisting.target, navigatedNew.dir]);
+    }, callback);
+  }
+
+  public async lseek(
+    fdIndex: FdIndex,
+    position: number,
+    seekFlags?: number,
+  ): Promise<void>;
+  public async lseek(
+    fdIndex: FdIndex,
+    position: number,
+    callback: Callback
+  ): Promise<void>;
+  public async lseek(
+    fdIndex: FdIndex,
+    position: number,
+    seekFlags: number,
+    callback: Callback
+  ): Promise<void>;
+  public async lseek(
+    fdIndex: FdIndex,
+    position: number,
+    seekFlagsOrCallback: number | Callback = vfs.constants.SEEK_SET,
+    callback?: Callback
+  ): Promise<void> {
+    const seekFlags = (typeof seekFlagsOrCallback !== 'function') ? seekFlagsOrCallback: vfs.constants.SEEK_SET;
+    callback = (typeof seekFlagsOrCallback === 'function') ? seekFlagsOrCallback : callback;
+    return maybeCallback(async () => {
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `lseek '${fdIndex}'`);
+      }
+      if (
+        [
+          vfs.constants.SEEK_SET,
+          vfs.constants.SEEK_CUR,
+          vfs.constants.SEEK_END
+        ].indexOf(seekFlags) === -1
+      ) {
+        throw new EncryptedFSError(errno.EINVAL, `lseek '${fdIndex}'`);
+      }
+      fd.setPos(position, seekFlags);
     }, callback);
   }
 

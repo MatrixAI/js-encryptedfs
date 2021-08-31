@@ -785,6 +785,82 @@ describe('EncryptedFS', () => {
       await efs.access('/test2', vfs.constants.R_OK);
       await expect(efs.access('/test1', vfs.constants.W_OK)).rejects.toThrow();
     });
+    test('can seek and overwrite parts of a file', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('/fdtest', 'w+');
+      await efs.write(fd, 'abc');
+      await efs.lseek(fd, -1, vfs.constants.SEEK_CUR);
+      await efs.write(fd, 'd');
+      await efs.close(fd);
+      const str = await efs.readFile('/fdtest', { encoding: 'utf8' });
+      expect(str).toBe('abd');
+    });
+    test('can seek beyond the file length and create a zeroed "sparse" file', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('/fdtest', Buffer.from([0x61, 0x62, 0x63]));
+      const fd = await efs.open('/fdtest', 'r+');
+      await efs.lseek(fd, 1, vfs.constants.SEEK_END);
+      await efs.write(fd, Buffer.from([0x64]));
+      await efs.close(fd);
+      const buf = await efs.readFile('/fdtest');
+      expect(buf).toEqual(Buffer.from([0x61, 0x62, 0x63, 0x00, 0x64]));
+    });
+    test('fallocateSync can extend the file length - sync', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('allocate', 'w');
+      const offset = 10;
+      const length = 100;
+      await efs.fallocate(fd, offset, length);
+      const stat = await efs.stat('allocate') as vfs.Stat;
+      expect(stat.size).toBe(offset + length);
+      await efs.close(fd);
+    });
+    test('fallocateSync does not touch existing data', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open('allocate', 'w+');
+      const str = 'abcdef';
+      await efs.write(fd, str);
+      const offset = 100;
+      const length = 100;
+      await efs.fallocate(fd, offset, length);
+      await efs.lseek(fd, 0);
+      const buf = Buffer.alloc(str.length);
+      await efs.read(fd, buf, 0, buf.length);
+      expect(buf.toString()).toBe(str);
+      await efs.close(fd);
+    });
     // test('write then read - single block', async () => {
     //   const efs = await EncryptedFS.createEncryptedFS({
     //     dbKey,
