@@ -764,6 +764,27 @@ describe('EncryptedFS', () => {
       expect(bytesRead).toBe(0);
       await efs.close(fd);
     });
+    test('writeFileSync and appendFileSync respects the mode', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      // allow others to read only
+      await efs.writeFile('/test1', '', { mode: 0o004 });
+      await efs.appendFile('/test2', '', { mode: 0o004 });
+      // become the other
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.access('/test1', vfs.constants.R_OK);
+      await expect(efs.access('/test1', vfs.constants.W_OK)).rejects.toThrow();
+      await efs.access('/test2', vfs.constants.R_OK);
+      await expect(efs.access('/test1', vfs.constants.W_OK)).rejects.toThrow();
+    });
     // test('write then read - single block', async () => {
     //   const efs = await EncryptedFS.createEncryptedFS({
     //     dbKey,
@@ -1206,6 +1227,206 @@ describe('EncryptedFS', () => {
       await efs.access(`test`, vfs.constants.F_OK | vfs.constants.R_OK | vfs.constants.W_OK);
       await efs.chmod(`test`, 0o444);
       await efs.access(`test`, vfs.constants.F_OK | vfs.constants.R_OK);
+    });
+    test('umask is correctly applied', async () => {
+      const umask = 0o022;
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask,
+        logger,
+      });
+      await efs.writeFile('/file', 'hello world');
+      await efs.mkdir('/dir');
+      await efs.symlink('/file', '/symlink');
+      let stat;
+      stat = await efs.stat('/file');
+      expect(
+        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
+      ).toBe(
+        vfs.DEFAULT_FILE_PERM & (~umask)
+      );
+      stat = await efs.stat('/dir');
+      expect(
+        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
+      ).toBe(
+        vfs.DEFAULT_DIRECTORY_PERM & (~umask)
+      );
+      // umask is not applied to symlinks
+      stat = await efs.lstat('/symlink');
+      expect(
+        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
+      ).toBe(
+        vfs.DEFAULT_SYMLINK_PERM
+      );
+    });
+    test('non-root users can only chown uid if they own the file and they are chowning to themselves', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('file', 'hello');
+      await efs.chown('file', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.chown('file', 1000, 1000);
+      let error;
+      // you cannot give away files
+      await expect(efs.chown('file', 2000, 2000)).rejects.toThrow();
+      // if you don't own the file, you also cannot change (even if your change is noop)
+      efs.uid = 3000;
+      await expect(efs.chown('file', 1000, 1000)).rejects.toThrow();
+    });
+    test('chmod only works if you are the owner of the file', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('file', 'hello');
+      await efs.chown('file', 1000, 1000);
+      efs.uid = 1000;
+      await efs.chmod('file', 0o000);
+      efs.uid = 2000;
+      await expect(efs.chmod('file', 0o777)).rejects.toThrow();
+    });
+    test('permissions are checked in stages of user, group then other', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/home/1000');
+      await efs.chown('/home/1000', 1000, 1000);
+      await efs.chdir('/home/1000');
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.writeFile('testfile', 'hello');
+      await efs.mkdir('dir');
+      await efs.chmod('testfile', 0o764);
+      await efs.chmod('dir', 0o764);
+      await efs.access(
+        'testfile',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK |
+         vfs.constants.X_OK)
+      );
+      await efs.access(
+        'dir',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK |
+         vfs.constants.X_OK)
+      );
+      efs.uid = 2000;
+      await efs.access(
+        'testfile',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK)
+      );
+      await efs.access(
+        'dir',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK)
+      );
+      await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
+      await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
+      efs.gid = 2000;
+      await efs.access('testfile', vfs.constants.R_OK);
+      await efs.access('dir', vfs.constants.R_OK);
+      await expect(efs.access(
+          'testfile',
+          (fs.constants.W_OK |
+           fs.constants.X_OK)
+        )).rejects.toThrow();
+      await expect(efs.access(
+          'dir',
+          (fs.constants.W_OK |
+           fs.constants.X_OK)
+        )).rejects.toThrow();
+    });
+    test('permissions are checked in stages of user, group then other (using chownSync)', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/home/1000');
+      await efs.chown('/home/1000', 1000, 1000);
+      await efs.chdir('/home/1000');
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.writeFile('testfile', 'hello');
+      await efs.mkdir('dir');
+      await efs.chmod('testfile', 0o764);
+      await efs.chmod('dir', 0o764);
+      await efs.access(
+        'testfile',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK |
+         vfs.constants.X_OK)
+      );
+      await efs.access(
+        'dir',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK |
+         vfs.constants.X_OK)
+      );
+      efs.uid = vfs.DEFAULT_ROOT_UID;
+      efs.uid = vfs.DEFAULT_ROOT_GID;
+      await efs.chown('testfile', 2000, 1000);
+      await efs.chown('dir', 2000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.access(
+        'testfile',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK)
+      );
+      await efs.access(
+        'dir',
+        (vfs.constants.R_OK |
+         vfs.constants.W_OK)
+      );
+      await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
+      await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
+      efs.uid = vfs.DEFAULT_ROOT_UID;
+      efs.uid = vfs.DEFAULT_ROOT_GID;
+      await efs.chown('testfile', 2000, 2000);
+      await efs.chown('dir', 2000, 2000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.access('testfile', vfs.constants.R_OK);
+      await efs.access('dir', vfs.constants.R_OK);
+      await expect(efs.access(
+          'testfile',
+          (vfs.constants.W_OK |
+           vfs.constants.X_OK)
+        )).rejects.toThrow();
+      await expect(efs.access(
+          'dir',
+          (vfs.constants.W_OK |
+           vfs.constants.X_OK)
+        )).rejects.toThrow();
     });
     test('--x-w-r-- permission staging', async () => {
       const efs = await EncryptedFS.createEncryptedFS({

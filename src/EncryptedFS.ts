@@ -155,6 +155,26 @@ class EncryptedFS {
     await this.db.destroy();
   }
 
+  public async chdir(path: string): Promise<void> {
+    path = this.getPath(path);
+    const navigated = await this.navigate(path, true);
+    if (!navigated.target) {
+      throw new EncryptedFSError(errno.ENOENT, path);
+    }
+    const target = navigated.target;
+    await this._iNodeMgr.transact(async (tran) => {
+      const targetType = (await this._iNodeMgr.get(tran, target))?.type;
+      const targetStat = await this._iNodeMgr.statGet(tran, target);
+      if (!(targetType === 'Directory')) {
+        throw new EncryptedFSError(errno.ENOTDIR, path);
+      }
+      if (!this.checkPermissions(vfs.constants.X_OK, targetStat)) {
+        throw new EncryptedFSError(errno.EACCES, path);
+      }
+      await this._cwd.changeDir(target, navigated.pathStack);
+    }, [target]);
+  }
+
   public async access(path: path, mode?: number): Promise<void>;
   public async access(path: path, callback: Callback): Promise<void>;
   public async access(path: path, mode: number, callback: Callback): Promise<void>;
