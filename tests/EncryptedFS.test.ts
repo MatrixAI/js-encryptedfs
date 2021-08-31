@@ -474,6 +474,22 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile(`test`)).resolves.toEqual(buf);
       await efs.close(fd);
     });
+    test('can copy files', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const buffer = Buffer.from('Hello World');
+      await efs.mkdir('dir');
+      await efs.writeFile(`dir/hello-world`, buffer);
+      await efs.copyFile('dir/hello-world', 'hello-universe');
+      await expect(efs.readFile('hello-universe')).resolves.toEqual(buffer);
+    });
     // test('write then read - single block', async () => {
     //   const efs = await EncryptedFS.createEncryptedFS({
     //     dbKey,

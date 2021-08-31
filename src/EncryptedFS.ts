@@ -301,6 +301,70 @@ class EncryptedFS {
     }, callback);
   }
 
+  // TODO: Update th locking here once the tran object is passed into fds
+  public async copyFile(
+    srcPath: path,
+    dstPath: path,
+    flags?: number,
+  ): Promise<void>;
+  public async copyFile(
+    srcPath: path,
+    dstPath: path,
+    callback: Callback
+  ): Promise<void>;
+  public async copyFile(
+    srcPath: path,
+    dstPath: path,
+    flags: number,
+    callback: Callback
+  ): Promise<void>;
+  public async copyFile(
+    srcPath: path,
+    dstPath: path,
+    flagsOrCallback: number | Callback = 0,
+    callback?: Callback
+  ): Promise<void> {
+    const flags = (typeof flagsOrCallback !== 'function') ? flagsOrCallback : 0;
+    callback = (typeof flagsOrCallback === 'function') ? flagsOrCallback : callback;
+    return maybeCallback(async () => {
+      srcPath = this.getPath(srcPath);
+      dstPath = this.getPath(dstPath);
+      let srcFd, srcFdIndex, dstFd, dstFdIndex, srcData, srcSize;
+      try {
+        // the only things that are copied is the data and the mode
+        [srcFd, srcFdIndex] = await this._open(srcPath, vfs.constants.O_RDONLY);
+        const srcINode = srcFd.ino;
+        await this._iNodeMgr.transact(async (tran) => {
+          const srcINodeType = (await this._iNodeMgr.get(tran, srcINode))?.type;
+          const srcINodeStat = await this._iNodeMgr.statGet(tran, srcINode);
+          srcSize = srcINodeStat.size;
+          if (srcINodeType === 'Directory') {
+            throw new EncryptedFSError(errno.EBADF, `copyFile '${srcPath}', '${dstPath}'`);
+          }
+          let dstFlags = vfs.constants.O_WRONLY | vfs.constants.O_CREAT;
+          if (flags & vfs.constants.COPYFILE_EXCL) {
+            dstFlags |= vfs.constants.O_EXCL;
+          }
+          [dstFd, dstFdIndex] = await this._open(dstPath, dstFlags, srcINodeStat.mode);
+          srcData = Buffer.alloc(srcSize);
+          await srcFd.read(srcData, 0);
+        });
+        const dstINode = dstFd.ino;
+        await this._iNodeMgr.transact(async (tran) => {
+          const dstINodeType = (await this._iNodeMgr.get(tran, dstINode))?.type;
+          if (dstINodeType === 'File') {
+            await dstFd.write(srcData, 0);
+          } else {
+            throw new EncryptedFSError(errno.EINVAL, `copyFile '${srcPath}', '${dstPath}'`);
+          }
+        });
+      } finally {
+        if (srcFdIndex !== undefined) await this.close(srcFdIndex);
+        if (dstFdIndex !== undefined) await this.close(dstFdIndex);
+      }
+    }, callback);
+  }
+
   public async exists(path: path, callback?: Callback<[boolean]>): Promise<boolean | void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
