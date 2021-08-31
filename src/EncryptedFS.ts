@@ -950,6 +950,101 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async rename(oldPath: path, newPath: path, callback?: Callback): Promise<void> {
+    return maybeCallback(async () => {
+      oldPath = this.getPath(oldPath);
+      newPath = this.getPath(newPath);
+      const navigatedSource = await this.navigate(oldPath, false);
+      const navigatedTarget = await this.navigate(newPath, false);
+      if (!navigatedSource.target) {
+        throw new EncryptedFSError(errno.ENOENT, `rename '${oldPath}', ${newPath}'`);
+      }
+      const sourceTarget = navigatedSource.target;
+      await this._iNodeMgr.transact(async (tran) => {
+        const sourceTargetType = (await this._iNodeMgr.get(tran, sourceTarget))?.type;
+        if (sourceTargetType === 'Directory') {
+          // if oldPath is a directory, target must be a directory (if it exists)
+          if (navigatedTarget.target) {
+            const targetTargetType = (await this._iNodeMgr.get(tran, navigatedTarget.target))?.type;
+            if (!(targetTargetType === 'Directory')) {
+              throw new EncryptedFSError(errno.ENOTDIR, `rename '${oldPath}', ${newPath}'`);
+            }
+          }
+          // neither oldPath nor newPath can point to root
+          if (navigatedSource.target === this._root || navigatedTarget.target === this._root) {
+            throw new EncryptedFSError(errno.EBUSY, `rename '${oldPath}', ${newPath}'`);
+          }
+          // if the target directory contains elements this cannot be done
+          // this can be done without read permissions
+          if (navigatedTarget.target) {
+            const targetEntries: Array<[string, INodeIndex]> = [];
+            for await (const entry of this._iNodeMgr.dirGet(tran, navigatedTarget.target)) {
+              targetEntries.push(entry);
+            }
+            if (targetEntries.length - 2) {
+              throw new EncryptedFSError(errno.ENOTEMPTY, `rename '${oldPath}', ${newPath}'`);
+            }
+          }
+          // if any of the paths used .. or ., then `dir` is not the parent directory
+          if (navigatedSource.name === '.'  ||
+              navigatedSource.name === '..' ||
+              navigatedTarget.name === '.'  ||
+              navigatedTarget.name === '..' ) {
+            throw new EncryptedFSError(errno.EBUSY, `rename '${oldPath}', ${newPath}'`);
+          }
+          // cannot rename a source prefix of target
+          if (navigatedSource.pathStack.length < navigatedTarget.pathStack.length) {
+            let prefixOf = true;
+            for (let i = 0; i < navigatedSource.pathStack.length; ++i) {
+              if (navigatedSource.pathStack[i] !== navigatedTarget.pathStack[i]) {
+                prefixOf = false;
+                break;
+              }
+            }
+            if (prefixOf) {
+              throw new EncryptedFSError(errno.EINVAL, `rename '${oldPath}', ${newPath}'`);
+            }
+          }
+        } else {
+          // if oldPath is not a directory, then newPath cannot be an existing directory
+          if (navigatedTarget.target) {
+            const targetTargetType = (await this._iNodeMgr.get(tran, navigatedTarget.target))?.type;
+            if (targetTargetType === 'Directory') {
+              throw new EncryptedFSError(errno.EISDIR, `rename '${oldPath}', ${newPath}'`);
+            }
+          }
+        }
+        const sourceDirStat = await this._iNodeMgr.statGet(tran, navigatedSource.dir);
+        const targetDirStat = await this._iNodeMgr.statGet(tran, navigatedTarget.dir);
+        // both the navigatedSource.dir and navigatedTarget.dir must support write permissions
+        if (!this.checkPermissions(vfs.constants.W_OK, sourceDirStat) ||
+            !this.checkPermissions(vfs.constants.W_OK, targetDirStat))
+        {
+          throw new EncryptedFSError(errno.EACCES, `rename '${oldPath}', ${newPath}'`);
+        }
+        // if they are in the same directory, it is simple rename
+        if (navigatedSource.dir === navigatedTarget.dir) {
+          await this._iNodeMgr.dirResetEntry(tran, navigatedSource.dir, navigatedSource.name, navigatedTarget.name);
+          return;
+        }
+        const index = await this._iNodeMgr.dirGetEntry(tran, navigatedSource.dir, navigatedSource.name) as INodeIndex;
+        const now = new Date;
+        if (navigatedTarget.target) {
+          await this._iNodeMgr.statSetProp(tran, navigatedTarget.target, 'ctime', now);
+          await this._iNodeMgr.dirUnsetEntry(tran, navigatedTarget.dir, navigatedTarget.name);
+          await this._iNodeMgr.dirSetEntry(tran, navigatedTarget.dir, navigatedTarget.name, index);
+        } else {
+          if (targetDirStat.nlink < 2) {
+            throw new EncryptedFSError(errno.ENOENT, `rename '${oldPath}', ${newPath}'`);
+          }
+          await this._iNodeMgr.dirSetEntry(tran, navigatedTarget.dir, navigatedTarget.name, index);
+        }
+        await this._iNodeMgr.statSetProp(tran, sourceTarget, 'ctime', now);
+        await this._iNodeMgr.dirUnsetEntry(tran, navigatedSource.dir, navigatedSource.name);
+      }, navigatedTarget.target ? [navigatedTarget.target, navigatedSource.target] : [navigatedSource.target]);
+    }, callback);
+  }
+
   public async rmdir(path: path, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       path = this.getPath(path);

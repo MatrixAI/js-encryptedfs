@@ -237,6 +237,21 @@ describe('EncryptedFS', () => {
       const rootlist = await efs.readdir('.');
       expect(rootlist).toEqual(['backslash\\dir']);
     });
+    test('can rename a directory', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/test');
+      await expect(efs.readdir('.')).resolves.toEqual(['test']);
+      await efs.rename('/test', '/test-rename');
+      await expect(efs.readdir('.')).resolves.toEqual(['test-rename']);
+    });
   });
   describe('Files', () => {
     test('file stat makes sense', async () => {
