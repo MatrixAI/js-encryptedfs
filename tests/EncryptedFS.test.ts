@@ -146,6 +146,123 @@ describe('EncryptedFS', () => {
       await expect(efs.stat('/test/a/d/b/c')).rejects.toThrow();
       await expect(efs.stat('/test/abcd')).rejects.toThrow();
     });
+    test('various failure situations', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/test/dir');
+      await efs.mkdirp('/test/dir');
+      await efs.writeFile('/test/file', 'Hello');
+      await expect(efs.writeFile("/test/dir", "Hello")).rejects.toThrow();
+      await expect(efs.writeFile('/', 'Hello')).rejects.toThrow();
+      await expect(efs.rmdir('/')).rejects.toThrow();
+      await expect(efs.unlink('/')).rejects.toThrow();
+      await expect(efs.mkdir('/test/dir')).rejects.toThrow();
+      await expect(efs.mkdir('/test/file')).rejects.toThrow();
+      await expect(efs.mkdirp('/test/file')).rejects.toThrow();
+      await expect(efs.readdir('/test/file')).rejects.toThrow();
+      await expect(efs.readlink('/test/dir')).rejects.toThrow();
+      await expect(efs.readlink('/test/file')).rejects.toThrow();
+    });
+    test('cwd returns the absolute fully resolved path', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/a/b');
+      await efs.symlink('/a/b', '/c');
+      await efs.chdir('/c');
+      const cwd = efs.cwd;
+      expect(cwd).toBe('/a/b');
+    });
+    test('cwd still works if the current directory is deleted', async () => {
+      // nodejs process.cwd() will actually throw ENOENT
+      // but making it work in VFS is harmless
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/removed');
+      await efs.chdir('/removed');
+      await efs.rmdir('../removed');
+      expect(efs.cwd).toBe('/removed');
+    });
+    test('deleted current directory can still use . and .. for traversal', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/removed');
+      const statRoot = await efs.stat('/') as vfs.Stat;
+      await efs.chdir('/removed');
+      const statCurrent1 = await efs.stat('.') as vfs.Stat;
+      await efs.rmdir('../removed');
+      const statCurrent2 = await efs.stat('.') as vfs.Stat;
+      const statParent = await efs.stat('..') as vfs.Stat;
+      expect(statCurrent1.ino).toBe(statCurrent2.ino);
+      expect(statRoot.ino).toBe(statParent.ino);
+      expect(statCurrent2.nlink).toBe(1);
+      expect(statParent.nlink).toBe(3);
+      const dentryCurrent = await efs.readdir('.');
+      const dentryParent = await efs.readdir('..');
+      expect(dentryCurrent).toEqual([]);
+      expect(dentryParent).toEqual([]);
+    });
+    test('can still chdir when both current and parent directories are deleted', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/removeda/removedb');
+      await efs.chdir('/removeda/removedb');
+      await efs.rmdir('../removedb');
+      await efs.rmdir('../../removeda');
+      await efs.chdir('..');
+      await efs.chdir('..');
+      const path = efs.cwd;
+      expect(path).toBe('/');
+    });
+    test('cannot chdir into a directory without execute permissions', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/dir');
+      await efs.chmod('/dir', 0o666);
+      efs.uid = 1000;
+      await expect(efs.chdir('/dir')).rejects.toThrow();
+    });
   });
   describe('Directories', () => {
     test('dir stat makes sense', async () => {
@@ -326,6 +443,105 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile(dirfd)).rejects.toThrow();
       await expect(efs.writeFile(dirfd, `test`)).rejects.toThrow();
       await efs.close(dirfd);
+    });
+    test('directory file descriptor\'s inode nlink becomes 0 after deletion of the directory', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/dir');
+      const fd = await efs.open('/dir', 'r');
+      await efs.rmdir('/dir');
+      const stat = await efs.fstat(fd) as vfs.Stat;
+      expect(stat.nlink).toBe(1);
+      await efs.close(fd);
+    });
+    test('cannot create inodes within a deleted current directory', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.writeFile('/dummy', 'hello');
+      await efs.mkdir('/removed');
+      await efs.chdir('/removed');
+      await efs.rmdir('../removed');
+      await expect(efs.writeFile('./a', 'abc')).rejects.toThrow();
+      await expect(efs.mkdir('./b')).rejects.toThrow();
+      await expect(efs.symlink('../dummy', 'c')).rejects.toThrow();
+      await expect(efs.link('../dummy', 'd')).rejects.toThrow();
+    });
+    test('cannot delete current directory using .', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/removed');
+      await efs.chdir('/removed');
+      await expect(efs.rmdir('.')).rejects.toThrow();
+    });
+    test('cannot delete parent directory using .. even when current directory is deleted', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/removeda/removedb');
+      await efs.chdir('/removeda/removedb');
+      await efs.rmdir('../removedb');
+      await efs.rmdir('../../removeda');
+      await expect(efs.rmdir('..')).rejects.toThrow();
+    });
+    test('cannot rename the current or parent directory to a subdirectory', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdir('/cwd');
+      await efs.chdir('/cwd');
+      await expect(efs.rename('.', 'subdir')).rejects.toThrow();
+      await efs.mkdir('/cwd/cwd');
+      await efs.chdir('/cwd/cwd');
+      await expect(efs.rename('..', 'subdir')).rejects.toThrow();
+    });
+    test('cannot rename where the old path is a strict prefix of the new path', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      await efs.mkdirp('/cwd1/cwd2');
+      await efs.chdir('/cwd1/cwd2');
+      await expect(efs.rename('../cwd2', 'subdir')).rejects.toThrow();
+      await efs.mkdir('/cwd1/cwd2/cwd3');
+      await expect(efs.rename('./cwd3', './cwd3/cwd4')).rejects.toThrow();
     });
   });
   describe('Files', () => {
@@ -1688,7 +1904,6 @@ describe('EncryptedFS', () => {
       // cannot delete the directory
       await expect(efs.rmdir(`r-x/dir`)).rejects.toThrow();
     });
-
     test('directory permissions -w-', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,

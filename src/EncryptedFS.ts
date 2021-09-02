@@ -127,6 +127,10 @@ class EncryptedFS {
     return this;
   }
 
+  get cwd () {
+    return this._cwd.path;
+  }
+
   set uid (uid: number) {
     this._uid = uid;
   }
@@ -1631,7 +1635,7 @@ class EncryptedFS {
         const now = new Date;
         await this._iNodeMgr.statSetProp(tran, target, 'ctime', now);
         await this._iNodeMgr.dirUnsetEntry(tran, navigated.dir, navigated.name);
-      }, [navigated.dir, navigated.target]);
+      }, (navigated.dir === navigated.target) ? [navigated.dir] : [navigated.dir, navigated.target]);
     }, callback);
   }
 
