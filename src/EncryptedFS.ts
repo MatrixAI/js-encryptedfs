@@ -635,24 +635,24 @@ class EncryptedFS {
     fdIndex: FdIndex,
     position: number,
     seekFlags?: number,
-  ): Promise<void>;
+  ): Promise<number>;
   public async lseek(
     fdIndex: FdIndex,
     position: number,
-    callback: Callback
+    callback: Callback<[number]>
   ): Promise<void>;
   public async lseek(
     fdIndex: FdIndex,
     position: number,
     seekFlags: number,
-    callback: Callback
+    callback: Callback<[number]>
   ): Promise<void>;
   public async lseek(
     fdIndex: FdIndex,
     position: number,
-    seekFlagsOrCallback: number | Callback = vfs.constants.SEEK_SET,
-    callback?: Callback
-  ): Promise<void> {
+    seekFlagsOrCallback: number | Callback<[number]> = vfs.constants.SEEK_SET,
+    callback?: Callback<[number]>
+  ): Promise<number | void> {
     const seekFlags = (typeof seekFlagsOrCallback !== 'function') ? seekFlagsOrCallback: vfs.constants.SEEK_SET;
     callback = (typeof seekFlagsOrCallback === 'function') ? seekFlagsOrCallback : callback;
     return maybeCallback(async () => {
@@ -669,7 +669,8 @@ class EncryptedFS {
       ) {
         throw new EncryptedFSError(errno.EINVAL, `lseek '${fdIndex}'`);
       }
-      fd.setPos(position, seekFlags);
+      await fd.setPos(position, seekFlags);
+      return fd.pos;
     }, callback);
   }
 
