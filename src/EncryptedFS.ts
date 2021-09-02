@@ -1,6 +1,7 @@
 import type { Navigated, ParsedPath, Callback, path, options, data, file } from './types';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
+import type { optionsStream } from './streams/types';
 
 import pathNode from 'path';
 import Logger from '@matrixai/logger';
@@ -9,6 +10,7 @@ import { DB } from './db';
 import { INodeManager } from './inodes';
 import CurrentDirectory from './CurrentDirectory';
 import { FileDescriptor, FileDescriptorManager } from './fd';
+import { ReadStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
 
@@ -318,10 +320,16 @@ class EncryptedFS {
 
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
-      if (!this._fdMgr.getFd(fdIndex)) {
-        throw new EncryptedFSError(errno.EBADF, 'close');
-      }
-      await this._fdMgr.deleteFd(fdIndex);
+      // try {
+        if (!this._fdMgr.getFd(fdIndex)) {
+          throw new EncryptedFSError(errno.EBADF, 'close');
+        }
+        console.log(1);
+        await this._fdMgr.deleteFd(fdIndex);
+        console.log(2);
+      // } catch (e) {
+      //   console.log(e);
+      // }
     }, callback);
   }
 
@@ -386,6 +394,45 @@ class EncryptedFS {
         if (srcFdIndex !== undefined) await this.close(srcFdIndex);
         if (dstFdIndex !== undefined) await this.close(dstFdIndex);
       }
+    }, callback);
+  }
+
+  public async createReadStream(
+    path: path,
+    options?: optionsStream,
+  ): Promise<ReadStream>;
+  public async createReadStream(
+    path: path,
+    callback: Callback<[ReadStream]>
+  ): Promise<void >;
+  public async createReadStream(
+    path: path,
+    options: optionsStream,
+    callback: Callback<[ReadStream]>
+  ): Promise<void >;
+  public async createReadStream(
+    path: path,
+    optionsOrCallback: optionsStream | Callback<[ReadStream]> = {},
+    callback?: Callback<[ReadStream]>
+  ): Promise<ReadStream | void > {
+    const defaultOps: optionsStream = {
+      flags: 'r',
+      encoding: undefined,
+      fd: undefined,
+      mode: vfs.DEFAULT_FILE_PERM,
+      autoClose: true,
+      end: Infinity
+    }
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions(defaultOps, optionsOrCallback) as optionsStream : defaultOps;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      if (options.start !== undefined) {
+        if (options.start > (options.end ?? Infinity)) {
+          throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
+        }
+      }
+      return new ReadStream(path, options, this);
     }, callback);
   }
 
@@ -922,13 +969,13 @@ class EncryptedFS {
   }
 
   public async open(path: path, flags: string | number, mode?: number): Promise<FdIndex>;
-  public async open(path: path, flags: string | number, callback: Callback): Promise<void>;
-  public async open(path: path, flags: string | number, mode: number, callback: Callback): Promise<void>;
+  public async open(path: path, flags: string | number, callback: Callback<[FdIndex]>): Promise<void>;
+  public async open(path: path, flags: string | number, mode: number, callback: Callback<[FdIndex]>): Promise<void>;
   public async open(
     path: path,
     flags: string | number,
-    modeOrCallback: number | Callback = vfs.DEFAULT_FILE_PERM,
-    callback?: Callback,
+    modeOrCallback: number | Callback<[FdIndex]> = vfs.DEFAULT_FILE_PERM,
+    callback?: Callback<[FdIndex]>,
   ): Promise<FdIndex | void> {
     const mode = (typeof modeOrCallback !== 'function') ? modeOrCallback : vfs.DEFAULT_FILE_PERM;
     callback = (typeof modeOrCallback === 'function') ? modeOrCallback : callback;

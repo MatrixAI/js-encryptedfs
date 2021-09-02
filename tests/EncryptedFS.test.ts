@@ -2014,6 +2014,30 @@ describe('EncryptedFS', () => {
       expect(stat.gid).toBe(2000);
     });
   });
+  describe('Streams', () => {
+    test.only('readstream options start and end are both inclusive', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      await efs.writeFile(`/test`, str);
+      const readable = await efs.createReadStream(`/test`, {
+        encoding: 'utf8',
+        start: 0,
+        end: str.length - 1,
+      });
+      readable.on('readable', () => {
+        expect(readable.read()).toBe(str);
+        // done();
+      });
+    });
+  });
 
       // test('write then read - single block', async () => {
     //   const efs = await EncryptedFS.createEncryptedFS({
@@ -2201,23 +2225,7 @@ describe('EncryptedFS', () => {
 // /////////////
 
 // describe('streams', () => {
-//   test('readstream options start and end are both inclusive - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     efs.writeFileSync(`test`, str);
-//     const readable = efs.createReadStream(`test`, {
-//       encoding: 'utf8',
-//       start: 0,
-//       end: str.length - 1,
-//     });
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr.slice(0, str.length)).toEqual(str);
-//         done();
-//       }
-//     });
-//   });
+
 //   test('readstreams respect start and end options - async', (done) => {
 //     const efs = new EncryptedFS(key, fs, dataDir);
 //     const str = 'Hello';
