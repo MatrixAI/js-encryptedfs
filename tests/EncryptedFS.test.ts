@@ -320,7 +320,7 @@ describe('EncryptedFS', () => {
         vfs.constants.O_RDONLY | vfs.constants.O_DIRECTORY,
       );
       const buffer = Buffer.alloc(10);
-      // await expect(efs.ftruncate(dirfd)).rejects.toThrow();
+      await expect(efs.ftruncate(dirfd)).rejects.toThrow();
       await expect(efs.read(dirfd, buffer, 0, 10)).rejects.toThrow();
       await expect(efs.write(dirfd, buffer)).rejects.toThrow();
       await expect(efs.readFile(dirfd)).rejects.toThrow();
@@ -565,7 +565,7 @@ describe('EncryptedFS', () => {
       await efs.copyFile('dir/hello-world', 'hello-universe');
       await expect(efs.readFile('hello-universe')).resolves.toEqual(buffer);
     });
-    test('appendFileSync moves with the fd position', async () => {
+    test('appendFile moves with the fd position', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -582,7 +582,7 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile('/fdtest', { encoding:'utf8' })).resolves.toBe('aaa');
       await efs.close(fd);
     });
-    test('readSync moves with the fd position', async () => {
+    test('read moves with the fd position', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -602,7 +602,7 @@ describe('EncryptedFS', () => {
       expect(buf).toEqual(Buffer.from(str));
       await efs.close(fd);
     });
-    test('writeSync moves with the fd position', async () => {
+    test('write moves with the fd position', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -620,7 +620,7 @@ describe('EncryptedFS', () => {
       await efs.close(fd);
     });
 
-    test('readSync does not change fd position according to position parameter', async () => {
+    test('read does not change fd position according to position parameter', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -673,7 +673,7 @@ describe('EncryptedFS', () => {
       await efs.close(fd);
     });
 
-    test('writeSync does not change fd position according to position parameter', async () => {
+    test('write does not change fd position according to position parameter', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -691,7 +691,7 @@ describe('EncryptedFS', () => {
       await efs.close(fd);
     });
 
-    test('readFileSync moves with fd position', async () => {
+    test('readFile moves with fd position', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -712,7 +712,7 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile('/fdtest', { encoding: 'utf-8' })).resolves.toEqual('startingending');
       await efs.close(fd);
     });
-    test('writeFileSync writes from the beginning, and does not move the fd position', async () => {
+    test('writeFile writes from the beginning, and does not move the fd position', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -764,7 +764,7 @@ describe('EncryptedFS', () => {
       expect(bytesRead).toBe(0);
       await efs.close(fd);
     });
-    test('writeFileSync and appendFileSync respects the mode', async () => {
+    test('writeFile and appendFile respects the mode', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -864,186 +864,60 @@ describe('EncryptedFS', () => {
       expect(buf.toString()).toBe(str);
       await efs.close(fd);
     });
-    // test('write then read - single block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const fd = await efs.open(`test.txt`, 'w+');
-    //   const writeBuffer = Buffer.from('Super confidential information');
-    //   const bytesWritten = await efs.write(fd, writeBuffer);
-    //   expect(bytesWritten).toEqual(writeBuffer.length);
-    //   const readBuffer = Buffer.alloc(writeBuffer.length);
-    //   const bytesRead = await efs.read(fd, readBuffer);
-    //   expect(bytesRead).toEqual(bytesWritten);
-    //   expect(writeBuffer).toStrictEqual(readBuffer);
-    // });
-    // test('write then read - multiple blocks', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const fd = await efs.open(`test.txt`, 'w+');
-    //   const blockSize = 4096;
-    //   // Write data
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const bytesWritten = await efs.write(fd, writeBuffer);
-    //   expect(bytesWritten).toEqual(writeBuffer.length);
-    //   // Read data back
-    //   const readBuffer = Buffer.alloc(writeBuffer.length);
-    //   const bytesRead = await efs.read(fd, readBuffer);
-    //   expect(bytesRead).toEqual(bytesWritten);
-    //   expect(writeBuffer).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of start block - with text buffer', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // Define file descriptor
-    //   const filename = `test_middle_text.txt`;
-    //   const fd = await efs.open(filename, 'w+');
-    //   // Write initial data
-    //   const writeBuffer = Buffer.alloc(blockSize);
-    //   writeBuffer.write('one two three four five six seven eight nine ten');
-    //   await efs.write(fd, writeBuffer);
-    //   // write data in the middle
-    //   const middlePosition = 240;
-    //   const middleText = ' Malcom in the middle ';
-    //   const middleData = Buffer.from(middleText);
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(expected).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of start block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const filename = `test_middle.txt`;
-    //   const fd = await efs.open(filename, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middlePosition = 2000;
-    //   const middleText = 'Malcom in the';
-    //   const middleData = Buffer.from(middleText);
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(expected).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of middle block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const filename = `test_middle.txt`;
-    //   let fd = await efs.open(filename, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middlePosition = blockSize + 2000;
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   fd = await efs.open(filename, 'r+');
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
-
-    // test('write non-zero position - middle of end block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writePos = 2 * blockSize + 2000;
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const fd = await efs.open(`test_middle.txt`, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, writePos);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
-    // test('write segment spanning across two block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const fd = await efs.open(`test_middle.txt`, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const writePos = 4090;
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, writePos);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
+    test('fallocate will only change ctime', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fd = await efs.open(`allocate`, 'w');
+      await efs.write(fd, Buffer.from('abc'));
+      const stat = await efs.stat(`allocate`) as vfs.Stat;
+      const offset = 0;
+      const length = 8000;
+      await efs.fallocate(fd, offset, length);
+      const stat2 = await efs.stat(`allocate`) as vfs.Stat;
+      expect(stat2.size).toEqual(offset + length);
+      expect(stat2.ctime > stat.ctime).toEqual(true);
+      expect(stat2.mtime).toEqual(stat.mtime);
+      expect(stat2.atime).toEqual(stat.atime);
+      await efs.close(fd);
+    });
+    test('truncate and ftruncate will change mtime and ctime', async () => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'abcdef';
+      await efs.writeFile(`test`, str);
+      const stat = await efs.stat(`test`) as vfs.Stat;
+      await efs.truncate(`test`, str.length);
+      const stat2 = await efs.stat(`test`) as vfs.Stat;
+      expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(
+        true,
+      );
+      const fd = await efs.open(`test`, 'r+');
+      await efs.ftruncate(fd, str.length);
+      const stat3 = await efs.stat(`test`) as vfs.Stat;
+      expect(
+        stat2.mtime < stat3.mtime && stat2.ctime < stat3.ctime,
+      ).toEqual(true);
+      await efs.ftruncate(fd, str.length);
+      const stat4 = await efs.stat(`test`) as vfs.Stat;
+      expect(
+        stat3.mtime < stat4.mtime && stat3.ctime < stat4.ctime,
+      ).toEqual(true);
+      await efs.close(fd);
+    });
   });
   describe('Symlinks', () => {
     test('symlink stat makes sense', async () => {
@@ -1926,6 +1800,187 @@ describe('EncryptedFS', () => {
     });
   });
 
+      // test('write then read - single block', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const fd = await efs.open(`test.txt`, 'w+');
+    //   const writeBuffer = Buffer.from('Super confidential information');
+    //   const bytesWritten = await efs.write(fd, writeBuffer);
+    //   expect(bytesWritten).toEqual(writeBuffer.length);
+    //   const readBuffer = Buffer.alloc(writeBuffer.length);
+    //   const bytesRead = await efs.read(fd, readBuffer);
+    //   expect(bytesRead).toEqual(bytesWritten);
+    //   expect(writeBuffer).toStrictEqual(readBuffer);
+    // });
+    // test('write then read - multiple blocks', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const fd = await efs.open(`test.txt`, 'w+');
+    //   const blockSize = 4096;
+    //   // Write data
+    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+    //   const bytesWritten = await efs.write(fd, writeBuffer);
+    //   expect(bytesWritten).toEqual(writeBuffer.length);
+    //   // Read data back
+    //   const readBuffer = Buffer.alloc(writeBuffer.length);
+    //   const bytesRead = await efs.read(fd, readBuffer);
+    //   expect(bytesRead).toEqual(bytesWritten);
+    //   expect(writeBuffer).toStrictEqual(readBuffer);
+    // });
+    // test('write non-zero position - middle of start block - with text buffer', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const blockSize = 4096;
+    //   // Define file descriptor
+    //   const filename = `test_middle_text.txt`;
+    //   const fd = await efs.open(filename, 'w+');
+    //   // Write initial data
+    //   const writeBuffer = Buffer.alloc(blockSize);
+    //   writeBuffer.write('one two three four five six seven eight nine ten');
+    //   await efs.write(fd, writeBuffer);
+    //   // write data in the middle
+    //   const middlePosition = 240;
+    //   const middleText = ' Malcom in the middle ';
+    //   const middleData = Buffer.from(middleText);
+    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+    //   // re-read the blocks
+    //   const readBuffer = Buffer.alloc(blockSize);
+    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+    //   middleData.copy(writeBuffer, middlePosition);
+    //   const expected = writeBuffer;
+    //   expect(expected).toStrictEqual(readBuffer);
+    // });
+    // test('write non-zero position - middle of start block', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const blockSize = 4096;
+    //   // write a three block file
+    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+    //   const filename = `test_middle.txt`;
+    //   const fd = await efs.open(filename, 'w+');
+    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+    //   // write data in the middle
+    //   const middlePosition = 2000;
+    //   const middleText = 'Malcom in the';
+    //   const middleData = Buffer.from(middleText);
+    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+    //   // re-read the blocks
+    //   const readBuffer = Buffer.alloc(blockSize * 3);
+    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+    //   middleData.copy(writeBuffer, middlePosition);
+    //   const expected = writeBuffer;
+    //   expect(expected).toStrictEqual(readBuffer);
+    // });
+    // test('write non-zero position - middle of middle block', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const blockSize = 4096;
+    //   // write a three block file
+    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+    //   const filename = `test_middle.txt`;
+    //   let fd = await efs.open(filename, 'w+');
+    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+    //   // write data in the middle
+    //   const middlePosition = blockSize + 2000;
+    //   const middleData = Buffer.from('Malcom in the');
+    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+    //   // re-read the blocks
+    //   const readBuffer = Buffer.alloc(blockSize * 3);
+    //   fd = await efs.open(filename, 'r+');
+    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+    //   middleData.copy(writeBuffer, middlePosition);
+    //   const expected = writeBuffer;
+    //   expect(readBuffer).toEqual(expected);
+    // });
+
+    // test('write non-zero position - middle of end block', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const blockSize = 4096;
+    //   // write a three block file
+    //   const writePos = 2 * blockSize + 2000;
+    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+    //   const fd = await efs.open(`test_middle.txt`, 'w+');
+    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+    //   // write data in the middle
+    //   const middleData = Buffer.from('Malcom in the');
+    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
+    //   // re-read the blocks
+    //   const readBuffer = Buffer.alloc(blockSize * 3);
+    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+    //   middleData.copy(writeBuffer, writePos);
+    //   const expected = writeBuffer;
+    //   expect(readBuffer).toEqual(expected);
+    // });
+    // test('write segment spanning across two block', async () => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const blockSize = 4096;
+    //   // write a three block file
+    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+    //   const fd = await efs.open(`test_middle.txt`, 'w+');
+    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+    //   // write data in the middle
+    //   const writePos = 4090;
+    //   const middleData = Buffer.from('Malcom in the');
+    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
+    //   // re-read the blocks
+    //   const readBuffer = Buffer.alloc(blockSize * 3);
+    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+    //   middleData.copy(writeBuffer, writePos);
+    //   const expected = writeBuffer;
+    //   expect(readBuffer).toEqual(expected);
+    // });
+
 // /////////////
 // // streams //
 // /////////////
@@ -2159,62 +2214,6 @@ describe('EncryptedFS', () => {
 //       }
 //     };
 //     writing();
-//   });
-// });
-
-// ///////////////////////
-// // stat time changes //
-// ///////////////////////
-
-// describe('stat time changes', () => {
-//   test('truncate and ftruncate will change mtime and ctime - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'abcdef';
-//     efs.writeFileSync(`test`, str);
-//     const stat = efs.statSync(`test`);
-//     setTimeout(() => {
-//       efs.truncateSync(`test`, str.length);
-//       const stat2 = efs.statSync(`test`);
-//       expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(
-//         true,
-//       );
-//       setTimeout(() => {
-//         const fd = efs.openSync(`test`, 'r+');
-//         efs.ftruncateSync(fd, str.length);
-//         const stat3 = efs.statSync(`test`);
-//         expect(
-//           stat2.mtime < stat3.mtime && stat2.ctime < stat3.ctime,
-//         ).toEqual(true);
-//         setTimeout(() => {
-//           efs.ftruncateSync(fd, str.length);
-//           const stat4 = efs.statSync(`test`);
-//           expect(
-//             stat3.mtime < stat4.mtime && stat3.ctime < stat4.ctime,
-//           ).toEqual(true);
-//           efs.closeSync(fd);
-//           done();
-//         }, 10);
-//       }, 10);
-//     }, 10);
-//   });
-
-//   test('fallocate will only change ctime - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const fd = efs.openSync(`allocate`, 'w');
-//     efs.writeSync(fd, Buffer.from('abc'));
-//     const stat = efs.statSync(`allocate`);
-//     const offset = 0;
-//     const length = 8000;
-//     efs.fallocate(fd, offset, length, (err) => {
-//       expect(err).toBeNull();
-//       const stat2 = efs.statSync(`allocate`);
-//       expect(stat2.size).toEqual(offset + length);
-//       expect(stat2.ctime > stat.ctime).toEqual(true);
-//       expect(stat2.mtime === stat.mtime).toEqual(true);
-//       expect(stat2.atime === stat.atime).toEqual(true);
-//       efs.closeSync(fd);
-//       done();
-//     });
 //   });
 // });
 

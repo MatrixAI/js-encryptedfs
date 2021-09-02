@@ -513,6 +513,76 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async ftruncate(
+    fdIndex: FdIndex,
+    len?: number
+  ): Promise<void>
+  public async ftruncate(
+    fdIndex: FdIndex,
+    callback: Callback
+  ): Promise<void>;
+  public async ftruncate(
+    fdIndex: FdIndex,
+    len: number,
+    callback: Callback
+  ): Promise<void>;
+  public async ftruncate(
+    fdIndex: FdIndex,
+    lenOrCallback: number | Callback = 0,
+    callback?: Callback
+  ): Promise<void> {
+    const len = (typeof lenOrCallback !== 'function') ? lenOrCallback: 0;
+    callback = (typeof lenOrCallback === 'function') ? lenOrCallback : callback;
+    return maybeCallback(async () => {
+      if (len < 0) {
+        throw new EncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+      }
+      const fd = this._fdMgr.getFd(fdIndex);
+      if (!fd) {
+        throw new EncryptedFSError(errno.EBADF, `ftruncate '${fdIndex}'`);
+      }
+      const iNode = fd.ino;
+      let newData;
+      await this._iNodeMgr.transact(async (tran) => {
+        const iNodeType = (await this._iNodeMgr.get(tran, iNode))?.type;
+        if (!(iNodeType === 'File')) {
+          throw new EncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+        }
+        if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+          throw new EncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+        }
+        let data = Buffer.alloc(0);
+        for await (const block of this._iNodeMgr.fileGetBlocks(tran, iNode, this._blkSize)) {
+          data = Buffer.concat([data, block]);
+        }
+        try {
+          if (len > data.length) {
+            newData = Buffer.alloc(len);
+            data.copy(newData, 0, 0, data.length);
+            await this._iNodeMgr.fileClearData(tran, iNode);
+            await this._iNodeMgr.fileSetBlocks(tran, iNode, newData, this._blkSize);
+          } else if (len < data.length) {
+            newData = Buffer.allocUnsafe(len);
+            data.copy(newData, 0, 0, len);
+            await this._iNodeMgr.fileSetBlocks(tran, iNode, newData, this._blkSize);
+          } else {
+            newData = data;
+          }
+        } catch (e) {
+          if (e instanceof RangeError) {
+            throw new EncryptedFSError(errno.EFBIG, `ftruncate '${fdIndex}'`);
+          }
+          throw e;
+        }
+        const now = new Date;
+        await this._iNodeMgr.statSetProp(tran, iNode, 'mtime', now);
+        await this._iNodeMgr.statSetProp(tran, iNode, 'ctime', now);
+        await this._iNodeMgr.statSetProp(tran, iNode, 'size', newData.length);
+      }, [iNode]);
+      await fd.setPos(Math.min(newData.length, fd.pos));
+    }, callback);
+  }
+
   public async futimes(
     fdIndex: FdIndex,
     atime: number | string | Date,
@@ -1498,6 +1568,45 @@ class EncryptedFS {
         }, [navigated.dir, symlinkINode]);
       } else {
         throw new EncryptedFSError(errno.EEXIST, `symlink '${srcPath}', '${dstPath}'`);
+      }
+    }, callback);
+  }
+
+  public async truncate(
+    file: file,
+    len?: number
+  ): Promise<void>
+  public async truncate(
+    file: file,
+    callback: Callback
+  ): Promise<void>;
+  public async truncate(
+    file: file,
+    len: number,
+    callback: Callback
+  ): Promise<void>;
+  public async truncate(
+    file: file,
+    lenOrCallback: number | Callback = 0,
+    callback?: Callback
+  ): Promise<void> {
+    const len = (typeof lenOrCallback !== 'function') ? lenOrCallback: 0;
+    callback = (typeof lenOrCallback === 'function') ? lenOrCallback : callback;
+    return maybeCallback(async () => {
+      if (len < 0) {
+        throw new EncryptedFSError(errno.EINVAL, `ftruncate '${file}'`);
+      }
+      if (typeof file === 'number') {
+        await this.ftruncate(file, len);
+      } else {
+        file = this.getPath(file as path);
+        let fdIndex;
+        try {
+          fdIndex = await this.open(file, vfs.constants.O_WRONLY);
+          await this.ftruncate(fdIndex, len);
+        } finally {
+          if (fdIndex !== undefined) await this.close(fdIndex);
+        }
       }
     }, callback);
   }

@@ -60,7 +60,7 @@ class FileDescriptor {
   /**
    * Sets the file descriptor position.
    */
-  public async setPos(pos: number, flags: number): Promise<void> {
+  public async setPos(pos: number, flags: number = vfs.constants.SEEK_SET): Promise<void> {
     let newPos, type, size;
     await this._iNodeMgr.transact(async (tran) => {
       type = await tran.get<INodeType>(
