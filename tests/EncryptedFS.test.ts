@@ -6,6 +6,7 @@ import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
+import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 
@@ -133,11 +134,11 @@ describe('EncryptedFS', () => {
       await efs.mkdirp('/test/a/b/c');
       await efs.mkdirp('/test/a/bc');
       await efs.mkdirp('/test/abc');
-      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow();
-      await expect(efs.readdir('/abc')).rejects.toThrow();
-      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow();
-      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow();
-      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow();
+      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
+      await expect(efs.readdir('/abc')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
+      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
+      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.EEXIST));
+      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow(new EncryptedFSError(errno.EEXIST));
       await expect(efs.readFile('/test/abc/a/b/c')).rejects.toThrow();
       await expect(efs.readFile('/test/abcd')).rejects.toThrow();
       await expect(efs.mkdir('/test/abcd/dir')).rejects.toThrow();

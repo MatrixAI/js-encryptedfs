@@ -321,13 +321,12 @@ class EncryptedFS {
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
         if (!this._fdMgr.getFd(fdIndex)) {
-          throw new EncryptedFSError(errno.EBADF, 'close');
+          throw new EncryptedFSError(errno.EBADF, `close '${fdIndex}'`);
         }
         await this._fdMgr.deleteFd(fdIndex);
     }, callback);
   }
 
-  // TODO: Update th locking here once the tran object is passed into fds
   public async copyFile(
     srcPath: path,
     dstPath: path,
