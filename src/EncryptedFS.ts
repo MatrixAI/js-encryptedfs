@@ -320,16 +320,10 @@ class EncryptedFS {
 
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
-      // try {
         if (!this._fdMgr.getFd(fdIndex)) {
           throw new EncryptedFSError(errno.EBADF, 'close');
         }
-        console.log(1);
         await this._fdMgr.deleteFd(fdIndex);
-        console.log(2);
-      // } catch (e) {
-      //   console.log(e);
-      // }
     }, callback);
   }
 

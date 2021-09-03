@@ -2015,7 +2015,7 @@ describe('EncryptedFS', () => {
     });
   });
   describe('Streams', () => {
-    test.only('readstream options start and end are both inclusive', async (done) => {
+    test('readstream usage - \'for await\'', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -2032,11 +2032,285 @@ describe('EncryptedFS', () => {
         start: 0,
         end: str.length - 1,
       });
+      let readString = '';
+      for await (const data of readable) {
+        readString += data;
+      }
+      expect(readString).toBe(str);
+    });
+    test('readstream usage - \'event readable\'', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      await efs.writeFile(`/test`, str);
+      const readable = await efs.createReadStream(`/test`, {
+        encoding: 'utf8',
+        start: 0,
+        end: str.length - 1,
+      });
+      let chunk;
+      let data = '';
       readable.on('readable', () => {
-        expect(readable.read()).toBe(str);
-        // done();
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str);
+        done();
       });
     });
+    test('readstream usage - \'event data\'', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      await efs.writeFile(`/test`, str);
+      const readable = await efs.createReadStream(`/test`, {
+        encoding: 'utf8',
+        start: 0,
+        end: str.length - 1,
+      });
+      let data = '';
+      readable.on('data', (chunk) => {
+        data += chunk;
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str);
+        done();
+      });
+    });
+    test('readstreams respect start and end options', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      await efs.writeFile(`file`, str, { encoding: 'utf8' });
+      const readable = await efs.createReadStream(`file`, {
+        encoding: 'utf8',
+        start: 1,
+        end: 3,
+      });
+      let chunk;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str.slice(1,4));
+        done();
+      });
+    });
+    test('readstreams respect the high watermark', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const highWatermark = 2;
+      await efs.writeFile(`file`, str, { encoding: 'utf8' });
+      const readable = await efs.createReadStream(`file`, {
+        encoding: 'utf8',
+        highWaterMark: highWatermark,
+      });
+      let chunk;
+      let counter = 0;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+          expect(chunk).toBe(str.slice(counter, counter + highWatermark));
+          data += chunk;
+          counter += highWatermark;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str);
+        done();
+      });
+    });
+    test('readstream respects the start option', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const filePath = `file`;
+      const offset = 1;
+      await efs.writeFile(filePath, str, { encoding: 'utf8' });
+      const readable = await efs.createReadStream(filePath, {
+        encoding: 'utf8',
+        start: offset,
+      });
+      let chunk;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str.slice(offset));
+        done();
+      });
+    });
+    test('readstream end option is ignored without the start option', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const filePath = `file`;
+      await efs.writeFile(filePath, str);
+      const readable = await efs.createReadStream(filePath, {
+        encoding: 'utf8',
+        end: 1,
+      });
+      let chunk;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str);
+        done();
+      });
+    });
+    test('readstream can use a file descriptor', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const filePath = `file`;
+      await efs.writeFile(filePath, str);
+      const fd = await efs.open(filePath, 'r');
+      const offset = 1;
+      await efs.lseek(fd, offset);
+      const readable = await efs.createReadStream('', {
+        encoding: 'utf8',
+        fd: fd,
+      });
+      let chunk;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', () => {
+        expect(data).toBe(str.slice(offset));
+        done();
+      });
+    });
+    test('readstream with start option overrides the file descriptor position', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      await efs.writeFile(`file`, str);
+      const fd = await efs.open(`file`, 'r');
+      const offset = 1;
+      const readable = await efs.createReadStream('', {
+        encoding: 'utf8',
+        fd: fd,
+        start: offset,
+      });
+      let chunk;
+      let data = '';
+      readable.on('readable', () => {
+        while ((chunk = readable.read()) != null) {
+            data += chunk;
+        }
+      });
+      readable.on('end', async () => {
+        expect(data).toBe(str.slice(offset));
+        const buf = Buffer.allocUnsafe(1);
+        await efs.read(fd, buf, 0, buf.length);
+        expect(buf.toString('utf8')).toBe(str.slice(0, buf.length));
+        done();
+      });
+    });
+    //   test('readstreams handle errors asynchronously - async', (done) => {
+    //     const efs = new EncryptedFS(key, fs, dataDir);
+    //     const stream = efs.createReadStream(`file`, {});
+    //     stream.on('error', (e) => {
+    //       expect(e.message).toContain('ENOENT');
+    //       done();
+    //     });
+    //     stream.read(10);
+    //   });
+    // test('readstreams can compose with pipes', async (done) => {
+    //   const efs = await EncryptedFS.createEncryptedFS({
+    //     dbKey,
+    //     dbPath,
+    //     db,
+    //     devMgr,
+    //     iNodeMgr,
+    //     umask: 0o022,
+    //     logger,
+    //   });
+    //   const str = 'Hello';
+    //   await efs.writeFile(`file`, str);
+    //   const readStream = efs.createReadStream(`file`, {
+    //     encoding: 'utf8',
+    //     end: 10,
+    //   });
+    //   const b = new bl(function() { return Buffer.from('d')});
+    //   b.read()
+    //   (await efs.createReadStream('/file')).pipe((new bl([() => {}]) as unknown) as WriteStream);
+    //   (await efs.createReadStream('/file')).pipe(bl((err, data) => {
+    //     expect(data.toString('utf8')).toBe(str);
+    //   }));
+    // });
   });
 
       // test('write then read - single block', async () => {
@@ -2226,131 +2500,6 @@ describe('EncryptedFS', () => {
 
 // describe('streams', () => {
 
-//   test('readstreams respect start and end options - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     efs.writeFileSync(`file`, str, { encoding: 'utf8' });
-//     const readable = efs.createReadStream(`file`, {
-//       encoding: 'utf8',
-//       start: 1,
-//       end: 3,
-//     });
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr.slice(0, str.length)).toEqual(str.slice(1, 4));
-//         done();
-//       }
-//     });
-//   });
-//   test('readstream respects the start option - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     const filePath = `file`;
-//     efs.writeFileSync(filePath, str, { encoding: 'utf8' });
-//     const readable = efs.createReadStream(filePath, {
-//       encoding: 'utf8',
-//       start: 0,
-//       end: str.length,
-//     });
-//     expect.assertions(1);
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr.slice(0, str.length)).toEqual(
-//           str.slice(0, str.length),
-//         );
-//         done();
-//       }
-//     });
-//   });
-//   test('readstream end option is ignored without the start option - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     const filePath = `file`;
-//     efs.writeFileSync(filePath, str);
-//     const readable = efs.createReadStream(filePath, {
-//       encoding: 'utf8',
-//       end: str.length,
-//     });
-//     expect.assertions(1);
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr.slice(0, str.length)).toEqual(
-//           str.slice(0, str.length),
-//         );
-//         done();
-//       }
-//     });
-//   });
-//   test('readstream can use a file descriptor - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     const filePath = `file`;
-//     efs.writeFileSync(filePath, str);
-//     const fd = efs.openSync(filePath, 'r');
-//     const readable = efs.createReadStream('', {
-//       encoding: 'utf8',
-//       fd: fd,
-//       end: str.length,
-//     });
-//     expect.assertions(1);
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr.slice(0, str.length)).toEqual(
-//           str.slice(0, str.length),
-//         );
-//         done();
-//       }
-//     });
-//   });
-//   test('readstream with start option overrides the file descriptor position - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     efs.writeFileSync(`file`, str);
-//     const fd = efs.openSync(`file`, 'r');
-//     const offset = 1;
-//     const readable = efs.createReadStream('', {
-//       encoding: 'utf8',
-//       fd: fd,
-//       start: offset,
-//       end: 4,
-//     });
-//     readable.on('readable', () => {
-//       const readStr = readable.read();
-//       if (readStr) {
-//         expect(readStr).toEqual(str.slice(offset, 5));
-//         done();
-//       }
-//     });
-//   });
-//   test('readstreams handle errors asynchronously - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const stream = efs.createReadStream(`file`, {});
-//     stream.on('error', (e) => {
-//       expect(e.message).toContain('ENOENT');
-//       done();
-//     });
-//     stream.read(10);
-//   });
-//   test('readstreams can compose with pipes - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     efs.writeFileSync(`file`, str);
-//     expect.assertions(1);
-//     const readStream = efs.createReadStream(`file`, {
-//       encoding: 'utf8',
-//       end: 10,
-//     });
-//     readStream.on('data', (data) => {
-//       expect(data.toString('utf8').slice(0, str.length)).toEqual(
-//         str.slice(0, str.length),
-//       );
-//       done();
-//     });
-//   });
 //   test('writestream can create and truncate files - async', (done) => {
 //     const efs = new EncryptedFS(key, fs, dataDir);
 //     const str = 'Hello';
