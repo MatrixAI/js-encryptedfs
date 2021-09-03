@@ -3,22 +3,20 @@ import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
 import * as vfs from 'virtualfs';
-import { nextTick } from 'process';
 import { Writable } from 'stream';
+import { Callback } from '@/types';
 
  class WriteStream extends Writable {
 
+  protected _bytesWritten: number;
   protected _fs: EncryptedFS;
-  bytesWritten: number;
-  path: string;
-  fd?: FdIndex;
-  flags: string;
-  mode: number;
-  autoClose: boolean;
-  start?: number;
-  pos?: number;
-  closed?: boolean;
-  destroy: () => {};
+  protected _path: string;
+  protected _fd?: FdIndex;
+  protected _flags: string;
+  protected _mode: number;
+  protected _autoClose: boolean;
+  protected _pos?: number;
+  protected _closed?: boolean;
 
   /**
    * Creates WriteStream.
@@ -28,22 +26,21 @@ import { Writable } from 'stream';
       highWaterMark: options.highWaterMark
     });
     this._fs = fs;
-    this.bytesWritten = 0;
-    this.path = path;
-    this.fd = options.fd === undefined ? undefined : options.fd;
-    this.flags = options.flags === undefined ? 'w' : options.flags;
-    this.mode = options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
-    this.autoClose = options.autoClose === undefined ? true : options.autoClose;
-    this.start = options.start;
-    this.pos = this.start; // WriteStream maintains its own position
+    this._bytesWritten = 0;
+    this._path = path;
+    this._fd = options.fd === undefined ? undefined : options.fd;
+    this._flags = options.flags === undefined ? 'w' : options.flags;
+    this._mode = options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
+    this._autoClose = options.autoClose === undefined ? true : options.autoClose;
+    this._pos = options.start; // WriteStream maintains its own position
     if (options.encoding) {
       super.setDefaultEncoding(options.encoding);
     }
-    if (typeof this.fd !== 'number') {
+    if (typeof this._fd !== 'number') {
       this._open();
     }
     super.on('finish', () => {
-      if (this.autoClose) {
+      if (this._autoClose) {
         this.destroy();
       }
     });
@@ -52,16 +49,16 @@ import { Writable } from 'stream';
   /**
    * Open file descriptor if WriteStream was constructed from a file path.
    */
-  _open () {
-    this._fs.open(this.path, this.flags, this.mode, (e, fd) => {
+  protected _open(): void {
+    this._fs.open(this._path, this._flags, this._mode, (e, fd) => {
       if (e) {
-        if (this.autoClose) {
+        if (this._autoClose) {
           this.destroy();
         }
         super.emit('error', e);
         return;
       }
-      this.fd = fd;
+      this._fd = fd;
       super.emit('open', fd);
     });
   }
@@ -69,36 +66,50 @@ import { Writable } from 'stream';
   /**
    * Asynchronous write hook for stream implementation.
    */
-  _write (data: Buffer | string, encoding: string | undefined, cb: Function) {
-    if (typeof this.fd !== 'number') {
+  public _write(data: Buffer | string, encoding: string | undefined, callback: Callback<[WriteStream]>): WriteStream | void {
+    if (typeof this._fd !== 'number') {
       return super.once('open', () => {
-        this._write(data, encoding, cb);
+        this._write(data, encoding, callback);
       });
     }
-    this._fs.write(this.fd, data, 0, data.length, this.pos, (e, bytesWritten) => {
-      if (e) {
-        if (this.autoClose) {
-          this.destroy();
+    if (this._pos) {
+      this._fs.write(this._fd, data, 0, data.length, this._pos, (e, bytesWritten) => {
+        if (e) {
+          if (this._autoClose) {
+            this.destroy();
+          }
+          callback(e);
+          return;
         }
-        cb(e);
-        return;
-      }
-      this.bytesWritten += bytesWritten;
-      cb();
-    });
-    if (this.pos !== undefined) {
-      this.pos += data.length;
+        this._bytesWritten += bytesWritten;
+        callback(e);
+      });
+    } else {
+      this._fs.write(this._fd, data, 0, data.length, (e, bytesWritten) => {
+        if (e) {
+          if (this._autoClose) {
+            this.destroy();
+          }
+          callback(e);
+          return;
+        }
+        this._bytesWritten += bytesWritten;
+        callback(e);
+      });
+    }
+    if (this._pos !== undefined) {
+      this._pos += data.length;
     }
   }
 
   /**
    * Vectorised write hook for stream implementation.
    */
-  _writev (chunks:Array<{chunk: Buffer}>, cb: Function) {
+  public _writev(chunks:Array<{chunk: Buffer}>, callback: Callback<[WriteStream]>): void {
     this._write(
       Buffer.concat(chunks.map((chunk) => chunk.chunk)),
       undefined,
-      cb
+      callback
     );
     return;
   }
@@ -106,43 +117,40 @@ import { Writable } from 'stream';
   /**
    * Destroy hook for stream implementation.
    */
-  _destroy (e: Error, cb: Function) {
+  public _destroy(e: Error, callback: Callback): void {
     this._close((e_) => {
-      cb(e || e_);
+      callback(e || e_);
     });
   }
 
   /**
    * Close file descriptor if WriteStream was constructed from a file path.
    */
-  _close (cb: Function) {
-    if (cb) {
-      super.once('close', cb);
+  protected _close(callback?: Callback): void {
+    if (callback) {
+      super.once('close', callback);
     }
-    if (typeof this.fd !== 'number') {
+    if (typeof this._fd !== 'number') {
       super.once('open', () => {
         this._close();
       });
       return;
     }
-    if (this.closed) {
-      return nextTick(() => super.emit('close'));
-    }
-    this.closed = true;
-    this._fs.close(this.fd, (e) => {
+    this._closed = true;
+    this._fs.close(this._fd, (e) => {
       if (e) {
         this.emit('error', e);
       } else {
         this.emit('close');
       }
     });
-    this.fd = undefined;
+    this._fd = undefined;
   }
 
   /**
    * Final hook for stream implementation.
    */
-  _final (cb: Function) {
+  public _final (cb: Function) {
     cb();
     return;
   }

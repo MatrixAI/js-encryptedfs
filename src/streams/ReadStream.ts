@@ -8,16 +8,16 @@ import { Readable } from 'stream';
 
 class ReadStream extends Readable {
 
+  protected _bytesRead: number;
   protected _fs: EncryptedFS;
-  protected bytesRead: number;
-  protected path: string;
-  protected fd?: FdIndex;
-  protected flags: string;
-  protected mode: number;
-  protected autoClose: boolean;
-  protected end: number;
-  protected pos?: number;
-  protected closed?: boolean;
+  protected _path: string;
+  protected _fd?: FdIndex;
+  protected _flags: string;
+  protected _mode: number;
+  protected _autoClose: boolean;
+  protected _end: number;
+  protected _pos?: number;
+  protected _closed?: boolean;
 
   /**
    * Creates ReadStream
@@ -30,31 +30,35 @@ class ReadStream extends Readable {
       encoding: options.encoding
     });
     this._fs = fs;
-    this.bytesRead = 0;
-    this.path = path;
-    this.fd = (options.fd === undefined) ? undefined : options.fd;
-    this.flags = (options.flags === undefined) ? 'r' : options.flags;
-    this.mode = (options.mode === undefined) ? vfs.DEFAULT_FILE_PERM : options.mode;
-    this.autoClose = (options.autoClose === undefined) ? true : options.autoClose;
-    this.end = (options.end === undefined) ? Infinity : options.end;
-    this.pos = options.start;
-    if (typeof this.fd !== 'number') {
+    this._bytesRead = 0;
+    this._path = path;
+    this._fd = (options.fd === undefined) ? undefined : options.fd;
+    this._flags = (options.flags === undefined) ? 'r' : options.flags;
+    this._mode = (options.mode === undefined) ? vfs.DEFAULT_FILE_PERM : options.mode;
+    this._autoClose = (options.autoClose === undefined) ? true : options.autoClose;
+    this._end = (options.end === undefined) ? Infinity : options.end;
+    this._pos = options.start;
+    if (typeof this._fd !== 'number') {
       this._open();
     }
     super.on('end', () => {
-      if (this.autoClose) {
+      if (this._autoClose) {
         this.destroy();
       }
     });
+  }
+
+  get bytesRead() {
+    return this.bytesRead;
   }
 
   /**
    * Open file descriptor if ReadStream was constructed from a file path
    */
   protected _open(): void {
-    this._fs.open(this.path, this.flags, this.mode, (err, fd) => {
+    this._fs.open(this._path, this._flags, this._mode, (err, fd) => {
       this._error(err);
-      this.fd = fd;
+      this._fd = fd;
       super.emit('open', fd);
     });
   }
@@ -66,32 +70,32 @@ class ReadStream extends Readable {
    * However since this is an in-memory filesystem, the size itself is irrelevant
    */
   public _read(size: number): void {
-    if (typeof this.fd !== 'number') {
+    if (typeof this._fd !== 'number') {
       super.once('open', () => {
         this._read(size);
       });
       return;
     }
     if (this.destroyed) return;
-    if (this.pos != null) {
-      size = Math.min(this.end - this.pos + 1, size);
+    if (this._pos != null) {
+      size = Math.min(this._end - this._pos + 1, size);
     }
     if (size <= 0) {
       this.push(null);
       return;
     }
     const buffer = Buffer.allocUnsafe(size);
-    if (this.pos) {
+    if (this._pos) {
       this._fs.read(
-        this.fd,
+        this._fd,
         buffer,
         0,
         size,
-        this.pos,
+        this._pos,
         (err, bytesRead) => {
           this._error(err);
           if (bytesRead > 0) {
-            this.bytesRead += bytesRead;
+            this._bytesRead += bytesRead;
             this.push(buffer.slice(0, bytesRead));
           } else {
             this.push(null);
@@ -100,14 +104,14 @@ class ReadStream extends Readable {
       );
     } else {
       this._fs.read(
-        this.fd,
+        this._fd,
         buffer,
         0,
         size,
         (err, bytesRead) => {
           this._error(err);
           if (bytesRead > 0) {
-            this.bytesRead += bytesRead;
+            this._bytesRead += bytesRead;
             this.push(buffer.slice(0, bytesRead));
           } else {
             this.push(null);
@@ -115,8 +119,8 @@ class ReadStream extends Readable {
         }
       );
     }
-    if (this.pos != null) {
-      this.pos += size;
+    if (this._pos != null) {
+      this._pos += size;
     }
   }
 
@@ -124,8 +128,8 @@ class ReadStream extends Readable {
    * Destroy hook for stream implementation
    */
   public _destroy(err: Error, callback: Callback): void {
-    if (this.fd) {
-      this._fs.close(this.fd, (err_) => {
+    if (this._fd) {
+      this._fs.close(this._fd, (err_) => {
         this._error(err_ || err);
       });
     } else {
@@ -138,7 +142,7 @@ class ReadStream extends Readable {
    */
   protected _error(err?: Error): void {
     if (err) {
-      if (this.autoClose) {
+      if (this._autoClose) {
         this.destroy();
       }
       super.emit('error', err);
