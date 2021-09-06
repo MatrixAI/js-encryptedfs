@@ -7,6 +7,54 @@ import EncryptedFS from '@/EncryptedFS';
 import * as utils from '@/util';
 import { WorkerManager } from '@/workers';
 
+  test('mmap with MAP_PRIVATE on a file descriptor gives me an immediate copy on the file buffer', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const buf1 = Buffer.from('abcdef');
+    const length = 4;
+    const offset = 1;
+    await efs.writeFile('file', buf1);
+    const fd = await efs.open('file', 'r');
+    const buf2 = await efs.mmap(length, vfs.constants.MAP_PRIVATE, fd, offset)
+    expect(buf2.length).toBe(length);
+    expect(buf2).toEqual(buf1.slice(offset, offset + length));
+    buf2[0] = 'z'.charCodeAt(0);
+    expect(buf2).not.toEqual(buf1.slice(offset, offset + length));
+    await efs.close(fd);
+  });
+  test.only('mmapSync with MAP_SHARED on a file descriptor gives me a persistent reference to the inode buffer', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const buf1 = Buffer.from('abcdef');
+    const length = 4;
+    const offset = 1;
+    await efs.writeFile('file', buf1);
+    const fd = await efs.open('file', 'r+');
+    const buf2 = await efs.mmap(length, vfs.constants.MAP_SHARED, fd, offset);
+    buf2[0] = 'z'.charCodeAt(0);
+    // changes to the mmaped buffer propragate to the file
+    const readStr = await efs.readFile('file');
+    expect(readStr.slice(offset, offset + length)).toEqual(buf2);
+    // changes to the file propagate to the mmaped buffer
+    await efs.writeFile(fd, buf1);
+    expect(buf1.slice(offset, offset + length)).toEqual(buf2);
+    await efs.close(fd);
+  });
+
 describe('EncryptedFS class', () => {
   let dataDir: string;
   let key: Buffer;

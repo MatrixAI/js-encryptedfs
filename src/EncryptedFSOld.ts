@@ -25,6 +25,76 @@ import { WorkerManager } from './workers';
 import * as utils from './utils';
 import EncryptedStat from './EncryptedStat';
 
+public async mmap(
+  length: number,
+  flags: number,
+  fdIndex: FdIndex,
+  offset?: number,
+): Promise<Buffer>;
+public async mmap(
+  length: number,
+  flags: number,
+  fdIndex: FdIndex,
+  callback: Callback<[Buffer]>,
+): Promise<void>;
+public async mmap(
+  length: number,
+  flags: number,
+  fdIndex: FdIndex,
+  offset: number,
+  callback: Callback<[Buffer]>,
+): Promise<void>;
+public async mmap(
+  length: number,
+  flags: number,
+  fdIndex: FdIndex,
+  offsetOrCallback: number | Callback<[Buffer]> = 0,
+  callback?: Callback<[Buffer]>
+): Promise<Buffer | void> {
+  const offset =
+    typeof offsetOrCallback !== 'function' ? offsetOrCallback : 0;
+  callback =
+    typeof offsetOrCallback === 'function' ? offsetOrCallback : callback;
+  return maybeCallback(async () => {
+    if (length < 1 || offset < 0) {
+      throw new EncryptedFSError(errno.EINVAL, `mmap '${fdIndex}'`);
+    }
+    const fd = this._fdMgr.getFd(fdIndex);
+    if (!fd) {
+      throw new EncryptedFSError(errno.EBADF, `mmap '${fdIndex}'`);
+    }
+    const access = fd.flags & vfs.constants.O_ACCMODE;
+    if (access === vfs.constants.O_WRONLY) {
+      throw new EncryptedFSError(errno.EACCES, `mmap '${fdIndex}'`);
+    }
+    const iNode = fd.ino;
+    let iNodeData = Buffer.alloc(0);
+    await this._iNodeMgr.transact(async (tran) => {
+      const iNodeType = (await this._iNodeMgr.get(tran, iNode))?.type;
+      if (!(iNodeType === 'File')) {
+        throw new EncryptedFSError(errno.ENODEV, `mmap '${fdIndex}'`);
+      }
+      for await (const block of this._iNodeMgr.fileGetBlocks(tran, iNode, this._blkSize)) {
+        iNodeData = Buffer.concat([iNodeData, block]);
+      }
+    }, [iNode]);
+    switch (flags) {
+    case vfs.constants.MAP_PRIVATE:
+      return Buffer.from(iNodeData.slice(offset, offset + length));
+    case vfs.constants.MAP_SHARED:
+      if (access !== vfs.constants.O_RDWR) {
+        throw new EncryptedFSError(errno.EACCES, `mmap '${fdIndex}'`);
+      }
+      let a = await permaProxy(iNode, '_data');
+      console.log(a);
+      a = a.slice(offset, offset + length);
+      return a;
+    default:
+      throw new EncryptedFSError(errno.EINVAL, `mmap '${fdIndex}'`);
+    }
+  }, callback);
+}
+
 /**
  * Asynchronous callback backup.
  */
