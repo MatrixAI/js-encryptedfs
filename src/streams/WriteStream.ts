@@ -117,44 +117,34 @@ import { Callback } from '@/types';
   /**
    * Destroy hook for stream implementation.
    */
-  public _destroy(e: Error, callback: Callback): void {
-    this._close((e_) => {
-      callback(e || e_);
-    });
-  }
-
-  /**
-   * Close file descriptor if WriteStream was constructed from a file path.
-   */
-  protected _close(callback?: Callback): void {
-    if (callback) {
-      super.once('close', callback);
-    }
-    if (typeof this._fd !== 'number') {
-      super.once('open', () => {
-        this._close();
+  public _destroy(err: Error, callback: Callback): void {
+    if (this._fd) {
+      this._fs.close(this._fd, (err_) => {
+        this._error(err_ || err);
       });
-      return;
+    } else {
+      callback(err);
     }
-    this._closed = true;
-    this._fs.close(this._fd, (e) => {
-      if (e) {
-        this.emit('error', e);
-      } else {
-        this.emit('close');
-      }
-    });
-    this._fd = undefined;
   }
 
   /**
    * Final hook for stream implementation.
    */
-  public _final (cb: Function) {
-    cb();
-    return;
+  public _final(callback: Callback): void {
+    callback(null);
   }
 
+  /**
+   * Custom error handling for stream implementation
+   */
+   protected _error(err?: Error): void {
+    if (err) {
+      if (this._autoClose) {
+        this.destroy();
+      }
+      super.emit('error', err);
+    }
+  }
 }
 
 export default WriteStream;

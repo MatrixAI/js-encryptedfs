@@ -10,7 +10,7 @@ import { DB } from './db';
 import { INodeManager } from './inodes';
 import CurrentDirectory from './CurrentDirectory';
 import { FileDescriptor, FileDescriptorManager } from './fd';
-import { ReadStream } from './streams';
+import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
 
@@ -426,6 +426,44 @@ class EncryptedFS {
         }
       }
       return new ReadStream(path, options, this);
+    }, callback);
+  }
+
+  public async createWriteStream(
+    path: path,
+    options?: optionsStream,
+  ): Promise<WriteStream>;
+  public async createWriteStream(
+    path: path,
+    callback: Callback<[WriteStream]>
+  ): Promise<void >;
+  public async createWriteStream(
+    path: path,
+    options: optionsStream,
+    callback: Callback<[WriteStream]>
+  ): Promise<void >;
+  public async createWriteStream(
+    path: path,
+    optionsOrCallback: optionsStream | Callback<[WriteStream]> = {},
+    callback?: Callback<[WriteStream]>
+  ): Promise<WriteStream | void > {
+    const defaultOps: optionsStream = {
+      flags: 'w',
+      encoding: 'utf8',
+      fd: undefined,
+      mode: vfs.DEFAULT_FILE_PERM,
+      autoClose: true,
+    }
+    const options = (typeof optionsOrCallback !== 'function') ? this.getOptions(defaultOps, optionsOrCallback) as optionsStream : defaultOps;
+    callback = (typeof optionsOrCallback === 'function') ? optionsOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      if (options.start !== undefined) {
+        if (options.start < 0) {
+          throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
+        }
+      }
+      return new WriteStream(path, options, this);
     }, callback);
   }
 

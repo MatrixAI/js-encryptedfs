@@ -2280,15 +2280,25 @@ describe('EncryptedFS', () => {
         done();
       });
     });
-    //   test('readstreams handle errors asynchronously - async', (done) => {
-    //     const efs = new EncryptedFS(key, fs, dataDir);
-    //     const stream = efs.createReadStream(`file`, {});
-    //     stream.on('error', (e) => {
-    //       expect(e.message).toContain('ENOENT');
-    //       done();
-    //     });
-    //     stream.read(10);
-    //   });
+    test('readstreams handle errors asynchronously', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const stream = await efs.createReadStream(`file`);
+      stream.on('error', (err) => {
+        expect(err instanceof Error).toBe(true);
+        const error = err as any;
+        expect(error.code).toBe('ENOENT');
+        done();
+      });
+      stream.read(10);
+    });
     // test('readstreams can compose with pipes', async (done) => {
     //   const efs = await EncryptedFS.createEncryptedFS({
     //     dbKey,
@@ -2312,6 +2322,130 @@ describe('EncryptedFS', () => {
     //     expect(data.toString('utf8')).toBe(str);
     //   }));
     // });
+    test('writestream can create and truncate files', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const fileName = `file`;
+      const writable = await efs.createWriteStream(fileName, {})
+      writable.end(str, async () => {
+        const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
+        console.log(readStr);
+        expect(readStr).toEqual(str);
+        const truncateWritable = await efs.createWriteStream(fileName, {});
+        truncateWritable.end('', async () => {
+          const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
+          console.log(readStr);
+          expect(readStr).toEqual('');
+          done();
+        });
+      });
+    });
+    test('writestream can be written into', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const str = 'Hello';
+      const stream = await efs.createWriteStream('file');
+      stream.write(Buffer.from(str));
+      stream.end();
+      stream.on('finish', async () => {
+        const readStr = await efs.readFile('file', { encoding: 'utf-8' });
+        expect(readStr).toEqual(str);
+        done();
+      });
+    });
+    test('writestreams allow ignoring of the drain event, temporarily ignoring resource usage control', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const waterMark = 10;
+      const writable = await efs.createWriteStream('file', { highWaterMark: waterMark });
+      const buf = Buffer.allocUnsafe(waterMark).fill(97);
+      const times = 4;
+      for (let i = 0; i < times; ++i) {
+        expect(writable.write(buf)).toBe(false);
+      }
+      writable.end(async () => {
+        const readStr = await efs.readFile('file', { encoding: 'utf8' });
+        expect(readStr).toBe(buf.toString().repeat(times));
+        done();
+      });
+    });
+    test('writestreams can use the drain event to manage resource control', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const waterMark = 10;
+      const writable = await efs.createWriteStream('file', { highWaterMark: waterMark });
+      const buf = Buffer.allocUnsafe(waterMark).fill(97);
+      let times = 10;
+      const timesOrig  = times;
+      const writing = () => {
+        let status;
+        do {
+          status = writable.write(buf);
+          times -= 1;
+          if (times === 0) {
+            writable.end(async () => {
+              const readStr = await efs.readFile('file', { encoding: 'utf8' });
+              expect(readStr).toBe(buf.toString().repeat(timesOrig));
+              done();
+            });
+          }
+        } while (times > 0 && status);
+        if (times > 0) {
+          writable.once('drain', writing);
+        }
+      };
+      writing();
+    });
+    test('writestreams handle errors asynchronously', async (done) => {
+      const efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      const fileName = `file/unknown`;
+      const writable = await efs.createWriteStream(fileName);
+      // note that it is possible to have the finish event occur before the error event
+      writable.once('error', (err) => {
+        expect(err instanceof Error).toBe(true);
+        const error = err as any;
+        expect(error.code).toBe('ENOENT');
+        done();
+      });
+      writable.end();
+    });
   });
 
       // test('write then read - single block', async () => {
@@ -2494,101 +2628,6 @@ describe('EncryptedFS', () => {
     //   const expected = writeBuffer;
     //   expect(readBuffer).toEqual(expected);
     // });
-
-// /////////////
-// // streams //
-// /////////////
-
-// describe('streams', () => {
-
-//   test('writestream can create and truncate files - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     const fileName = `file`;
-//     expect.assertions(2);
-//     efs.createWriteStream(fileName, {}).end(str, () => {
-//       const readStr = efs.readFileSync(fileName, { encoding: 'utf-8' });
-//       expect(readStr).toEqual(str);
-//       efs.createWriteStream(fileName, {}).end('', () => {
-//         expect(efs.readFileSync(fileName, { encoding: 'utf-8' })).toEqual('');
-//         done();
-//       });
-//     });
-//   });
-//   test('writestream can be piped into - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const str = 'Hello';
-//     expect.assertions(1);
-//     const stream = efs.createWriteStream(`file`, {});
-//     stream.write(Buffer.from(str));
-//     stream.end();
-//     stream.on('finish', () => {
-//       expect(efs.readFileSync(`file`, { encoding: 'utf-8' })).toEqual(str);
-//       done();
-//     });
-//   });
-//   test('writestreams handle errors asynchronously - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const fileName = `file/unknown`;
-//     const writable = efs.createWriteStream(fileName, {});
-//     // note that it is possible to have the finish event occur before the error event
-//     expect.assertions(2);
-//     writable.once('error', (e) => {
-//       expect(e).not.toBeNull();
-//       expect(e.toString()).toContain('ENOENT');
-//       done();
-//     });
-//     writable.end();
-//   });
-//   test('writestreams allow ignoring of the drain event, temporarily ignoring resource usage control - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const waterMark = 10;
-//     const fileName = `file`;
-//     const writable = efs.createWriteStream(fileName, {
-//       highWaterMark: waterMark,
-//     });
-//     const buffer = Buffer.allocUnsafe(waterMark).fill(97);
-//     const times = 4;
-//     for (let i = 0; i < times; ++i) {
-//       expect(writable.write(buffer)).toEqual(false);
-//     }
-//     writable.end(() => {
-//       const readBuffer = efs.readFileSync(fileName, { encoding: 'utf-8' });
-//       expect(readBuffer).toEqual(buffer.toString().repeat(times));
-//       done();
-//     });
-//   });
-//   test('writestreams can use the drain event to manage resource control - async', (done) => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const waterMark = 10;
-//     const fileName = `file`;
-//     const writable = efs.createWriteStream(fileName, {
-//       highWaterMark: waterMark,
-//     });
-//     const buf = Buffer.allocUnsafe(waterMark).fill(97);
-//     let times = 10;
-//     const timesOrig = times;
-//     const writing = () => {
-//       let status: boolean;
-//       do {
-//         status = writable.write(buf);
-//         times -= 1;
-//         if (times === 0) {
-//           writable.end(() => {
-//             expect(efs.readFileSync(fileName, { encoding: 'utf8' })).toEqual(
-//               buf.toString().repeat(timesOrig),
-//             );
-//             done();
-//           });
-//         }
-//       } while (times > 0 && status);
-//       if (times > 0) {
-//         writable.once('drain', writing);
-//       }
-//     };
-//     writing();
-//   });
-// });
 
 // ////////////////////////
 // // Bisimulation tests //
