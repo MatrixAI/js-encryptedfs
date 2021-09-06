@@ -1,4 +1,6 @@
 import * as utils from '@/utils';
+import { maybeCallback } from '@/utils';
+import { Callback } from '@/types';
 
 describe('utils', () => {
   let key: Buffer;
@@ -228,5 +230,57 @@ describe('utils', () => {
     // it has to handle the first block
     // so we want to know what is the first block we start writing from
     // and the first block end
+  });
+  describe('maybeCallback', () => {
+    //So we want to test maybeCallback
+    // To do this we need to create a function with a promise.
+    async function passthrough(
+      arg: string,
+      shouldThrow: boolean,
+      callback?: Callback<[string]>,
+    ) {
+      return await maybeCallback(async () => {
+        if (shouldThrow) throw Error('Throwing an error');
+        return arg;
+      }, callback);
+    }
+
+    describe('as a promise', () => {
+      test('Should function', async () => {
+        const message = 'Hello world!';
+        const response = await passthrough(message, false);
+        expect(response).toEqual(message);
+      });
+      test('Should throw error', async () => {
+        const message = 'Hello world!';
+        await expect(passthrough(message, true)).rejects.toThrow();
+      });
+    });
+    describe('as a callback', () => {
+      test('Should function', async () => {
+        const message = 'Hello world!';
+        let resolvePromise;
+        const prom = new Promise((resolve, _reject) => {
+          resolvePromise = resolve;
+        });
+        await passthrough(message, false, (_err, response) => {
+          expect(response).toEqual(message);
+          resolvePromise(response);
+        });
+        await prom;
+      });
+      test('Should throw error', async () => {
+        const message = 'Hello world!';
+        let resolvePromise;
+        const prom = new Promise((resolve, _reject) => {
+          resolvePromise = resolve;
+        });
+        await passthrough(message, true, (err, response) => {
+          expect(err).toBeInstanceOf(Error);
+          resolvePromise(response);
+        });
+        await prom;
+      });
+    });
   });
 });
