@@ -121,13 +121,14 @@ class FileDescriptor {
    */
   public async read(buffer: Buffer, position?: number): Promise<number> {
     // Check that the iNode is a valid type (for now, only File iNodes)
-    let type;
+    let type, blkSize;
     await this._iNodeMgr.transact(
       async (tran) => {
         type = await tran.get<INodeType>(
           this._iNodeMgr.iNodesDomain,
           inodesUtils.iNodeId(this._ino),
         );
+        blkSize = await this._iNodeMgr.statGetProp(tran, this._ino, 'blksize');
       },
       [this._ino],
     );
@@ -141,16 +142,13 @@ class FileDescriptor {
 
     switch (type) {
       case 'File':
-        // Obtain the block size used by the iNode
-        const blockSize = 5;
-
         // Get the starting block index
-        const blockStartIdx = utils.blockIndexStart(blockSize, currentPos);
+        const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
         // Determines the offset of blocks
-        const blockOffset = utils.blockOffset(blockSize, currentPos);
+        const blockOffset = utils.blockOffset(blkSize, currentPos);
         // Determines the number of blocks
         const blockLength = utils.blockLength(
-          blockSize,
+          blkSize,
           blockOffset,
           bytesRead,
         );
@@ -158,9 +156,9 @@ class FileDescriptor {
         const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
 
         // Get the cursor offset for the start and end blocks
-        const blockCursorStart = utils.blockOffset(blockSize, currentPos);
+        const blockCursorStart = utils.blockOffset(blkSize, currentPos);
         const blockCursorEnd = utils.blockOffset(
-          blockSize,
+          blkSize,
           currentPos + bytesRead - 1,
         );
 
@@ -174,7 +172,7 @@ class FileDescriptor {
             for await (const block of this._iNodeMgr.fileGetBlocks(
               tran,
               this._ino,
-              blockSize,
+              blkSize,
               blockStartIdx,
               blockEndIdx + 1,
             )) {
@@ -260,13 +258,14 @@ class FileDescriptor {
     extraFlags: number = 0,
   ): Promise<number> {
     // Check that the iNode is a valid type
-    let type;
+    let type, blkSize;
     await this._iNodeMgr.transact(
       async (tran) => {
         type = await tran.get<INodeType>(
           this._iNodeMgr.iNodesDomain,
           inodesUtils.iNodeId(this._ino),
         );
+        blkSize = await this._iNodeMgr.statGetProp(tran, this._ino, 'blksize');
       },
       [this._ino],
     );
@@ -277,8 +276,6 @@ class FileDescriptor {
       currentPos = position;
     }
 
-    // Define the block size as constant (for now)
-    const blockSize = 5;
     let bytesWritten = 0;
 
     switch (type) {
@@ -292,19 +289,19 @@ class FileDescriptor {
                 tran,
                 this._ino,
               );
-              if (value.length == blockSize) {
+              if (value.length == blkSize) {
                 // If the last block is full, begin writing from the next block index
                 await this._iNodeMgr.fileSetBlocks(
                   tran,
                   this._ino,
                   buffer,
-                  blockSize,
+                  blkSize,
                   idx + 1,
                 );
-              } else if (value.length + buffer.length > blockSize) {
+              } else if (value.length + buffer.length > blkSize) {
                 // If the last block is not full and additional data will exceed block size
                 // Copy the bytes until block size is reached and write into the last block at offset
-                const startBuffer = Buffer.alloc(blockSize - value.length);
+                const startBuffer = Buffer.alloc(blkSize - value.length);
                 buffer.copy(startBuffer);
                 const writeBytes = await this._iNodeMgr.fileWriteBlock(
                   tran,
@@ -320,7 +317,7 @@ class FileDescriptor {
                   tran,
                   this._ino,
                   endBuffer,
-                  blockSize,
+                  blkSize,
                   idx + 1,
                 );
               } else {
@@ -339,15 +336,15 @@ class FileDescriptor {
             [this._ino],
           );
           // Move the cursor to the end of the existing data
-          currentPos = idx * blockSize + value.length;
+          currentPos = idx * blkSize + value.length;
         } else {
           // Get the starting block index
-          const blockStartIdx = utils.blockIndexStart(blockSize, currentPos);
+          const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
           // Determines the offset of blocks
-          const blockOffset = utils.blockOffset(blockSize, currentPos);
+          const blockOffset = utils.blockOffset(blkSize, currentPos);
           // Determines the number of blocks
           const blockLength = utils.blockLength(
-            blockSize,
+            blkSize,
             blockOffset,
             buffer.length,
           );
@@ -355,9 +352,9 @@ class FileDescriptor {
           const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
 
           // Get the cursors for the start and end blocks
-          const blockCursorStart = utils.blockOffset(blockSize, currentPos);
+          const blockCursorStart = utils.blockOffset(blkSize, currentPos);
           const blockCursorEnd = utils.blockOffset(
-            blockSize,
+            blkSize,
             currentPos + buffer.length - 1,
           );
 
@@ -384,7 +381,7 @@ class FileDescriptor {
                 } else if (blockCounter === blockStartIdx) {
                   // If this block is only the start block, copy the relevant bytes from the data to
                   // satisfy the offset and write these to the block at the offset
-                  const copyBuffer = Buffer.alloc(blockSize - blockCursorStart);
+                  const copyBuffer = Buffer.alloc(blkSize - blockCursorStart);
                   buffer.copy(copyBuffer);
                   writeBufferPos += await this._iNodeMgr.fileWriteBlock(
                     tran,
@@ -406,7 +403,7 @@ class FileDescriptor {
                   );
                 } else {
                   // If the block is a middle block, overwrite the whole block with the relevant bytes
-                  const copyBuffer = Buffer.alloc(blockSize);
+                  const copyBuffer = Buffer.alloc(blkSize);
                   buffer.copy(copyBuffer, 0, writeBufferPos);
                   writeBufferPos += await this._iNodeMgr.fileWriteBlock(
                     tran,
@@ -447,7 +444,7 @@ class FileDescriptor {
               tran,
               this._ino,
               'blocks',
-              Math.ceil(size / blockSize),
+              Math.ceil(size / blkSize),
             );
           },
           [this._ino],

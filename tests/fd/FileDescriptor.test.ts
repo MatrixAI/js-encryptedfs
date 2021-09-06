@@ -18,6 +18,7 @@ describe('File Descriptor', () => {
   const dbKey: Buffer = utils.generateKeySync(256);
   let bytesRead: number;
   let bytesWritten: number;
+  const blockSize = 5;
   const origBuffer = Buffer.from('Test Buffer for File Descriptor');
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -85,6 +86,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
       },
@@ -125,6 +127,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
@@ -164,6 +167,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
@@ -206,6 +210,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
@@ -242,7 +247,7 @@ describe('File Descriptor', () => {
           mode: vfs.DEFAULT_FILE_PERM,
           uid: vfs.DEFAULT_ROOT_UID,
           gid: vfs.DEFAULT_ROOT_GID,
-        });
+        }, blockSize);
         const stat = await iNodeMgr.statGet(tran, fileIno);
         mtime = stat['mtime'].getTime();
         ctime = stat['ctime'].getTime();
@@ -288,6 +293,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         const stat = await iNodeMgr.statGet(tran, fileIno);
@@ -340,6 +346,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         const stat = await iNodeMgr.statGet(tran, fileIno);
@@ -390,6 +397,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         const stat = await iNodeMgr.statGet(tran, fileIno);
@@ -446,6 +454,7 @@ describe('File Descriptor', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           origBuffer,
         );
         const stat = await iNodeMgr.statGet(tran, fileIno);

@@ -139,6 +139,7 @@ describe('File Descriptor Manager', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          4096,
           origBuffer,
         );
       },

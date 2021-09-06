@@ -26,8 +26,6 @@ type DirectoryParams = Partial<Omit<INodeParams, 'ino'>>;
 type SymlinkParams = Partial<Omit<INodeParams, 'ino'>>;
 type CharDevParams = Partial<Omit<INodeParams, 'ino'>>;
 
-const blockSize = 5;
-
 class INodeManager {
   public static async createINodeManager({
     db,
@@ -206,6 +204,7 @@ class INodeManager {
     tran: DBTransaction,
     ino: INodeIndex,
     params: FileParams,
+    blkSize: number,
     data?: Buffer,
   ): Promise<void> {
     const statDomain = [...this.statsDomain, ino.toString()];
@@ -216,15 +215,11 @@ class INodeManager {
       ino,
       mode,
     });
+    await this.statSetProp(tran, ino, 'blksize', blkSize);
     if (data) {
-      // TODO:
-      // add in buffer creation (from data)
-      // calculate params.blockSize and params.blocks
-      // based on the actual data
-      const blockSize = 5;
-      await this.fileSetBlocks(tran, ino, data, blockSize);
+      await this.fileSetBlocks(tran, ino, data, blkSize);
       await tran.put(statDomain, 'size', data.length);
-      await tran.put(statDomain, 'blocks', Math.ceil(data.length / blockSize));
+      await tran.put(statDomain, 'blocks', Math.ceil(data.length / blkSize));
     }
   }
 

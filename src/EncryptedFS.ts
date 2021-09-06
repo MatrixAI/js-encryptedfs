@@ -617,14 +617,8 @@ class EncryptedFS {
             throw new EncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
           }
           let data = Buffer.alloc(0);
-          for await (const block of this._iNodeMgr.fileGetBlocks(
-            tran,
-            iNode,
-            this._blkSize,
-          )) {
-            data = Buffer.concat([data, block]);
-          }
           if (offset + len > data.length) {
+            const [index, data] = await this._iNodeMgr.fileGetLastBlock(tran, iNode);
             let newData;
             try {
               newData = Buffer.concat([
@@ -645,6 +639,7 @@ class EncryptedFS {
               iNode,
               newData,
               this._blkSize,
+              index,
             );
             await this._iNodeMgr.statSetProp(
               tran,
@@ -1390,7 +1385,7 @@ class EncryptedFS {
                 mode: vfs.applyUmask(mode, this._umask),
                 uid: this._uid,
                 gid: this._gid,
-              });
+              }, this._blkSize);
               break;
             case vfs.constants.S_IFCHR:
               if (typeof major !== 'number' || typeof minor !== 'number') {
@@ -1568,7 +1563,7 @@ class EncryptedFS {
                 mode: vfs.applyUmask(mode, this._umask),
                 uid: this._uid,
                 gid: this._gid,
-              });
+              }, this._blkSize);
               await this._iNodeMgr.dirSetEntry(
                 tran,
                 navigated.dir,
@@ -1861,7 +1856,7 @@ class EncryptedFS {
       options.flag = 'r';
       let fdIndex;
       try {
-        const buffer = Buffer.allocUnsafe(4096);
+        const buffer = Buffer.allocUnsafe(this._blkSize);
         let totalBuffer = Buffer.alloc(0);
         let bytesRead;
         if (typeof file === 'number') {

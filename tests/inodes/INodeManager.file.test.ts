@@ -51,7 +51,7 @@ describe('INodeManager File', () => {
         mode: vfs.DEFAULT_FILE_PERM,
         uid: vfs.DEFAULT_ROOT_UID,
         gid: vfs.DEFAULT_ROOT_GID,
-      });
+      }, blockSize);
       const stat = await iNodeMgr.statGet(tran, fileIno);
       expect(stat['ino']).toBe(fileIno);
       expect(stat.isDirectory()).toBe(false);
@@ -91,6 +91,7 @@ describe('INodeManager File', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           buffer,
         );
         const stat = await iNodeMgr.statGet(tran, fileIno);
@@ -154,7 +155,7 @@ describe('INodeManager File', () => {
           mode: vfs.DEFAULT_FILE_PERM,
           uid: vfs.DEFAULT_ROOT_UID,
           gid: vfs.DEFAULT_ROOT_GID,
-        });
+        }, blockSize);
         await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
       },
       [fileIno],
@@ -196,6 +197,7 @@ describe('INodeManager File', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           buffer,
         );
       },
@@ -231,7 +233,7 @@ describe('INodeManager File', () => {
           mode: vfs.DEFAULT_FILE_PERM,
           uid: vfs.DEFAULT_ROOT_UID,
           gid: vfs.DEFAULT_ROOT_GID,
-        });
+        }, blockSize);
         await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
       },
       [fileIno],
@@ -275,6 +277,7 @@ describe('INodeManager File', () => {
             uid: vfs.DEFAULT_ROOT_UID,
             gid: vfs.DEFAULT_ROOT_GID,
           },
+          blockSize,
           buffer,
         );
       },
