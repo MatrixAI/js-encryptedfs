@@ -1326,6 +1326,96 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async mknod(
+    path: path,
+    type: number,
+    major: number,
+    minor: number,
+    mode?: number,
+  ): Promise<void>;
+  public async mknod(
+    path: path,
+    type: number,
+    major: number,
+    minor: number,
+    callback: Callback,
+  ): Promise<void>;
+  public async mknod(
+    path: path,
+    type: number,
+    major: number,
+    minor: number,
+    mode: number,
+    callback: Callback,
+  ): Promise<void>;
+  public async mknod(
+    path: path,
+    type: number,
+    major: number,
+    minor: number,
+    modeOrCallback: number | Callback = vfs.DEFAULT_FILE_PERM,
+    callback?: Callback,
+  ): Promise<void> {
+    const mode =
+      typeof modeOrCallback !== 'function' ? modeOrCallback : vfs.DEFAULT_FILE_PERM;
+    callback =
+      typeof modeOrCallback === 'function' ? modeOrCallback : callback;
+    return maybeCallback(async () => {
+      path = this.getPath(path);
+      const navigated = await this.navigate(path, false);
+      if (navigated.target) {
+        throw new EncryptedFSError(errno.EEXIST, `mknod '${path}'`);
+      }
+      const iNode = this._iNodeMgr.inoAllocate();
+      await this._iNodeMgr.transact(async (tran) => {
+        tran.queueFailure(() => {
+          this._iNodeMgr.inoDeallocate(iNode);
+        });
+        const navigatedDirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
+        if (navigatedDirStat.nlink < 2) {
+          throw new EncryptedFSError(errno.ENOENT, `mknod '${path}'`);
+        }
+        if (!this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)) {
+          throw new EncryptedFSError(errno.EACCES, `mknod '${path}'`);
+        }
+        switch (type) {
+        case vfs.constants.S_IFREG:
+          await this._iNodeMgr.fileCreate(
+            tran,
+            iNode,
+            {
+              mode: vfs.applyUmask(mode, this._umask),
+              uid: this._uid,
+              gid: this._gid
+            }
+          );
+          break;
+        case vfs.constants.S_IFCHR:
+          if (typeof major !== 'number' || typeof minor !== 'number') {
+            throw TypeError('major and minor must set as numbers when creating device nodes');
+          }
+          if (major > vfs.MAJOR_MAX ||  minor > vfs.MINOR_MAX || minor < vfs.MAJOR_MIN || minor < vfs.MINOR_MIN) {
+            throw new EncryptedFSError(errno.EINVAL, `mknod '${path}'`);
+          }
+          await this._iNodeMgr.charDevCreate(
+            tran,
+            iNode,
+            {
+              mode: vfs.applyUmask(mode, this._umask),
+              uid: this._uid,
+              gid: this._gid,
+              rdev: vfs.mkDev(major, minor)
+            }
+          );
+          break;
+        default:
+          throw new EncryptedFSError(errno.EPERM, `mknod '${path}'`);
+        }
+        await this._iNodeMgr.dirSetEntry(tran, navigated.dir, navigated.name, iNode);
+      }, [navigated.dir, iNode]);
+    }, callback);
+  }
+
   public async open(
     path: path,
     flags: string | number,
