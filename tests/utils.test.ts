@@ -244,7 +244,9 @@ describe('utils', () => {
         return arg;
       }, callback);
     }
-
+    let callasdgf: Callback<[string]> = (err, res) => {
+      
+    }
     describe('as a promise', () => {
       test('Should function', async () => {
         const message = 'Hello world!';

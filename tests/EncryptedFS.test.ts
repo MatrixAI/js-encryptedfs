@@ -1,4 +1,4 @@
-import os from 'os';
+import os, { constants } from "os";
 import fs from 'fs';
 import pathNode from 'path';
 import process from 'process';
@@ -9,6 +9,7 @@ import EncryptedFS from '@/EncryptedFS';
 import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
+import {expectError} from "./utils";
 
 describe('EncryptedFS', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -92,10 +93,10 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.writeFile(`abc`, '');
-      await expect(efs.access(`abc/`, undefined)).rejects.toThrow();
-      await expect(efs.access(`abc/.`, undefined)).rejects.toThrow();
-      await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
-      await expect(efs.mkdir(`abc/`)).rejects.toThrow();
+      await expectError(efs.access(`abc/`, undefined), errno.ENOTDIR);
+      await expectError(efs.access(`abc/.`, undefined), errno.ENOTDIR);
+      await expectError(efs.mkdir(`abc/.`), errno.ENOTDIR);
+      await expectError(efs.mkdir(`abc/`), errno.EEXIST);
     });
     test('trailing slash works for non-existent directories when intending to create them', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -121,9 +122,9 @@ describe('EncryptedFS', () => {
         umask: 0o022,
         logger,
       });
-      await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
+      await expectError(efs.mkdir(`abc/.`), errno.ENOENT);
       await efs.mkdir(`abc`);
-      await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
+      await expectError(efs.mkdir(`abc/.`), errno.EEXIST);
     });
     test('navigating invalid paths', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -138,28 +139,18 @@ describe('EncryptedFS', () => {
       await efs.mkdirp('/test/a/b/c');
       await efs.mkdirp('/test/a/bc');
       await efs.mkdirp('/test/abc');
-      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow(
-        new EncryptedFSError(errno.ENOENT),
-      );
-      await expect(efs.readdir('/abc')).rejects.toThrow(
-        new EncryptedFSError(errno.ENOENT),
-      );
-      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow(
-        new EncryptedFSError(errno.ENOENT),
-      );
-      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow(
-        new EncryptedFSError(errno.EEXIST),
-      );
-      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow(
-        new EncryptedFSError(errno.EEXIST),
-      );
-      await expect(efs.readFile('/test/abc/a/b/c')).rejects.toThrow();
-      await expect(efs.readFile('/test/abcd')).rejects.toThrow();
-      await expect(efs.mkdir('/test/abcd/dir')).rejects.toThrow();
-      await expect(efs.unlink('/test/abcd')).rejects.toThrow();
-      await expect(efs.unlink('/test/abcd/file')).rejects.toThrow();
-      await expect(efs.stat('/test/a/d/b/c')).rejects.toThrow();
-      await expect(efs.stat('/test/abcd')).rejects.toThrow();
+      await expectError(efs.readdir('/test/abc/a/b/c'), errno.ENOENT);
+      await expectError(efs.readdir('/abc'), errno.ENOENT);
+      await expectError(efs.stat('/test/abc/a/b/c'), errno.ENOENT);
+      await expectError(efs.mkdir('/test/abc/a/b/c'), errno.ENOENT);
+      await expectError(efs.writeFile('/test/abc/a/b/c', 'Hello'), errno.ENOENT);
+      await expectError(efs.readFile('/test/abc/a/b/c'), errno.ENOENT)
+      await expectError(efs.readFile('/test/abcd'), errno.ENOENT)
+      await expectError(efs.mkdir('/test/abcd/dir'), errno.ENOENT)
+      await expectError(efs.unlink('/test/abcd'), errno.ENOENT)
+      await expectError(efs.unlink('/test/abcd/file'), errno.ENOENT)
+      await expectError(efs.stat('/test/a/d/b/c'), errno.ENOENT)
+      await expectError(efs.stat('/test/abcd'), errno.ENOENT)
     });
     test('various failure situations', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -174,16 +165,16 @@ describe('EncryptedFS', () => {
       await efs.mkdirp('/test/dir');
       await efs.mkdirp('/test/dir');
       await efs.writeFile('/test/file', 'Hello');
-      await expect(efs.writeFile('/test/dir', 'Hello')).rejects.toThrow();
-      await expect(efs.writeFile('/', 'Hello')).rejects.toThrow();
-      await expect(efs.rmdir('/')).rejects.toThrow();
-      await expect(efs.unlink('/')).rejects.toThrow();
-      await expect(efs.mkdir('/test/dir')).rejects.toThrow();
-      await expect(efs.mkdir('/test/file')).rejects.toThrow();
-      await expect(efs.mkdirp('/test/file')).rejects.toThrow();
-      await expect(efs.readdir('/test/file')).rejects.toThrow();
-      await expect(efs.readlink('/test/dir')).rejects.toThrow();
-      await expect(efs.readlink('/test/file')).rejects.toThrow();
+      await expectError(efs.writeFile('/test/dir', 'Hello'), errno.EISDIR);
+      await expectError(efs.writeFile('/', 'Hello'), errno.EISDIR);
+      await expectError(efs.rmdir('/'), errno.EINVAL);
+      await expectError(efs.unlink('/'), errno.EISDIR);
+      await expectError(efs.mkdir('/test/dir'), errno.EEXIST);
+      await expectError(efs.mkdir('/test/file'), errno.EEXIST);
+      await expectError(efs.mkdirp('/test/file'), errno.ENOTDIR);
+      await expectError(efs.readdir('/test/file'), errno.ENOTDIR);
+      await expectError(efs.readlink('/test/dir'), errno.EINVAL);
+      await expectError(efs.readlink('/test/file'), errno.EINVAL);
     });
     test('cwd returns the absolute fully resolved path', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -276,7 +267,7 @@ describe('EncryptedFS', () => {
       await efs.mkdir('/dir');
       await efs.chmod('/dir', 0o666);
       efs.uid = 1000;
-      await expect(efs.chdir('/dir')).rejects.toThrow();
+      await expectError(efs.chdir('/dir'), errno.EACCES);
     });
   });
   describe('Directories', () => {
@@ -354,7 +345,7 @@ describe('EncryptedFS', () => {
         umask: 0o022,
         logger,
       });
-      await expect(efs.mkdir('/')).rejects.toThrow();
+      await expectError(efs.mkdir('/'), errno.EEXIST);
     });
     test('creating temporary directories', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -394,8 +385,8 @@ describe('EncryptedFS', () => {
       await efs.rmdir('first/sub2');
       await efs.rmdir('first');
       await expect(efs.exists('first')).resolves.toBeFalsy();
-      await expect(efs.access('first')).rejects.toThrow();
-      await expect(efs.readdir('first')).rejects.toThrow();
+      await expectError(efs.access('first'), errno.ENOENT);
+      await expectError(efs.readdir('first'), errno.ENOENT);
       const rootlist = await efs.readdir('.');
       expect(rootlist).toEqual(['backslash\\dir']);
     });
@@ -456,11 +447,11 @@ describe('EncryptedFS', () => {
         vfs.constants.O_RDONLY | vfs.constants.O_DIRECTORY,
       );
       const buffer = Buffer.alloc(10);
-      await expect(efs.ftruncate(dirfd)).rejects.toThrow();
-      await expect(efs.read(dirfd, buffer, 0, 10)).rejects.toThrow();
-      await expect(efs.write(dirfd, buffer)).rejects.toThrow();
-      await expect(efs.readFile(dirfd)).rejects.toThrow();
-      await expect(efs.writeFile(dirfd, `test`)).rejects.toThrow();
+      await expectError(efs.ftruncate(dirfd), errno.EINVAL);
+      await expectError(efs.read(dirfd, buffer, 0, 10), errno.EISDIR);
+      await expectError(efs.write(dirfd, buffer), errno.EBADF)
+      await expectError(efs.readFile(dirfd), errno.EISDIR)
+      await expectError(efs.writeFile(dirfd, `test`), errno.EBADF)
       await efs.close(dirfd);
     });
     test("directory file descriptor's inode nlink becomes 0 after deletion of the directory", async () => {
@@ -494,10 +485,10 @@ describe('EncryptedFS', () => {
       await efs.mkdir('/removed');
       await efs.chdir('/removed');
       await efs.rmdir('../removed');
-      await expect(efs.writeFile('./a', 'abc')).rejects.toThrow();
-      await expect(efs.mkdir('./b')).rejects.toThrow();
-      await expect(efs.symlink('../dummy', 'c')).rejects.toThrow();
-      await expect(efs.link('../dummy', 'd')).rejects.toThrow();
+      await expectError(efs.writeFile('./a', 'abc'), errno.ENOENT);
+      await expectError(efs.mkdir('./b'), errno.ENOENT);
+      await expectError(efs.symlink('../dummy', 'c'), errno.ENOENT);
+      await expectError(efs.link('../dummy', 'd'), errno.ENOENT);
     });
     test('cannot delete current directory using .', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
