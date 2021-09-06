@@ -50,7 +50,7 @@ class ReadStream extends Readable {
   }
 
   get bytesRead() {
-    return this.bytesRead;
+    return this._bytesRead;
   }
 
   /**

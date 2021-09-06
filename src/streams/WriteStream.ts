@@ -33,7 +33,7 @@ class WriteStream extends Writable {
       options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
     this._autoClose =
       options.autoClose === undefined ? true : options.autoClose;
-    this._pos = options.start; // WriteStream maintains its own position
+    this._pos = options.start;
     if (options.encoding) {
       super.setDefaultEncoding(options.encoding);
     }
@@ -47,18 +47,16 @@ class WriteStream extends Writable {
     });
   }
 
+  get bytesWritten() {
+    return this._bytesWritten;
+  }
+
   /**
    * Open file descriptor if WriteStream was constructed from a file path.
    */
   protected _open(): void {
-    this._fs.open(this._path, this._flags, this._mode, (e, fd) => {
-      if (e) {
-        if (this._autoClose) {
-          this.destroy();
-        }
-        super.emit('error', e);
-        return;
-      }
+    this._fs.open(this._path, this._flags, this._mode, (err, fd) => {
+      this._error(err);
       this._fd = fd;
       super.emit('open', fd);
     });

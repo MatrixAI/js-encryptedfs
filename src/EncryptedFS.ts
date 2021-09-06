@@ -47,6 +47,7 @@ class EncryptedFS {
     db,
     devMgr,
     iNodeMgr,
+    blkSize = 4096,
     umask = 0o022,
     logger = new Logger(EncryptedFS.name),
   }: {
@@ -55,6 +56,7 @@ class EncryptedFS {
     db?: DB;
     devMgr?: vfs.DeviceManager;
     iNodeMgr?: INodeManager;
+    blkSize?: number;
     umask?: number;
     logger?: Logger;
   }) {
@@ -73,7 +75,6 @@ class EncryptedFS {
         devMgr,
         logger: logger.getChild(INodeManager.name),
       }));
-    // create root inode here
     const iNodeManager = iNodeMgr;
     const rootIno = iNodeMgr.inoAllocate();
     await iNodeManager.transact(
@@ -95,6 +96,7 @@ class EncryptedFS {
       devMgr,
       iNodeMgr,
       rootIno,
+      blkSize,
       umask,
       logger,
     });
@@ -109,6 +111,7 @@ class EncryptedFS {
     devMgr,
     iNodeMgr,
     rootIno,
+    blkSize,
     umask,
     logger,
   }: {
@@ -116,6 +119,7 @@ class EncryptedFS {
     devMgr: vfs.DeviceManager;
     iNodeMgr: INodeManager;
     rootIno: INodeIndex;
+    blkSize: number;
     umask: number;
     logger: Logger;
   }) {
@@ -128,18 +132,11 @@ class EncryptedFS {
     this._uid = vfs.DEFAULT_ROOT_UID;
     this._gid = vfs.DEFAULT_ROOT_GID;
     this._umask = umask;
-    this._blkSize = 5;
+    this._blkSize = blkSize;
     this.logger = logger;
   }
 
   get promises() {
-    // return the promise based version of this
-    // we can "return" this
-    // but change the interface
-    // createReadStream
-    // createWriteStream
-    // whatever right?
-    // whatever provides the promise API
     return this;
   }
 
@@ -162,10 +159,12 @@ class EncryptedFS {
     // create the initial root inode
     // well wait a minute
     // that's not exactly necessary
+    await this.db.start();
   }
 
   public async stop() {
     // shutdown the EFS instance
+    await this.db.stop();
   }
 
   public async destroy() {
@@ -446,15 +445,17 @@ class EncryptedFS {
     return maybeCallback(async () => {
       srcPath = this.getPath(srcPath);
       dstPath = this.getPath(dstPath);
-      let srcFd, srcFdIndex, dstFd, dstFdIndex, srcData, srcSize;
+      let srcFd, srcFdIndex, dstFd, dstFdIndex;
       try {
         // the only things that are copied is the data and the mode
         [srcFd, srcFdIndex] = await this._open(srcPath, vfs.constants.O_RDONLY);
         const srcINode = srcFd.ino;
         await this._iNodeMgr.transact(async (tran) => {
+          tran.queueFailure(() => {
+            this._iNodeMgr.inoDeallocate(dstINode);
+          });
           const srcINodeType = (await this._iNodeMgr.get(tran, srcINode))?.type;
           const srcINodeStat = await this._iNodeMgr.statGet(tran, srcINode);
-          srcSize = srcINodeStat.size;
           if (srcINodeType === 'Directory') {
             throw new EncryptedFSError(
               errno.EBADF,
@@ -470,14 +471,14 @@ class EncryptedFS {
             dstFlags,
             srcINodeStat.mode,
           );
-          srcData = Buffer.alloc(srcSize);
-          await srcFd.read(srcData, 0);
-        });
-        const dstINode = dstFd.ino;
-        await this._iNodeMgr.transact(async (tran) => {
+          const dstINode = dstFd.ino;
           const dstINodeType = (await this._iNodeMgr.get(tran, dstINode))?.type;
           if (dstINodeType === 'File') {
-            await dstFd.write(srcData, 0);
+            let blkCounter = 0;
+            for await (const block of this._iNodeMgr.fileGetBlocks(tran, srcINode, this._blkSize)) {
+              await this._iNodeMgr.fileSetBlocks(tran, dstFd.ino, block, this._blkSize, blkCounter);
+              blkCounter++;
+            }
           } else {
             throw new EncryptedFSError(
               errno.EINVAL,
