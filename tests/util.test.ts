@@ -32,7 +32,6 @@ describe('main', () => {
   // TODO....
 
   describe('block array functions', () => {
-
     // we shouldn't need to use this function
     // a range operator is better
 

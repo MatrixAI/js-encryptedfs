@@ -1,9 +1,4 @@
-import type {
-  INodeIndex,
-  INodeId,
-  BufferIndex,
-  BufferId
-} from './types';
+import type { INodeIndex, INodeId, BufferIndex, BufferId } from './types';
 
 import lexi from 'lexicographic-integer';
 
@@ -23,9 +18,4 @@ function unbufferId(id: BufferId): BufferIndex {
   return lexi.unpack([...(id as Buffer)]);
 }
 
-export {
-  iNodeId,
-  uniNodeId,
-  bufferId,
-  unbufferId
-};
+export { iNodeId, uniNodeId, bufferId, unbufferId };

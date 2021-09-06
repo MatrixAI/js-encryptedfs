@@ -11,8 +11,7 @@ import * as inodesUtils from '../inodes/utils';
 /**
  * Class that manages all FileDescriptors
  */
- class FileDescriptorManager {
-
+class FileDescriptorManager {
   protected _counter: Counter;
   protected _fds: Map<FdIndex, FileDescriptor>;
   protected _iNodeMgr: INodeManager;
@@ -22,9 +21,9 @@ import * as inodesUtils from '../inodes/utils';
    * It starts the fd counter at 0.
    * Make sure not get real fd numbers confused with these fd numbers.
    */
-  constructor (iNodeMgr: INodeManager) {
+  constructor(iNodeMgr: INodeManager) {
     this._counter = new Counter(0);
-    this._fds = new Map;
+    this._fds = new Map();
     this._iNodeMgr = iNodeMgr;
   }
 
@@ -32,16 +31,22 @@ import * as inodesUtils from '../inodes/utils';
    * Creates a file descriptor.
    * This will increment the reference to the iNode preventing garbage collection by the INodeManager.
    */
-  public async createFd (ino: INodeIndex, flags: number): Promise<[FileDescriptor, FdIndex]> {
+  public async createFd(
+    ino: INodeIndex,
+    flags: number,
+  ): Promise<[FileDescriptor, FdIndex]> {
     const index = this._counter.allocate();
     const fd = new FileDescriptor(this._iNodeMgr, ino, flags);
     let type;
-    await this._iNodeMgr.transact(async (tran) => {
-      type = await tran.get<INodeType>(
-        this._iNodeMgr.iNodesDomain,
-        inodesUtils.iNodeId(ino),
-      );
-    }, [ino]);
+    await this._iNodeMgr.transact(
+      async (tran) => {
+        type = await tran.get<INodeType>(
+          this._iNodeMgr.iNodesDomain,
+          inodesUtils.iNodeId(ino),
+        );
+      },
+      [ino],
+    );
     if (type === 'CharacterDev') {
       let fops;
       await this._iNodeMgr.transact(async (tran) => {
@@ -66,7 +71,7 @@ import * as inodesUtils from '../inodes/utils';
   /**
    * Gets the file descriptor object.
    */
-  public getFd (fdIndex: FdIndex): FileDescriptor | undefined {
+  public getFd(fdIndex: FdIndex): FileDescriptor | undefined {
     return this._fds.get(fdIndex);
   }
 
@@ -93,12 +98,15 @@ import * as inodesUtils from '../inodes/utils';
     const fd = this._fds.get(fdIndex);
     if (fd) {
       let type;
-      await this._iNodeMgr.transact(async (tran) => {
-        type = await tran.get<INodeType>(
-          this._iNodeMgr.iNodesDomain,
-          inodesUtils.iNodeId(fd.ino),
-        );
-      }, [fd.ino]);
+      await this._iNodeMgr.transact(
+        async (tran) => {
+          type = await tran.get<INodeType>(
+            this._iNodeMgr.iNodesDomain,
+            inodesUtils.iNodeId(fd.ino),
+          );
+        },
+        [fd.ino],
+      );
       if (type === 'CharacterDev') {
         let fops;
         await this._iNodeMgr.transact(async (tran) => {
@@ -112,9 +120,12 @@ import * as inodesUtils from '../inodes/utils';
       }
       this._fds.delete(fdIndex);
       this._counter.deallocate(fdIndex);
-      await this._iNodeMgr.transact(async (tran) => {
-        await this._iNodeMgr.unref(tran, fd.ino);
-      }, [fd.ino]);
+      await this._iNodeMgr.transact(
+        async (tran) => {
+          await this._iNodeMgr.unref(tran, fd.ino);
+        },
+        [fd.ino],
+      );
     }
     return;
   }

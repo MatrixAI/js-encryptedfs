@@ -25,12 +25,24 @@ describe('utils', () => {
     expect(salt1.equals(salt2)).toBe(false);
   });
   test('key generation is deterministic with a given salt', async () => {
-    const [key1, salt1] = await utils.generateKeyFromPass('somepassword', 'salt1');
-    const [key2, salt2] = await utils.generateKeyFromPass('somepassword', 'salt1');
+    const [key1, salt1] = await utils.generateKeyFromPass(
+      'somepassword',
+      'salt1',
+    );
+    const [key2, salt2] = await utils.generateKeyFromPass(
+      'somepassword',
+      'salt1',
+    );
     expect(key1.equals(key2)).toBe(true);
     expect(salt1.equals(salt2)).toBe(true);
-    const [key3, salt3] = utils.generateKeyFromPassSync('somepassword', 'salt1');
-    const [key4, salt4] = utils.generateKeyFromPassSync('somepassword', 'salt1');
+    const [key3, salt3] = utils.generateKeyFromPassSync(
+      'somepassword',
+      'salt1',
+    );
+    const [key4, salt4] = utils.generateKeyFromPassSync(
+      'somepassword',
+      'salt1',
+    );
     expect(key3.equals(key4)).toBe(true);
     expect(salt3.equals(salt4)).toBe(true);
   });
@@ -108,28 +120,40 @@ describe('utils', () => {
     bytePosition = 2;
     byteLength = 1;
     blockCursorStart = utils.blockOffset(blockSize, bytePosition);
-    blockCursorEnd = utils.blockOffset(blockSize, bytePosition + byteLength - 1);
+    blockCursorEnd = utils.blockOffset(
+      blockSize,
+      bytePosition + byteLength - 1,
+    );
     expect(blockCursorStart).toBe(2);
     expect(blockCursorEnd).toBe(2);
     blockSize = 3;
     bytePosition = 2;
     byteLength = 2;
     blockCursorStart = utils.blockOffset(blockSize, bytePosition);
-    blockCursorEnd = utils.blockOffset(blockSize, bytePosition + byteLength - 1);
+    blockCursorEnd = utils.blockOffset(
+      blockSize,
+      bytePosition + byteLength - 1,
+    );
     expect(blockCursorStart).toBe(2);
     expect(blockCursorEnd).toBe(0);
     blockSize = 3;
     bytePosition = 2;
     byteLength = 4;
     blockCursorStart = utils.blockOffset(blockSize, bytePosition);
-    blockCursorEnd = utils.blockOffset(blockSize, bytePosition + byteLength - 1);
+    blockCursorEnd = utils.blockOffset(
+      blockSize,
+      bytePosition + byteLength - 1,
+    );
     expect(blockCursorStart).toBe(2);
     expect(blockCursorEnd).toBe(2);
     blockSize = 3;
     bytePosition = 4;
     byteLength = 5;
     blockCursorStart = utils.blockOffset(blockSize, bytePosition);
-    blockCursorEnd = utils.blockOffset(blockSize, bytePosition + byteLength - 1);
+    blockCursorEnd = utils.blockOffset(
+      blockSize,
+      bytePosition + byteLength - 1,
+    );
     expect(blockCursorStart).toBe(1);
     expect(blockCursorEnd).toBe(2);
   });
@@ -160,7 +184,6 @@ describe('utils', () => {
     expect(bufferSegments[0]).toStrictEqual(Buffer.from('Testing Buffer'));
   });
   test('block mapping', async () => {
-
     // abc
     const buf = Buffer.from('abc', 'utf-8');
     console.log(buf);
@@ -175,9 +198,6 @@ describe('utils', () => {
     // so these are plaintext blocks
 
     // readBlock from the upper fd
-
-
-
 
     // this is weird
     // const firstBlockStart = offset;
@@ -194,7 +214,6 @@ describe('utils', () => {
     // yea i get that, we need the offset
     // but that's wrong
 
-
     // this is the easy part
     // cause then i just need to work out the math
     // the complicated part comes with the interacting effects and behaviour
@@ -209,10 +228,5 @@ describe('utils', () => {
     // it has to handle the first block
     // so we want to know what is the first block we start writing from
     // and the first block end
-
-
-
-
-
   });
 });

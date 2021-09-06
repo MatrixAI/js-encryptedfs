@@ -37,33 +37,36 @@ class EncryptedFS {
   public readonly blockSizeCipher: number;
   protected key: Buffer;
   protected upper: {
-    fs: VirtualFS,
-    devMgr: DeviceManager,
-    iNodeMgr: INodeManager,
-    fdMgr: FileDescriptorManager
+    fs: VirtualFS;
+    devMgr: DeviceManager;
+    iNodeMgr: INodeManager;
+    fdMgr: FileDescriptorManager;
   };
   protected lower: {
     fs: typeof fs;
     dir: string;
   };
   protected workerManager?: WorkerManager;
-  protected fdMap: Map<number, {
-    dataFd: number;
-    metaFd: number;
-  }> = new Map();
+  protected fdMap: Map<
+    number,
+    {
+      dataFd: number;
+      metaFd: number;
+    }
+  > = new Map();
   protected blockMap: WeakMap<INode, BlockMeta> = new WeakMap();
 
   // protected metaMap: Map<string, MappedMeta> = new Map();
 
-  constructor (
+  constructor(
     key: Buffer,
     dir: string = process.cwd(),
     fsLower: typeof fs = require('fs'),
     umask: number = 0o022,
     blockSizePlain: number = 4096,
-    devMgr: DeviceManager = new DeviceManager,
+    devMgr: DeviceManager = new DeviceManager(),
     iNodeMgr: INodeManager = new INodeManager(devMgr),
-    fdMgr: FileDescriptorManager= new FileDescriptorManager(iNodeMgr)
+    fdMgr: FileDescriptorManager = new FileDescriptorManager(iNodeMgr),
   ) {
     if (![16, 24, 32].includes(key.byteLength)) {
       throw new RangeError('AES only allows 128, 192, 256 bit sizes');
@@ -75,11 +78,11 @@ class EncryptedFS {
       fs: new VirtualFS(umask, null, devMgr, iNodeMgr, fdMgr),
       devMgr,
       iNodeMgr,
-      fdMgr
+      fdMgr,
     };
     this.lower = {
       fs: fsLower,
-      dir: utils.pathResolve(dir)
+      dir: utils.pathResolve(dir),
     };
   }
 
@@ -91,27 +94,27 @@ class EncryptedFS {
     delete this.workerManager;
   }
 
-  public getUmask (): number {
+  public getUmask(): number {
     return this.upper.fs.getUmask();
   }
 
-  public setUmask (umask: number): void {
+  public setUmask(umask: number): void {
     return this.upper.fs.setUmask(umask);
   }
 
-  public getUid (): number {
+  public getUid(): number {
     return this.upper.fs.getUid();
   }
 
-  public setUid (uid:number): void {
+  public setUid(uid: number): void {
     return this.upper.fs.setUid(uid);
   }
 
-  public getGid (): number {
+  public getGid(): number {
     return this.upper.fs.getGid();
   }
 
-  public setGid (gid:number): void {
+  public setGid(gid: number): void {
     return this.upper.fs.setGid(gid);
   }
 
@@ -121,7 +124,10 @@ class EncryptedFS {
   // as if the whole file had it
   // but when we create new Stat
   // it asks for hte props
-  public mkdirpSync (path: PathLike, mode: number = DEFAULT_DIRECTORY_PERM): void {
+  public mkdirpSync(
+    path: PathLike,
+    mode: number = DEFAULT_DIRECTORY_PERM,
+  ): void {
     // here we are going to have to create directories
     // one at a time
     // but in doing so
@@ -132,19 +138,17 @@ class EncryptedFS {
     // before the upper fs
     // but at the same time...
     // we would need
-
     // if the original metadata exists
     // and the mode is not here
     // then means we can just K
     // load it like and use this.upper.fs._checkPermissions(access, stat)
     // note that it checks against a stat object
-
   }
 
   public openSync(
     path: PathLike,
-    flags: string|number = 'r',
-    mode?: number
+    flags: string | number = 'r',
+    mode?: number,
   ): number {
     const pathUpper = this.upper.fs._getPath(path);
     const [pathLowerData, pathLowerMeta] = this.translatePath(path);
@@ -157,15 +161,11 @@ class EncryptedFS {
       flags_ = flags;
     }
     try {
-      fdIndexLowerData = this.lower.fs.openSync(
-        pathLowerData,
-        flags_,
-        mode
-      );
+      fdIndexLowerData = this.lower.fs.openSync(pathLowerData, flags_, mode);
       fdIndexLowerMeta = this.lower.fs.openSync(
         pathLowerMeta,
         constants.O_RDWR | constants.O_CREAT,
-        mode
+        mode,
       );
 
       // TODO:
@@ -180,13 +180,13 @@ class EncryptedFS {
       fdIndexUpper = this.upper.fs.openSync(
         pathUpper,
         flags_ | constants.O_CREAT,
-        mode
+        mode,
       );
       const fdUpper = this.upper.fs._fdMgr.getFd(fdIndexUpper)!;
       const iNodeUpper = fdUpper.getINode();
       let metadata = this.readMetaSync(fdIndexLowerMeta);
       if (metadata == null) {
-        metadata = {...iNodeUpper._metadata};
+        metadata = { ...iNodeUpper._metadata };
         if (iNodeUpper._metadata.isFile()) {
           metadata.blksize = this.blockSizePlain;
           metadata.blocks = 0;
@@ -209,19 +209,18 @@ class EncryptedFS {
       throw e;
     }
 
-
     this.fdMap.set(fdIndexUpper, {
       dataFd: fdIndexLowerData,
-      metaFd: fdIndexLowerMeta
+      metaFd: fdIndexLowerMeta,
     });
     return fdIndexUpper;
   }
 
-  public closeSync (fdIndexUpper: number): void {
+  public closeSync(fdIndexUpper: number): void {
     const fds = this.fdMap.get(fdIndexUpper);
     if (fds == null) {
       // EBADF
-      throw new Error;
+      throw new Error();
     }
     try {
       this.lower.fs.closeSync(fds.dataFd);
@@ -232,38 +231,38 @@ class EncryptedFS {
     }
   }
 
-  protected getBlockMeta (iNode: INode): BlockMeta {
+  protected getBlockMeta(iNode: INode): BlockMeta {
     let blockMeta = this.blockMap.get(iNode);
     if (blockMeta == null) {
       blockMeta = {
-        loaded: new Set()
+        loaded: new Set(),
       };
       this.blockMap.set(iNode, blockMeta);
     }
     return blockMeta;
   }
 
-  protected setBlockMeta (iNode: INode, blockMeta: BlockMeta): void {
+  protected setBlockMeta(iNode: INode, blockMeta: BlockMeta): void {
     this.blockMap.set(iNode, blockMeta);
   }
 
-  public readSync (
+  public readSync(
     fdIndexUpper: number,
     buffer: Buffer | Uint8Array,
     offset: number = 0,
     length: number = buffer.byteLength,
-    position: number|null = null
+    position: number | null = null,
   ): number {
     const fds = this.fdMap.get(fdIndexUpper);
     const fdUpper = this.upper.fs._fdMgr.getFd(fdIndexUpper);
     if (fds == null || fdUpper == null) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EBADF, null, null, 'read')
+        new VirtualFSError(errno.EBADF, null, null, 'read'),
       );
     }
     if (position != null && position < 0) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EINVAL, null, null, 'read')
+        new VirtualFSError(errno.EINVAL, null, null, 'read'),
       );
     }
     const iNodeUpper = fdUpper.getINode();
@@ -271,11 +270,11 @@ class EncryptedFS {
     // only files are supported to be read
     if (metadata.isDirectory()) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EISDIR, null, null, 'read')
+        new VirtualFSError(errno.EISDIR, null, null, 'read'),
       );
     } else if (!metadata.isFile()) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EINVAL, null, null, 'read')
+        new VirtualFSError(errno.EINVAL, null, null, 'read'),
       );
     }
     if (offset < 0 || offset > buffer.byteLength) {
@@ -298,33 +297,35 @@ class EncryptedFS {
     const plainPosStart = dataPos;
     const plainBlockIndexStart = utils.blockIndexStart(
       this.blockSizePlain,
-      plainPosStart
+      plainPosStart,
     );
     const plainBlockOffset = utils.blockOffset(
       this.blockSizePlain,
-      plainPosStart
+      plainPosStart,
     );
     const plainBlockLength = utils.blockLength(
       this.blockSizePlain,
       plainBlockOffset,
-      dataLength
+      dataLength,
     );
     const plainBlockIndexEnd = utils.blockIndexEnd(
       plainBlockIndexStart,
-      plainBlockLength
+      plainBlockLength,
     );
     const blockRanges = utils.blockRanges(
       blockMeta.loaded,
       plainBlockIndexStart,
-      plainBlockIndexEnd
+      plainBlockIndexEnd,
     );
     for (const [blockIndexStart, blockIndexEnd] of blockRanges) {
       const blockLength = blockIndexEnd - blockIndexStart + 1;
       const cipherPosStart = utils.blockPositionStart(
         this.blockSizeCipher,
-        blockIndexStart
+        blockIndexStart,
       );
-      const cipherSegment = Buffer.allocUnsafe(blockLength * this.blockSizeCipher);
+      const cipherSegment = Buffer.allocUnsafe(
+        blockLength * this.blockSizeCipher,
+      );
       let cipherBytesRead: number;
       try {
         cipherBytesRead = this.lower.fs.readSync(
@@ -332,7 +333,7 @@ class EncryptedFS {
           cipherSegment,
           0,
           cipherSegment.byteLength,
-          cipherPosStart
+          cipherPosStart,
         );
       } catch (e) {
         throw new EncryptedFSError(e);
@@ -341,24 +342,24 @@ class EncryptedFS {
         // there's nothing more to read
         break;
       }
-      if ((cipherBytesRead % this.blockSizeCipher) !== 0) {
+      if (cipherBytesRead % this.blockSizeCipher !== 0) {
         throw new EncryptedFSError(
           undefined,
-          'Byte length read from lower FS is not a multiple of the cipher block size'
+          'Byte length read from lower FS is not a multiple of the cipher block size',
         );
       }
       const blockLengthRead = utils.blockLength(
         this.blockSizeCipher,
         0,
-        cipherBytesRead
+        cipherBytesRead,
       );
       const plainSegment = this.cipherToPlainSegmentSync(
         cipherSegment,
-        blockLengthRead
+        blockLengthRead,
       );
       const plainPosStart = utils.blockPositionStart(
         this.blockSizePlain,
-        blockIndexStart
+        blockIndexStart,
       );
       // resize the dataUpper
       if (plainPosStart > dataUpper.byteLength) {
@@ -373,7 +374,7 @@ class EncryptedFS {
         if (extendedLength > 0) {
           dataUpper = Buffer.concat([
             dataUpper,
-            Buffer.allocUnsafe(extendedLength)
+            Buffer.allocUnsafe(extendedLength),
           ]);
         }
       }
@@ -393,41 +394,38 @@ class EncryptedFS {
         buffer,
         offset,
         length,
-        position
+        position,
       );
     } catch (e) {
       throw new EncryptedFSError(e);
     }
-    this.writeMetaSync(
-      fds.metaFd,
-      {...metadata}
-    );
+    this.writeMetaSync(fds.metaFd, { ...metadata });
     return plainBytesRead;
   }
 
-  public writeSync (
+  public writeSync(
     fdIndexUpper: number,
     data: Buffer | Uint8Array | string,
     offsetOrPos?: number,
-    lengthOrEncoding?: number|string,
-    position: number|null = null
+    lengthOrEncoding?: number | string,
+    position: number | null = null,
   ): number {
     const fds = this.fdMap.get(fdIndexUpper);
     const fdUpper = this.upper.fs._fdMgr.getFd(fdIndexUpper);
     if (fds == null || fdUpper == null) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EBADF, null, null, 'write')
+        new VirtualFSError(errno.EBADF, null, null, 'write'),
       );
     }
     if (position != null && position < 0) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EINVAL, null, null, 'write')
+        new VirtualFSError(errno.EINVAL, null, null, 'write'),
       );
     }
     const flags = fdUpper.getFlags();
     if (!(flags & (constants.O_WRONLY | constants.O_RDWR))) {
       throw new EncryptedFSError(
-        new VirtualFSError(errno.EBADF, null, null, 'write')
+        new VirtualFSError(errno.EBADF, null, null, 'write'),
       );
     }
 
@@ -438,22 +436,25 @@ class EncryptedFS {
     // so the dataPos has to be set to the very end in that case
     // in that case no block loading make sense either
 
-
     let buffer: Buffer;
     if (typeof data === 'string') {
-      position = (typeof offsetOrPos === 'number') ? offsetOrPos : null;
-      lengthOrEncoding = (typeof lengthOrEncoding === 'string') ? lengthOrEncoding : 'utf8';
+      position = typeof offsetOrPos === 'number' ? offsetOrPos : null;
+      lengthOrEncoding =
+        typeof lengthOrEncoding === 'string' ? lengthOrEncoding : 'utf8';
       buffer = this.upper.fs._getBuffer(data, lengthOrEncoding);
     } else {
-      offsetOrPos = (typeof offsetOrPos === 'number') ? offsetOrPos : 0;
+      offsetOrPos = typeof offsetOrPos === 'number' ? offsetOrPos : 0;
       if (offsetOrPos < 0 || offsetOrPos > data.length) {
         throw new RangeError('Offset is out of bounds');
       }
-      lengthOrEncoding = (typeof lengthOrEncoding === 'number') ? lengthOrEncoding : data.length;
+      lengthOrEncoding =
+        typeof lengthOrEncoding === 'number' ? lengthOrEncoding : data.length;
       if (lengthOrEncoding < 0 || lengthOrEncoding > data.length) {
         throw new RangeError('Length is out of bounds');
       }
-      buffer = this.upper.fs._getBuffer(data).slice(offsetOrPos, offsetOrPos + lengthOrEncoding);
+      buffer = this.upper.fs
+        ._getBuffer(data)
+        .slice(offsetOrPos, offsetOrPos + lengthOrEncoding);
     }
 
     // note that the offsetOrPos
@@ -479,25 +480,25 @@ class EncryptedFS {
 
     const plainBlockIndexStart = utils.blockIndexStart(
       this.blockSizePlain,
-      plainPosStart
+      plainPosStart,
     );
     const plainBlockOffset = utils.blockOffset(
       this.blockSizePlain,
-      plainPosStart
+      plainPosStart,
     );
     const plainBlockLength = utils.blockLength(
       this.blockSizePlain,
       plainBlockOffset,
-      dataLength
+      dataLength,
     );
     const plainBlockIndexEnd = utils.blockIndexEnd(
       plainBlockIndexStart,
-      plainBlockLength
+      plainBlockLength,
     );
     const blockRanges = utils.blockRanges(
       blockMeta.loaded,
       plainBlockIndexStart,
-      plainBlockIndexEnd
+      plainBlockIndexEnd,
     );
 
     // there may be multiple blocks to load here
@@ -517,9 +518,11 @@ class EncryptedFS {
       const blockLength = blockIndexEnd - blockIndexStart + 1;
       const cipherPosStart = utils.blockPositionStart(
         this.blockSizeCipher,
-        blockIndexStart
+        blockIndexStart,
       );
-      const cipherSegment = Buffer.allocUnsafe(blockLength * this.blockSizeCipher);
+      const cipherSegment = Buffer.allocUnsafe(
+        blockLength * this.blockSizeCipher,
+      );
       let cipherBytesRead: number;
       try {
         cipherBytesRead = this.lower.fs.readSync(
@@ -527,7 +530,7 @@ class EncryptedFS {
           cipherSegment,
           0,
           cipherSegment.byteLength,
-          cipherPosStart
+          cipherPosStart,
         );
       } catch (e) {
         throw new EncryptedFSError(e);
@@ -536,19 +539,19 @@ class EncryptedFS {
         // there's nothing more to read
         break;
       }
-      if ((cipherBytesRead % this.blockSizeCipher) !== 0) {
+      if (cipherBytesRead % this.blockSizeCipher !== 0) {
         throw new EncryptedFSError(
           undefined,
-          'Byte length read from lower FS is not a multiple of the cipher block size'
+          'Byte length read from lower FS is not a multiple of the cipher block size',
         );
       }
       const blockLengthRead = utils.blockLength(
         this.blockSizeCipher,
         0,
-        cipherBytesRead
+        cipherBytesRead,
       );
       const plainSegment = Buffer.allocUnsafe(
-        blockLengthRead * this.blockSizePlain
+        blockLengthRead * this.blockSizePlain,
       );
 
       // what if we decrypted each cipherblock
@@ -557,27 +560,17 @@ class EncryptedFS {
 
       // decrypt each cipher block from the cipherSegment
       // and copy them into the plainSegment
-      for (
-        let i = 0, j = i * this.blockSizeCipher;
-        i < blockLengthRead;
-        ++i
-      ) {
-        const cipherBlock = cipherSegment.slice(
-          j,
-          j + this.blockSizeCipher
-        );
+      for (let i = 0, j = i * this.blockSizeCipher; i < blockLengthRead; ++i) {
+        const cipherBlock = cipherSegment.slice(j, j + this.blockSizeCipher);
         const plainBlock = this.decryptSync(cipherBlock);
         if (plainBlock == null) {
-          throw new EncryptedFSError(
-            undefined,
-            'Block decryption failed'
-          );
+          throw new EncryptedFSError(undefined, 'Block decryption failed');
         }
         plainBlock.copy(plainSegment, i * this.blockSizePlain);
       }
       const plainPosStart = utils.blockPositionStart(
         this.blockSizePlain,
-        blockIndexStart
+        blockIndexStart,
       );
       // resize the dataUpper
       if (plainPosStart > dataUpper.byteLength) {
@@ -592,7 +585,7 @@ class EncryptedFS {
         if (extendedLength > 0) {
           dataUpper = Buffer.concat([
             dataUpper,
-            Buffer.allocUnsafe(extendedLength)
+            Buffer.allocUnsafe(extendedLength),
           ]);
         }
       }
@@ -603,7 +596,6 @@ class EncryptedFS {
       // the problem is that
       // this is "loading blocks upper"
       // and then attempting to write?
-
 
       // copy into the dataUpper
       plainSegment.copy(dataUpper, plainPosStart);
@@ -643,7 +635,6 @@ class EncryptedFS {
     // 3. slice from the data upper to get the plainSegment
     // 4. encrypt the plainSegment into the cipherSegment
 
-
     // this is copying into it
 
     // but this assumes the dataUpper has enough blocks
@@ -674,30 +665,22 @@ class EncryptedFS {
     // then finally the plainSegment becomes a cipherSegment
     // and you know the drill
 
-
     // this copies from one segment to another
     // we have to allocate accordingly
     const cipherSegment = Buffer.allocUnsafe(
-      plainBlockLength * this.blockSizeCipher
+      plainBlockLength * this.blockSizeCipher,
     );
 
     // encrypt plainSegment into cipherSegment
-    for (
-      let i = 0, j = i * this.blockSizePlain;
-      i < plainBlockLength;
-      ++i
-    ) {
-      const plainBlock = plainSegment.slice(
-        j,
-        j + this.blockSizePlain
-      );
+    for (let i = 0, j = i * this.blockSizePlain; i < plainBlockLength; ++i) {
+      const plainBlock = plainSegment.slice(j, j + this.blockSizePlain);
       const cipherBlock = this.encryptSync(plainBlock);
       cipherBlock.copy(cipherSegment, i * this.blockSizeCipher);
     }
 
-    const cipherPosStart= utils.blockPositionStart(
+    const cipherPosStart = utils.blockPositionStart(
       this.blockSizeCipher,
-      plainBlockIndexStart
+      plainBlockIndexStart,
     );
 
     // this now gives us the right blocks
@@ -708,12 +691,11 @@ class EncryptedFS {
         cipherSegment,
         0,
         cipherSegment.byteLength,
-        cipherPosStart
+        cipherPosStart,
       );
     } catch (e) {
       throw new EncryptedFSError(e);
     }
-
 
     let plainBytesWritten: number;
     try {
@@ -722,19 +704,14 @@ class EncryptedFS {
         buffer,
         0,
         buffer.byteLength,
-        position
+        position,
       );
     } catch (e) {
       throw new EncryptedFSError(e);
     }
-    this.writeMetaSync(
-      fds.metaFd,
-      {...metadata}
-    );
+    this.writeMetaSync(fds.metaFd, { ...metadata });
     return plainBytesWritten;
   }
-
-
 
   // public access (path: PathLike, ...args: Array<any>): void {
   //   let cbIndex = args.findIndex((arg) => typeof arg === 'function');
@@ -776,8 +753,6 @@ class EncryptedFS {
   //     return super.existsSync(path);
   //   }
   // }
-
-
 
   // protected async loadMeta(path: PathLike): Promise<void> {
   //   const pathUpper = super._getPath(path);
@@ -845,7 +820,7 @@ class EncryptedFS {
   // }
 
   protected readMetaSync(
-    fdIndexLowerMeta: number
+    fdIndexLowerMeta: number,
   ): EncryptedMetadata | undefined {
     let metaCipher: Buffer;
     try {
@@ -860,10 +835,7 @@ class EncryptedFS {
     }
     const metaPlain = this.decryptSync(metaCipher);
     if (metaPlain == null) {
-      throw new EncryptedFSError(
-        undefined,
-        'Metadata decryption failed'
-      );
+      throw new EncryptedFSError(undefined, 'Metadata decryption failed');
     }
     const metaValue = JSON.parse(metaPlain.toString('utf-8'));
     return metaValue;
@@ -871,12 +843,9 @@ class EncryptedFS {
 
   protected writeMetaSync(
     fdIndexLowerMeta: number,
-    metadata: EncryptedMetadata
+    metadata: EncryptedMetadata,
   ): void {
-    const metaPlain = Buffer.from(
-      JSON.stringify(metadata),
-      'utf-8'
-    );
+    const metaPlain = Buffer.from(JSON.stringify(metadata), 'utf-8');
     const metaCipher = this.encryptSync(metaPlain);
     try {
       this.lower.fs.writeFileSync(fdIndexLowerMeta, metaCipher);
@@ -891,14 +860,14 @@ class EncryptedFS {
    */
   protected plainToCipherSegmentSync(
     plainSegment: Buffer,
-    blockLength: number
+    blockLength: number,
   ): Buffer {
     return utils.plainToCipherSegment(
       this.key,
       plainSegment,
       blockLength,
       this.blockSizePlain,
-      this.blockSizeCipher
+      this.blockSizeCipher,
     );
   }
 
@@ -908,33 +877,30 @@ class EncryptedFS {
    */
   protected cipherToPlainSegmentSync(
     cipherSegment: Buffer,
-    blockLength: number
+    blockLength: number,
   ): Buffer {
     const plainSegment = utils.cipherToPlainSegment(
       this.key,
       cipherSegment,
       blockLength,
       this.blockSizePlain,
-      this.blockSizeCipher
+      this.blockSizeCipher,
     );
     if (plainSegment == null) {
-      throw new EncryptedFSError(
-        undefined,
-        'Block decryption failed'
-      );
+      throw new EncryptedFSError(undefined, 'Block decryption failed');
     }
     return plainSegment;
   }
 
-  public translatePathData (path: PathLike): string {
+  public translatePathData(path: PathLike): string {
     return this.translatePath(path)[0];
   }
 
-  public translatePathMeta (path: PathLike): string {
+  public translatePathMeta(path: PathLike): string {
     return this.translatePath(path)[1];
   }
 
-  public translatePath (path: PathLike): [string, string] {
+  public translatePath(path: PathLike): [string, string] {
     let pathUpper = this.upper.fs._getPath(path);
     if (pathUpper === '') {
       // empty paths should stay empty
@@ -963,17 +929,18 @@ class EncryptedFS {
         return p + '.data';
       });
       const partsLowerLastData = partsUpper[partsUpper.length - 1] + '.data';
-      const partsLowerLastMeta = '.' + partsUpper[partsUpper.length - 1] + '.meta';
+      const partsLowerLastMeta =
+        '.' + partsUpper[partsUpper.length - 1] + '.meta';
       const pathLower = pathNode.posix.join(...partsLower);
       pathLowerData = pathNode.posix.resolve(
         this.lower.dir,
         pathLower,
-        partsLowerLastData
+        partsLowerLastData,
       );
       pathLowerMeta = pathNode.posix.resolve(
         this.lower.dir,
         pathLower,
-        partsLowerLastMeta
+        partsLowerLastMeta,
       );
     }
     return [pathLowerData, pathLowerMeta];
@@ -988,20 +955,18 @@ class EncryptedFS {
   protected async encrypt(plainText: Buffer): Promise<Buffer> {
     let cipherText: Buffer;
     if (this.workerManager) {
-      cipherText = await this.workerManager.call(
-        async w => {
-          const [cipherBuf, cipherOffset, cipherLength]= await w.encryptWithKey(
-            Transfer(this.key.buffer),
-            this.key.byteOffset,
-            this.key.byteLength,
-            // @ts-ignore
-            Transfer(plainText.buffer),
-            plainText.byteOffset,
-            plainText.byteLength
-          );
-          return Buffer.from(cipherBuf, cipherOffset, cipherLength);
-        }
-      );
+      cipherText = await this.workerManager.call(async (w) => {
+        const [cipherBuf, cipherOffset, cipherLength] = await w.encryptWithKey(
+          Transfer(this.key.buffer),
+          this.key.byteOffset,
+          this.key.byteLength,
+          // @ts-ignore
+          Transfer(plainText.buffer),
+          plainText.byteOffset,
+          plainText.byteLength,
+        );
+        return Buffer.from(cipherBuf, cipherOffset, cipherLength);
+      });
     } else {
       cipherText = utils.encryptWithKey(this.key, plainText);
     }
@@ -1018,27 +983,25 @@ class EncryptedFS {
    * However when it is not available, the decryption will use the main thread CPU
    * This is a CPU-intensive operation, not IO-intensive
    */
-  protected async decrypt(cipherText: Buffer): Promise<Buffer|undefined> {
+  protected async decrypt(cipherText: Buffer): Promise<Buffer | undefined> {
     let plainText: Buffer | undefined;
     if (this.workerManager) {
-      plainText = await this.workerManager.call(
-        async w => {
-          const decrypted = await w.decryptWithKey(
-            Transfer(this.key.buffer),
-            this.key.byteOffset,
-            this.key.byteLength,
-            // @ts-ignore
-            Transfer(cipherText.buffer),
-            cipherText.byteOffset,
-            cipherText.byteLength
-          );
-          if (decrypted != null) {
-            return Buffer.from(decrypted[0], decrypted[1], decrypted[2]);
-          } else {
-            return;
-          }
+      plainText = await this.workerManager.call(async (w) => {
+        const decrypted = await w.decryptWithKey(
+          Transfer(this.key.buffer),
+          this.key.byteOffset,
+          this.key.byteLength,
+          // @ts-ignore
+          Transfer(cipherText.buffer),
+          cipherText.byteOffset,
+          cipherText.byteLength,
+        );
+        if (decrypted != null) {
+          return Buffer.from(decrypted[0], decrypted[1], decrypted[2]);
+        } else {
+          return;
         }
-      );
+      });
     } else {
       plainText = utils.decryptWithKey(this.key, cipherText);
     }
@@ -1048,7 +1011,6 @@ class EncryptedFS {
   protected decryptSync(cipherText: Buffer): Buffer | undefined {
     return utils.decryptWithKey(this.key, cipherText);
   }
-
 }
 
 export default EncryptedFS;

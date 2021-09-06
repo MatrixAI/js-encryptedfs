@@ -39,7 +39,6 @@ const callbackUpData = (err, data) => {
  * @param cryptoLib The library to use for cryptography
  */
 class EncryptedFS {
-
   protected umask: number;
   protected upperDir: any;
   protected lowerDir: typeof fs;
@@ -1580,15 +1579,12 @@ class EncryptedFS {
     // this goes through the intermediate FD wrapper to getthe lower fd index
     const lowerFd = this.getLowerFd(fd);
 
-
     // so the idea is that we have 2 fd indices we are managing here
     // and remember streams are complicated as well
     // one upper and one lower
     // we aren't extending the upperfd to keep track of the lower fd
     // although that would be nice, that wouldn't be an extension of VirtualFS
     // at least i dont think it can be because the APIs may be different
-
-
 
     // Get block boundary conditions
     const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
@@ -1599,11 +1595,9 @@ class EncryptedFS {
     // from the last byte position of the initial block
     // it ends up telling me the wrong number of blocks to write
 
-
     const numBlocksToWrite = Math.ceil(
       (boundaryOffset + length) / this.blockSize,
     );
-
 
     // block index to start from
     const startBlockNum = this.offsetToBlockNum(position);
@@ -1611,14 +1605,12 @@ class EncryptedFS {
     // a one to one mapping of block to chunk
     const startChunkNum = startBlockNum;
 
-
     // the finish line
     const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
     let bufferBytesWritten: number = 0;
 
     // ================== Handle first block ================== //
-
 
     // the offset used here, is the offset into the input buffer
     // it has nothing to do with the first block
@@ -1629,7 +1621,6 @@ class EncryptedFS {
       firstBlockStart + Math.min(this.blockSize - boundaryOffset, length);
 
     const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd);
-
 
     // what is this?
 

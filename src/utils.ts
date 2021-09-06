@@ -1,21 +1,15 @@
 import type { Callback } from './types';
 
 import pathNode, { resolve } from 'path';
-import {
-  md,
-  random,
-  pkcs5,
-  cipher,
-  util as forgeUtil,
-} from 'node-forge';
+import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import { constants } from 'virtualfs';
 import callbackify from 'util-callbackify';
 
 const ivSize = 16;
 const authTagSize = 16;
 
-const pathJoin = (pathNode.posix) ? pathNode.posix.join : pathNode.join;
-const pathResolve = (pathNode.posix) ? pathNode.posix.resolve : pathNode.resolve;
+const pathJoin = pathNode.posix ? pathNode.posix.join : pathNode.join;
+const pathResolve = pathNode.posix ? pathNode.posix.resolve : pathNode.resolve;
 
 async function getRandomBytes(size: number): Promise<Buffer> {
   return Buffer.from(await random.getBytes(size), 'binary');
@@ -46,7 +40,7 @@ function generateKeySync(bits: 128 | 192 | 256 = 256): Buffer {
 async function generateKeyFromPass(
   password: string,
   salt?: string,
-  bits: 128 | 192 | 256 = 256
+  bits: 128 | 192 | 256 = 256,
 ): Promise<[Buffer, Buffer]> {
   if (![128, 192, 256].includes(bits)) {
     throw new RangeError('AES only allows 128, 192, 256 bit sizes');
@@ -60,7 +54,7 @@ async function generateKeyFromPass(
     salt,
     2048,
     keyLen,
-    md.sha512.create()
+    md.sha512.create(),
   );
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
@@ -68,7 +62,7 @@ async function generateKeyFromPass(
 function generateKeyFromPassSync(
   password: string,
   salt?: string,
-  bits: 128 | 192 | 256 = 256
+  bits: 128 | 192 | 256 = 256,
 ): [Buffer, Buffer] {
   if (![128, 192, 256].includes(bits)) {
     throw new RangeError('AES only allows 128, 192, 256 bit sizes');
@@ -77,13 +71,7 @@ function generateKeyFromPassSync(
     salt = getRandomBytesSync(16).toString('binary');
   }
   const keyLen = Math.floor(bits / 8);
-  const key = pkcs5.pbkdf2(
-    password,
-    salt,
-    2048,
-    keyLen,
-    md.sha512.create()
-  );
+  const key = pkcs5.pbkdf2(password, salt, 2048, keyLen, md.sha512.create());
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
@@ -158,11 +146,15 @@ function blockOffset(blockSize: number, bytePosition: number): number {
  * Calculates how many blocks need to be written using
  * the block offset and the plaintext byte length
  */
-function blockLength(blockSize: number, blockOffset: number, byteLength: number): number {
+function blockLength(
+  blockSize: number,
+  blockOffset: number,
+  byteLength: number,
+): number {
   return Math.ceil((blockOffset + byteLength) / blockSize);
 }
 
-function *range(start: number, stop?: number, step = 1): Generator<number> {
+function* range(start: number, stop?: number, step = 1): Generator<number> {
   if (stop == null) {
     stop = start;
     start = 0;
@@ -172,7 +164,11 @@ function *range(start: number, stop?: number, step = 1): Generator<number> {
   }
 }
 
-function blockRanges(blockLoaded: Set<number>, blockIndexStart: number, blockIndexEnd: number): Array<[number, number]> {
+function blockRanges(
+  blockLoaded: Set<number>,
+  blockIndexStart: number,
+  blockIndexEnd: number,
+): Array<[number, number]> {
   const blockRanges: Array<[number, number]> = [];
   let blockRangeStart: number | null = null;
   let blockRangeEnd: number | null = null;
@@ -210,66 +206,61 @@ function segmentBuffer(blockSize: number, buffer: Buffer): Array<Buffer> {
     bufferPos += blockSize;
   }
   return bufferArray;
-
 }
 
 function parseOpenFlags(flags: string): number {
   let flags_;
-  switch(flags) {
-  case 'r':
-  case 'rs':
-    flags_ = constants.O_RDONLY;
-    break;
-  case 'r+':
-  case 'rs+':
-    flags_ = constants.O_RDWR;
-    break;
-  case 'w':
-    flags_ = (constants.O_WRONLY |
-              constants.O_CREAT  |
-              constants.O_TRUNC);
-    break;
-  case 'wx':
-    flags_ = (constants.O_WRONLY |
-              constants.O_CREAT  |
-              constants.O_TRUNC  |
-              constants.O_EXCL);
-    break;
-  case 'w+':
-    flags_ = (constants.O_RDWR  |
-              constants.O_CREAT |
-              constants.O_TRUNC);
-    break;
-  case 'wx+':
-    flags_ = (constants.O_RDWR  |
-              constants.O_CREAT |
-              constants.O_TRUNC |
-              constants.O_EXCL);
-    break;
-  case 'a':
-    flags_ = (constants.O_WRONLY |
-              constants.O_APPEND |
-              constants.O_CREAT);
-    break;
-  case 'ax':
-    flags_ = (constants.O_WRONLY |
-              constants.O_APPEND |
-              constants.O_CREAT  |
-              constants.O_EXCL);
-    break;
-  case 'a+':
-    flags_ = (constants.O_RDWR   |
-              constants.O_APPEND |
-              constants.O_CREAT);
-    break;
-  case 'ax+':
-    flags_ = (constants.O_RDWR   |
-              constants.O_APPEND |
-              constants.O_CREAT  |
-              constants.O_EXCL);
-    break;
-  default:
-    throw new TypeError('Unknown file open flag: ' + flags);
+  switch (flags) {
+    case 'r':
+    case 'rs':
+      flags_ = constants.O_RDONLY;
+      break;
+    case 'r+':
+    case 'rs+':
+      flags_ = constants.O_RDWR;
+      break;
+    case 'w':
+      flags_ = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC;
+      break;
+    case 'wx':
+      flags_ =
+        constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_TRUNC |
+        constants.O_EXCL;
+      break;
+    case 'w+':
+      flags_ = constants.O_RDWR | constants.O_CREAT | constants.O_TRUNC;
+      break;
+    case 'wx+':
+      flags_ =
+        constants.O_RDWR |
+        constants.O_CREAT |
+        constants.O_TRUNC |
+        constants.O_EXCL;
+      break;
+    case 'a':
+      flags_ = constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT;
+      break;
+    case 'ax':
+      flags_ =
+        constants.O_WRONLY |
+        constants.O_APPEND |
+        constants.O_CREAT |
+        constants.O_EXCL;
+      break;
+    case 'a+':
+      flags_ = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT;
+      break;
+    case 'ax+':
+      flags_ =
+        constants.O_RDWR |
+        constants.O_APPEND |
+        constants.O_CREAT |
+        constants.O_EXCL;
+      break;
+    default:
+      throw new TypeError('Unknown file open flag: ' + flags);
   }
   return flags_;
 }
@@ -345,9 +336,6 @@ function parseOpenFlags(flags: string): number {
 //   return check;
 // }
 
-
-
-
 // function resolvePath(path: PathLike): string {
 //   const _path = path.toString();
 //   let addition = '';
@@ -370,8 +358,6 @@ function parseOpenFlags(flags: string): number {
 //   }
 //   return navPath;
 // }
-
-
 
 function promisify<T>(f): (...args: any[]) => Promise<T> {
   return function <T>(...args): Promise<T> {
@@ -410,13 +396,16 @@ function promise<T>(): {
  */
 function callbackAll(
   calls: Array<(c: Callback<Array<any>>) => any>,
-  callback: Callback<[Array<any>]>
+  callback: Callback<[Array<any>]>,
 ): void {
   let resolved = 0;
   const results: Array<any> = [];
   for (const [i, call] of calls.entries()) {
     call((e, ...result) => {
-      if (e != null) { callback(e); return; }
+      if (e != null) {
+        callback(e);
+        return;
+      }
       resolved++;
       results[i] = result;
       if (resolved === calls.length) {
@@ -430,7 +419,7 @@ function callbackAll(
 
 async function maybeCallback<T>(
   f: () => Promise<T>,
-  callback?: Callback<[T]>
+  callback?: Callback<[T]>,
 ): Promise<T | void> {
   if (callback == null) {
     return await f();

@@ -15,5 +15,5 @@ export {
   ErrorINodesDuplicateRoot,
   ErrorINodesIndexMissing,
   ErrorINodesParentMissing,
-  ErrorINodesInvalidName
+  ErrorINodesInvalidName,
 };

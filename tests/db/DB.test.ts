@@ -58,12 +58,16 @@ describe('DB', () => {
     await db.db.put('a', await db.serializeEncrypt('value0', false));
     expect(await db.get([], 'a')).toBe('value0');
     await db.put([], 'b', 'value0');
-    expect(await db.deserializeDecrypt(await db.db.get('b'), false)).toBe('value0');
+    expect(await db.deserializeDecrypt(await db.db.get('b'), false)).toBe(
+      'value0',
+    );
     const level1 = await db.level('level1');
     await level1.put('a', await db.serializeEncrypt('value1', false));
     expect(await db.get(['level1'], 'a')).toBe('value1');
     await db.put(['level1'], 'b', 'value1');
-    expect(await db.deserializeDecrypt(await level1.get('b'), false)).toBe('value1');
+    expect(await db.deserializeDecrypt(await level1.get('b'), false)).toBe(
+      'value1',
+    );
     await db.stop();
   });
   test('db levels are just ephemeral abstractions', async () => {
@@ -157,7 +161,7 @@ describe('DB', () => {
     const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     // sorted order [ 'AQ', 'L', 'Q', 'fP' ]
-    const keys = ["Q", "fP", "AQ", "L"];
+    const keys = ['Q', 'fP', 'AQ', 'L'];
     for (const k of keys) {
       await db.put([], k, 'value');
     }
@@ -195,7 +199,7 @@ describe('DB', () => {
     const db = await DB.createDB({ dbKey, dbPath, logger });
     await db.start();
     const level1 = await db.level('level1');
-    const keys1 = ["Q", "fP", "AQ", "L"];
+    const keys1 = ['Q', 'fP', 'AQ', 'L'];
     for (const k of keys1) {
       await level1.put(k, await db.serializeEncrypt('value1', false));
     }
@@ -211,7 +215,7 @@ describe('DB', () => {
     for (const k of keys2) {
       await level2.put(
         Buffer.from(lexi.pack(k)),
-        await db.serializeEncrypt('value2', false)
+        await db.serializeEncrypt('value2', false),
       );
     }
     const keysIterated2: Array<number> = [];
@@ -363,7 +367,7 @@ describe('DB', () => {
         ops.push({
           type: 'del',
           domain: [],
-          key: k
+          key: k,
         });
       });
       keyStream.on('end', () => {

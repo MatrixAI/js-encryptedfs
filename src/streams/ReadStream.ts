@@ -7,7 +7,6 @@ import * as vfs from 'virtualfs';
 import { Readable } from 'stream';
 
 class ReadStream extends Readable {
-
   protected _bytesRead: number;
   protected _fs: EncryptedFS;
   protected _path: string;
@@ -24,19 +23,21 @@ class ReadStream extends Readable {
    * It will asynchronously open the file descriptor if a file path was passed in
    * It will automatically close the opened file descriptor by default
    */
-  constructor (path: string, options: optionsStream, fs: EncryptedFS) {
+  constructor(path: string, options: optionsStream, fs: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
-      encoding: options.encoding
+      encoding: options.encoding,
     });
     this._fs = fs;
     this._bytesRead = 0;
     this._path = path;
-    this._fd = (options.fd === undefined) ? undefined : options.fd;
-    this._flags = (options.flags === undefined) ? 'r' : options.flags;
-    this._mode = (options.mode === undefined) ? vfs.DEFAULT_FILE_PERM : options.mode;
-    this._autoClose = (options.autoClose === undefined) ? true : options.autoClose;
-    this._end = (options.end === undefined) ? Infinity : options.end;
+    this._fd = options.fd === undefined ? undefined : options.fd;
+    this._flags = options.flags === undefined ? 'r' : options.flags;
+    this._mode =
+      options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
+    this._autoClose =
+      options.autoClose === undefined ? true : options.autoClose;
+    this._end = options.end === undefined ? Infinity : options.end;
     this._pos = options.start;
     if (typeof this._fd !== 'number') {
       this._open();
@@ -86,38 +87,25 @@ class ReadStream extends Readable {
     }
     const buffer = Buffer.allocUnsafe(size);
     if (this._pos) {
-      this._fs.read(
-        this._fd,
-        buffer,
-        0,
-        size,
-        this._pos,
-        (err, bytesRead) => {
-          this._error(err);
-          if (bytesRead > 0) {
-            this._bytesRead += bytesRead;
-            this.push(buffer.slice(0, bytesRead));
-          } else {
-            this.push(null);
-          }
+      this._fs.read(this._fd, buffer, 0, size, this._pos, (err, bytesRead) => {
+        this._error(err);
+        if (bytesRead > 0) {
+          this._bytesRead += bytesRead;
+          this.push(buffer.slice(0, bytesRead));
+        } else {
+          this.push(null);
         }
-      );
+      });
     } else {
-      this._fs.read(
-        this._fd,
-        buffer,
-        0,
-        size,
-        (err, bytesRead) => {
-          this._error(err);
-          if (bytesRead > 0) {
-            this._bytesRead += bytesRead;
-            this.push(buffer.slice(0, bytesRead));
-          } else {
-            this.push(null);
-          }
+      this._fs.read(this._fd, buffer, 0, size, (err, bytesRead) => {
+        this._error(err);
+        if (bytesRead > 0) {
+          this._bytesRead += bytesRead;
+          this.push(buffer.slice(0, bytesRead));
+        } else {
+          this.push(null);
         }
-      );
+      });
     }
     if (this._pos != null) {
       this._pos += size;
@@ -148,7 +136,6 @@ class ReadStream extends Readable {
       super.emit('error', err);
     }
   }
-
 }
 
 export default ReadStream;

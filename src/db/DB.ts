@@ -16,11 +16,10 @@ import { WorkerManager } from '../workers';
 import { maybeCallback } from '../utils';
 
 class DB {
-
   public static async createDB({
     dbKey,
     dbPath,
-    lock = new Mutex,
+    lock = new Mutex(),
     fs = require('fs'),
     logger = new Logger(this.name),
   }: {
@@ -35,7 +34,7 @@ class DB {
       dbPath,
       lock,
       fs,
-      logger
+      logger,
     });
     await db.start();
     return db;
@@ -91,80 +90,84 @@ class DB {
   public async start(): Promise<void>;
   public async start(callback: Callback): Promise<void>;
   public async start(callback?: Callback): Promise<void> {
-    return maybeCallback(async () => this.withLocks(
-      async () => {
-        if (this._started) {
-          return;
-        }
-        if (this._destroyed) {
-          throw new dbErrors.ErrorDBDestroyed;
-        }
-        this.logger.info('Starting DB');
-        this.logger.info(`Setting DB path to ${this.dbPath}`);
-        try {
-          await this.fs.promises.mkdir(
-            this.dbPath,
-            { recursive: true }
-          );
-        } catch (e) {
-          if (e.code !== 'EEXIST') {
-            throw e;
+    return maybeCallback(
+      async () =>
+        this.withLocks(async () => {
+          if (this._started) {
+            return;
           }
-        }
-        const dbLevel = await new Promise<LevelDB<string | Buffer, Buffer>>(
-          (resolve, reject) => {
-            const db = level(this.dbPath, {
-              keyEncoding: 'binary',
-              valueEncoding: 'binary'
-            }, (e) => {
-              if (e) {
-                reject(e);
-              } else {
-                resolve(db);
-              }
-            });
-          },
-        );
-        this._db = dbLevel;
-        this._started = true;
-        this.logger.info('Started DB');
-      }),
-      callback
+          if (this._destroyed) {
+            throw new dbErrors.ErrorDBDestroyed();
+          }
+          this.logger.info('Starting DB');
+          this.logger.info(`Setting DB path to ${this.dbPath}`);
+          try {
+            await this.fs.promises.mkdir(this.dbPath, { recursive: true });
+          } catch (e) {
+            if (e.code !== 'EEXIST') {
+              throw e;
+            }
+          }
+          const dbLevel = await new Promise<LevelDB<string | Buffer, Buffer>>(
+            (resolve, reject) => {
+              const db = level(
+                this.dbPath,
+                {
+                  keyEncoding: 'binary',
+                  valueEncoding: 'binary',
+                },
+                (e) => {
+                  if (e) {
+                    reject(e);
+                  } else {
+                    resolve(db);
+                  }
+                },
+              );
+            },
+          );
+          this._db = dbLevel;
+          this._started = true;
+          this.logger.info('Started DB');
+        }),
+      callback,
     );
   }
 
   public async stop(): Promise<void>;
   public async stop(callback: Callback): Promise<void>;
   public async stop(callback?: Callback): Promise<void> {
-    return maybeCallback(async () => this.withLocks(
-      async () => {
-        if (!this._started) {
-          return;
-        }
-        this.logger.info('Stopping DB');
-        await this.db.close();
-        this._started = false;
-        this.logger.info('Stopped DB');
-      }),
-      callback
+    return maybeCallback(
+      async () =>
+        this.withLocks(async () => {
+          if (!this._started) {
+            return;
+          }
+          this.logger.info('Stopping DB');
+          await this.db.close();
+          this._started = false;
+          this.logger.info('Stopped DB');
+        }),
+      callback,
     );
   }
 
   public async destroy(): Promise<void>;
   public async destroy(callback: Callback): Promise<void>;
   public async destroy(callback?: Callback): Promise<void> {
-    return maybeCallback(async () => this.withLocks(
-      async () => {
-        if (this.destroyed) {
-          return;
-        }
-        if (this._started) {
-          throw new dbErrors.ErrorDBStarted;
-        }
-        await this.fs.promises.rm(this.dbPath, { recursive: true });
-        this._destroyed = true;
-      }),
-      callback
+    return maybeCallback(
+      async () =>
+        this.withLocks(async () => {
+          if (this.destroyed) {
+            return;
+          }
+          if (this._started) {
+            throw new dbErrors.ErrorDBStarted();
+          }
+          await this.fs.promises.rm(this.dbPath, { recursive: true });
+          this._destroyed = true;
+        }),
+      callback,
     );
   }
 
@@ -178,7 +181,7 @@ class DB {
 
   public async withLocks<T>(
     f: () => Promise<T>,
-    locks: Array<MutexInterface> = [this.lock]
+    locks: Array<MutexInterface> = [this.lock],
   ): Promise<T> {
     const releases: Array<MutexInterface.Releaser> = [];
     for (const l of locks) {
@@ -205,7 +208,7 @@ class DB {
    */
   public async transact<T>(
     f: (t: DBTransaction) => Promise<T>,
-    locks: Array<MutexInterface> = [this.lock]
+    locks: Array<MutexInterface> = [this.lock],
   ): Promise<T> {
     return this.withLocks(async () => {
       if (!this._started) {
@@ -226,16 +229,28 @@ class DB {
     }, locks);
   }
 
-  public async level(domain: string | Buffer, dbLevel?: DBLevel): Promise<DBLevel>;
-  public async level(domain: string | Buffer, callback: Callback<[DBLevel]>): Promise<void>;
-  public async level(domain: string | Buffer, dbLevel: DBLevel, callback: Callback<[DBLevel]>): Promise<void>;
+  public async level(
+    domain: string | Buffer,
+    dbLevel?: DBLevel,
+  ): Promise<DBLevel>;
+  public async level(
+    domain: string | Buffer,
+    callback: Callback<[DBLevel]>,
+  ): Promise<void>;
+  public async level(
+    domain: string | Buffer,
+    dbLevel: DBLevel,
+    callback: Callback<[DBLevel]>,
+  ): Promise<void>;
   public async level(
     domain: string,
     dbLevelOrCallback: DBLevel | Callback<[DBLevel]> = this._db,
-    callback?: Callback<[DBLevel]>
+    callback?: Callback<[DBLevel]>,
   ): Promise<DBLevel | void> {
-    const dbLevel = (typeof dbLevelOrCallback !== 'function') ? dbLevelOrCallback: this._db;
-    callback = (typeof dbLevelOrCallback === 'function') ? dbLevelOrCallback : callback;
+    const dbLevel =
+      typeof dbLevelOrCallback !== 'function' ? dbLevelOrCallback : this._db;
+    callback =
+      typeof dbLevelOrCallback === 'function' ? dbLevelOrCallback : callback;
     return maybeCallback(async () => {
       if (!this._started) {
         throw new dbErrors.ErrorDBNotStarted();
@@ -254,7 +269,7 @@ class DB {
       } catch (e) {
         if (e instanceof RangeError) {
           // some domain prefixes will conflict with the separator
-          throw new dbErrors.ErrorDBLevelPrefix;
+          throw new dbErrors.ErrorDBLevelPrefix();
         }
         throw e;
       }
@@ -263,13 +278,18 @@ class DB {
 
   public async count(dbLevel?: DBLevel): Promise<number>;
   public async count(callback: Callback<[number]>): Promise<void>;
-  public async count(dbLevel: DBLevel, callback: Callback<[number]>): Promise<void>;
+  public async count(
+    dbLevel: DBLevel,
+    callback: Callback<[number]>,
+  ): Promise<void>;
   public async count(
     dbLevelOrCallback: DBLevel | Callback<[number]> = this._db,
-    callback?: Callback<[number]>
+    callback?: Callback<[number]>,
   ): Promise<number | void> {
-    const dbLevel = (typeof dbLevelOrCallback !== 'function') ? dbLevelOrCallback: this._db;
-    callback = (typeof dbLevelOrCallback === 'function') ? dbLevelOrCallback : callback;
+    const dbLevel =
+      typeof dbLevelOrCallback !== 'function' ? dbLevelOrCallback : this._db;
+    callback =
+      typeof dbLevelOrCallback === 'function' ? dbLevelOrCallback : callback;
     return maybeCallback(async () => {
       if (!this._started) {
         throw new dbErrors.ErrorDBNotStarted();
@@ -285,55 +305,52 @@ class DB {
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
-    raw?: false
+    raw?: false,
   ): Promise<T | undefined>;
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
-    raw: true
+    raw: true,
   ): Promise<Buffer | undefined>;
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
-    callback: Callback<[(T | undefined)]>,
+    callback: Callback<[T | undefined]>,
   ): Promise<void>;
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: false,
-    callback: Callback<[(T | undefined)]>,
+    callback: Callback<[T | undefined]>,
   ): Promise<void>;
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: true,
-    callback: Callback<[(Buffer | undefined)]>,
+    callback: Callback<[Buffer | undefined]>,
   ): Promise<void>;
   public async get<T>(
     domain: DBDomain,
     key: string | Buffer,
-    rawOrCallback: boolean | Callback<[(T | Buffer | undefined)]> = false,
-    callback?: Callback<[(T | Buffer | undefined)]>,
+    rawOrCallback: boolean | Callback<[T | Buffer | undefined]> = false,
+    callback?: Callback<[T | Buffer | undefined]>,
   ): Promise<T | Buffer | undefined | void> {
-    const raw = (typeof rawOrCallback !== 'function') ? rawOrCallback : false;
-    callback = (typeof rawOrCallback === 'function') ? rawOrCallback : callback;
+    const raw = typeof rawOrCallback !== 'function' ? rawOrCallback : false;
+    callback = typeof rawOrCallback === 'function' ? rawOrCallback : callback;
     return maybeCallback(async () => {
       if (!this._started) {
         throw new dbErrors.ErrorDBNotStarted();
       }
       let data;
       try {
-        data = await this._db.get(dbUtils.domainPath(domain, key))
+        data = await this._db.get(dbUtils.domainPath(domain, key));
       } catch (e) {
         if (e.notFound) {
           return undefined;
         }
         throw e;
       }
-      return this.deserializeDecrypt<T>(
-        data,
-        raw as any
-      );
+      return this.deserializeDecrypt<T>(data, raw as any);
     }, callback);
   }
 
@@ -376,8 +393,8 @@ class DB {
     rawOrCallback: boolean | Callback = false,
     callback?: Callback,
   ): Promise<void> {
-    const raw = (typeof rawOrCallback !== 'function') ? rawOrCallback : false;
-    callback = (typeof rawOrCallback === 'function') ? rawOrCallback : callback;
+    const raw = typeof rawOrCallback !== 'function' ? rawOrCallback : false;
+    callback = typeof rawOrCallback === 'function' ? rawOrCallback : callback;
     return maybeCallback(async () => {
       if (!this._started) {
         throw new dbErrors.ErrorDBNotStarted();
@@ -387,10 +404,7 @@ class DB {
     }, callback);
   }
 
-  public async del(
-    domain: DBDomain,
-    key: string | Buffer,
-  ): Promise<void>;
+  public async del(domain: DBDomain, key: string | Buffer): Promise<void>;
   public async del(
     domain: DBDomain,
     key: string | Buffer,
@@ -399,7 +413,7 @@ class DB {
   public async del(
     domain: DBDomain,
     key: string | Buffer,
-    callback?: Callback
+    callback?: Callback,
   ): Promise<void> {
     return maybeCallback(async () => {
       if (!this._started) {
@@ -426,7 +440,7 @@ class DB {
         } else if (op.type === 'put') {
           const data = await this.serializeEncrypt(
             op.value,
-            (op.raw === true) as any
+            (op.raw === true) as any,
           );
           ops_.push({
             type: op.type,
@@ -441,68 +455,99 @@ class DB {
 
   public async serializeEncrypt(value: any, raw: false): Promise<Buffer>;
   public async serializeEncrypt(value: Buffer, raw: true): Promise<Buffer>;
-  public async serializeEncrypt(value: any, raw: false, callback: Callback<[Buffer]>): Promise<void>;
-  public async serializeEncrypt(value: Buffer, raw: true, callback: Callback<[Buffer]>): Promise<void>;
-  public async serializeEncrypt(value: any | Buffer, raw: boolean, callback?: Callback<[Buffer]>): Promise<Buffer | void> {
+  public async serializeEncrypt(
+    value: any,
+    raw: false,
+    callback: Callback<[Buffer]>,
+  ): Promise<void>;
+  public async serializeEncrypt(
+    value: Buffer,
+    raw: true,
+    callback: Callback<[Buffer]>,
+  ): Promise<void>;
+  public async serializeEncrypt(
+    value: any | Buffer,
+    raw: boolean,
+    callback?: Callback<[Buffer]>,
+  ): Promise<Buffer | void> {
     return maybeCallback(async () => {
-      const plainText: Buffer = (raw) ? value as Buffer : dbUtils.serialize(value);
+      const plainText: Buffer = raw
+        ? (value as Buffer)
+        : dbUtils.serialize(value);
       if (this.workerManager != null) {
-        return this.workerManager.call(
-          async w => {
-            const [cipherBuf, cipherOffset, cipherLength]= await w.encryptWithKey(
-              Transfer(this.dbKey.buffer),
-              this.dbKey.byteOffset,
-              this.dbKey.byteLength,
-              // @ts-ignore
-              Transfer(plainText.buffer),
-              plainText.byteOffset,
-              plainText.byteLength
-            );
-            return Buffer.from(cipherBuf, cipherOffset, cipherLength);
-          }
-        );
+        return this.workerManager.call(async (w) => {
+          const [
+            cipherBuf,
+            cipherOffset,
+            cipherLength,
+          ] = await w.encryptWithKey(
+            Transfer(this.dbKey.buffer),
+            this.dbKey.byteOffset,
+            this.dbKey.byteLength,
+            // @ts-ignore
+            Transfer(plainText.buffer),
+            plainText.byteOffset,
+            plainText.byteLength,
+          );
+          return Buffer.from(cipherBuf, cipherOffset, cipherLength);
+        });
       } else {
-        return dbUtils.encryptWithKey(this.dbKey, plainText)
+        return dbUtils.encryptWithKey(this.dbKey, plainText);
       }
     }, callback);
   }
 
-  public async deserializeDecrypt<T>(cipherText: Buffer, raw: false): Promise<T>;
-  public async deserializeDecrypt<T>(cipherText: Buffer, raw: true): Promise<Buffer>;
-  public async deserializeDecrypt<T>(cipherText: Buffer, raw: false, callback: Callback<[T]>): Promise<void>;
-  public async deserializeDecrypt<T>(cipherText: Buffer, raw: true, callback: Callback<[Buffer]>): Promise<void>;
-  public async deserializeDecrypt<T>(cipherText: Buffer, raw: boolean, callback?: Callback<[(T|Buffer)]>): Promise<T | Buffer | void> {
+  public async deserializeDecrypt<T>(
+    cipherText: Buffer,
+    raw: false,
+  ): Promise<T>;
+  public async deserializeDecrypt<T>(
+    cipherText: Buffer,
+    raw: true,
+  ): Promise<Buffer>;
+  public async deserializeDecrypt<T>(
+    cipherText: Buffer,
+    raw: false,
+    callback: Callback<[T]>,
+  ): Promise<void>;
+  public async deserializeDecrypt<T>(
+    cipherText: Buffer,
+    raw: true,
+    callback: Callback<[Buffer]>,
+  ): Promise<void>;
+  public async deserializeDecrypt<T>(
+    cipherText: Buffer,
+    raw: boolean,
+    callback?: Callback<[T | Buffer]>,
+  ): Promise<T | Buffer | void> {
     return maybeCallback(async () => {
       let plainText;
       if (this.workerManager != null) {
-        plainText = await this.workerManager.call(
-          async w => {
-            const decrypted = await w.decryptWithKey(
-              Transfer(this.dbKey.buffer),
-              this.dbKey.byteOffset,
-              this.dbKey.byteLength,
-              // @ts-ignore
-              Transfer(cipherText.buffer),
-              cipherText.byteOffset,
-              cipherText.byteLength
-            );
-            if (decrypted != null) {
-              return Buffer.from(decrypted[0], decrypted[1], decrypted[2]);
-            } else {
-              return;
-            }
+        plainText = await this.workerManager.call(async (w) => {
+          const decrypted = await w.decryptWithKey(
+            Transfer(this.dbKey.buffer),
+            this.dbKey.byteOffset,
+            this.dbKey.byteLength,
+            // @ts-ignore
+            Transfer(cipherText.buffer),
+            cipherText.byteOffset,
+            cipherText.byteLength,
+          );
+          if (decrypted != null) {
+            return Buffer.from(decrypted[0], decrypted[1], decrypted[2]);
+          } else {
+            return;
           }
-        );
+        });
       } else {
         plainText = dbUtils.decryptWithKey(this.dbKey, cipherText);
       }
       if (plainText == null) {
         throw new dbErrors.ErrorDBDecrypt();
       }
-      return (raw) ? plainText : dbUtils.deserialize<T>(plainText);
+      return raw ? plainText : dbUtils.deserialize<T>(plainText);
     }, callback);
   }
-
 }
 
 export default DB;

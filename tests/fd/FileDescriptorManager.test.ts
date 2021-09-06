@@ -12,11 +12,13 @@ import { FileDescriptor } from '@/fd';
 import * as utils from '@/utils';
 
 describe('File Descriptor Manager', () => {
-  const logger = new Logger('File Descriptor Manager Test', LogLevel.WARN, [new StreamHandler()]);
+  const logger = new Logger('File Descriptor Manager Test', LogLevel.WARN, [
+    new StreamHandler(),
+  ]);
   const devMgr = new vfs.DeviceManager();
   let dataDir: string;
   let db: DB;
-  let dbKey: Buffer = utils.generateKeySync(256);
+  const dbKey: Buffer = utils.generateKeySync(256);
   let bytesRead: number;
   let bytesWritten: number;
   const origBuffer = Buffer.from('Test Buffer for File Descriptor');
@@ -27,7 +29,7 @@ describe('File Descriptor Manager', () => {
     db = await DB.createDB({
       dbKey,
       dbPath: `${dataDir}/db`,
-      logger
+      logger,
     });
     await db.start();
   });
@@ -40,12 +42,20 @@ describe('File Descriptor Manager', () => {
     });
   });
   test('create a file descriptor manager', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     expect(fdMgr).toBeInstanceOf(FileDescriptorManager);
   });
   test('create a file descriptor', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
     const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
@@ -53,7 +63,11 @@ describe('File Descriptor Manager', () => {
     expect(typeof fdIndex).toBe('number');
   });
   test('retreive a file descriptor', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
     const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
@@ -61,7 +75,11 @@ describe('File Descriptor Manager', () => {
     expect(fd).toBe(fdDup);
   });
   test('delete a file descriptor', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
     const [_, fdIndex] = await fdMgr.createFd(fileIno, 0);
@@ -70,14 +88,18 @@ describe('File Descriptor Manager', () => {
     expect(fdDup).toBeUndefined();
   });
   test('duplicate a file descriptor', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
     const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     const fdDupIndex = fdMgr.dupFd(fdIndex);
     expect(fdDupIndex).not.toBe(fdIndex);
-    if(!fdDupIndex) {
-      throw Error('Duplicate Index Undefined')
+    if (!fdDupIndex) {
+      throw Error('Duplicate Index Undefined');
     }
     const fdDup = fdMgr.getFd(fdDupIndex);
     expect(fd).toBe(fdDup);
@@ -87,41 +109,57 @@ describe('File Descriptor Manager', () => {
     const readBuffer = Buffer.alloc(origBuffer.length);
     // Allocate the buffer that will be written
     const overwriteBuffer = Buffer.from('Nice');
-    const iNodeMgr = await INodeManager.createINodeManager({ db, devMgr, logger });
+    const iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      devMgr,
+      logger,
+    });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(rootIno);
-      });
-      await iNodeMgr.dirCreate(tran, rootIno, {});
-    }, [rootIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(rootIno);
+        });
+        await iNodeMgr.dirCreate(tran, rootIno, {});
+      },
+      [rootIno],
+    );
     const fileIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(fileIno);
-      });
-      await iNodeMgr.fileCreate(
-        tran,
-        fileIno,
-        {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
-        },
-        origBuffer,
-      );
-    }, [fileIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(fileIno);
+        });
+        await iNodeMgr.fileCreate(
+          tran,
+          fileIno,
+          {
+            mode: vfs.DEFAULT_FILE_PERM,
+            uid: vfs.DEFAULT_ROOT_UID,
+            gid: vfs.DEFAULT_ROOT_GID,
+          },
+          origBuffer,
+        );
+      },
+      [fileIno],
+    );
     // The file is 'added' to the directory
-    await iNodeMgr.transact(async (tran) => {
+    await iNodeMgr.transact(
+      async (tran) => {
         await iNodeMgr.dirSetEntry(tran, rootIno, 'file', fileIno);
-    }, [rootIno, fileIno]);
+      },
+      [rootIno, fileIno],
+    );
     // The ref to the file iNode is made here
     const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     // The file is 'deleted' from the directory
-    await iNodeMgr.transact(async (tran) => {
-      await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');
-    }, [rootIno, fileIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');
+      },
+      [rootIno, fileIno],
+    );
     bytesRead = await fd.read(readBuffer);
     expect(fd.pos).toBe(origBuffer.length);
     expect(readBuffer).toStrictEqual(origBuffer);
@@ -132,7 +170,9 @@ describe('File Descriptor Manager', () => {
     expect(bytesWritten).toBe(overwriteBuffer.length);
     await fd.read(readBuffer, 0);
     expect(fd.pos).toBe(origBuffer.length);
-    expect(readBuffer).toStrictEqual(Buffer.from('Nice Buffer for File Descriptor'));
+    expect(readBuffer).toStrictEqual(
+      Buffer.from('Nice Buffer for File Descriptor'),
+    );
     // Now the file iNode is unreffed through the fd
     await fdMgr.deleteFd(fdIndex);
     // When the fd attempts a read (or write), an Error should be thrown

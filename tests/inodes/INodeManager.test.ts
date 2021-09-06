@@ -8,11 +8,13 @@ import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
 
 describe('INodeManager', () => {
-  const logger = new Logger('INodeManager Test', LogLevel.WARN, [new StreamHandler()]);
+  const logger = new Logger('INodeManager Test', LogLevel.WARN, [
+    new StreamHandler(),
+  ]);
   const devMgr = new vfs.DeviceManager();
   let dataDir: string;
   let db: DB;
-  let dbKey: Buffer = utils.generateKeySync(256);
+  const dbKey: Buffer = utils.generateKeySync(256);
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -20,7 +22,7 @@ describe('INodeManager', () => {
     db = await DB.createDB({
       dbKey,
       dbPath: `${dataDir}/db`,
-      logger
+      logger,
     });
   });
   afterEach(async () => {
@@ -34,44 +36,38 @@ describe('INodeManager', () => {
     let iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
     const childIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(rootIno);
-        iNodeMgr.inoDeallocate(childIno);
-      });
-      await iNodeMgr.dirCreate(tran, rootIno, {});
-      await iNodeMgr.dirCreate(tran, childIno, {}, rootIno);
-      await iNodeMgr.dirSetEntry(
-        tran,
-        rootIno,
-        'childdir',
-        childIno
-      );
-    }, [rootIno, childIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(rootIno);
+          iNodeMgr.inoDeallocate(childIno);
+        });
+        await iNodeMgr.dirCreate(tran, rootIno, {});
+        await iNodeMgr.dirCreate(tran, childIno, {}, rootIno);
+        await iNodeMgr.dirSetEntry(tran, rootIno, 'childdir', childIno);
+      },
+      [rootIno, childIno],
+    );
     await db.stop();
     db = await DB.createDB({
       dbKey,
       dbPath: `${dataDir}/db`,
-      logger
+      logger,
     });
     iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
     await iNodeMgr.transact(async (tran) => {
       const rootIno_ = await iNodeMgr.dirGetRoot(tran);
       expect(rootIno_).toBeDefined();
       expect(rootIno_).toBe(rootIno);
-      const childIno_ = await iNodeMgr.dirGetEntry(
-        tran,
-        rootIno,
-        'childdir'
-      );
+      const childIno_ = await iNodeMgr.dirGetEntry(tran, rootIno, 'childdir');
       expect(childIno_).toBeDefined();
       expect(childIno_).toBe(childIno);
     });
@@ -80,7 +76,7 @@ describe('INodeManager', () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
     // demonstrate a counter increment race condition
     await iNodeMgr.transact(async (tran) => {
@@ -94,7 +90,7 @@ describe('INodeManager', () => {
       iNodeMgr.transact(async (tran) => {
         const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
         await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
-      })
+      }),
     ]);
     await iNodeMgr.transact(async (tran) => {
       const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
@@ -107,14 +103,20 @@ describe('INodeManager', () => {
     });
     const ino = iNodeMgr.inoAllocate();
     await Promise.all([
-      iNodeMgr.transact(async (tran) => {
-        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
-      }, [ino]),
-      iNodeMgr.transact(async (tran) => {
-        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
-      }, [ino])
+      iNodeMgr.transact(
+        async (tran) => {
+          const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+          await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+        },
+        [ino],
+      ),
+      iNodeMgr.transact(
+        async (tran) => {
+          const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+          await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+        },
+        [ino],
+      ),
     ]);
     await iNodeMgr.transact(async (tran) => {
       const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
@@ -126,38 +128,47 @@ describe('INodeManager', () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(rootIno);
-      });
-      await iNodeMgr.dirCreate(tran, rootIno, {
-        mode: vfs.DEFAULT_ROOT_PERM,
-        uid: vfs.DEFAULT_ROOT_UID,
-        gid: vfs.DEFAULT_ROOT_GID
-      });
-    }, [rootIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(rootIno);
+        });
+        await iNodeMgr.dirCreate(tran, rootIno, {
+          mode: vfs.DEFAULT_ROOT_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        });
+      },
+      [rootIno],
+    );
     const childIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(childIno);
-      });
-      await iNodeMgr.dirCreate(tran, childIno, {
-        mode: vfs.DEFAULT_DIRECTORY_PERM
-      }, rootIno);
-      await iNodeMgr.dirSetEntry(
-        tran,
-        rootIno,
-        'childdir',
-        childIno
-      );
-    }, [rootIno, childIno]);
-    await iNodeMgr.transact(async (tran) => {
-      iNodeMgr.ref(childIno);
-      await iNodeMgr.dirUnsetEntry(tran, rootIno, 'childdir');
-    }, [rootIno, childIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(childIno);
+        });
+        await iNodeMgr.dirCreate(
+          tran,
+          childIno,
+          {
+            mode: vfs.DEFAULT_DIRECTORY_PERM,
+          },
+          rootIno,
+        );
+        await iNodeMgr.dirSetEntry(tran, rootIno, 'childdir', childIno);
+      },
+      [rootIno, childIno],
+    );
+    await iNodeMgr.transact(
+      async (tran) => {
+        iNodeMgr.ref(childIno);
+        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'childdir');
+      },
+      [rootIno, childIno],
+    );
     await iNodeMgr.transact(async (tran) => {
       const data = await iNodeMgr.get(tran, childIno);
       expect(data).toBeDefined();

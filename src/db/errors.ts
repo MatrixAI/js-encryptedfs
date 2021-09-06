@@ -26,7 +26,6 @@ class ErrorDBNotCommited extends ErrorDB {}
 
 class ErrorDBRollbacked extends ErrorDB {}
 
-
 export {
   ErrorDB,
   ErrorDBStarted,
@@ -40,5 +39,5 @@ export {
   ErrorDBKeyParse,
   ErrorDBCommitted,
   ErrorDBNotCommited,
-  ErrorDBRollbacked
+  ErrorDBRollbacked,
 };

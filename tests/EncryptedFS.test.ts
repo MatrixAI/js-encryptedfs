@@ -11,12 +11,14 @@ import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 
 describe('EncryptedFS', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [new StreamHandler()]);
+  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+    new StreamHandler(),
+  ]);
   // const cwd = process.cwd();
   let dataDir: string;
   let dbPath: string;
   let db: DB;
-  let dbKey: Buffer = utils.generateKeySync(256);
+  const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
   const devMgr = new vfs.DeviceManager();
   beforeEach(async () => {
@@ -27,13 +29,13 @@ describe('EncryptedFS', () => {
     db = await DB.createDB({
       dbKey,
       dbPath,
-      logger
+      logger,
     });
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
   });
   afterEach(async () => {
@@ -70,10 +72,12 @@ describe('EncryptedFS', () => {
       const buffer = Buffer.from('Hello World');
       await efs.mkdir(`first`);
       await efs.writeFile(`hello-world.txt`, buffer);
-      let stat = await efs.stat(`first/../../../../../../first`) as vfs.Stat;
+      let stat = (await efs.stat(`first/../../../../../../first`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
-      stat = await efs.stat(`first/../../../../../../hello-world.txt`) as vfs.Stat;
+      stat = (await efs.stat(
+        `first/../../../../../../hello-world.txt`,
+      )) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(true);
       expect(stat.isDirectory()).toStrictEqual(false);
     });
@@ -104,7 +108,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.mkdir(`abc/`);
-      const stat = await efs.stat(`abc/`) as vfs.Stat;
+      const stat = (await efs.stat(`abc/`)) as vfs.Stat;
       expect(stat.isDirectory()).toStrictEqual(true);
     });
     test('trailing `/.` for mkdirSync should result in errors', async () => {
@@ -118,7 +122,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
-      await efs.mkdir(`abc`)
+      await efs.mkdir(`abc`);
       await expect(efs.mkdir(`abc/.`)).rejects.toThrow();
     });
     test('navigating invalid paths', async () => {
@@ -134,11 +138,21 @@ describe('EncryptedFS', () => {
       await efs.mkdirp('/test/a/b/c');
       await efs.mkdirp('/test/a/bc');
       await efs.mkdirp('/test/abc');
-      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
-      await expect(efs.readdir('/abc')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
-      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.ENOENT));
-      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow(new EncryptedFSError(errno.EEXIST));
-      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow(new EncryptedFSError(errno.EEXIST));
+      await expect(efs.readdir('/test/abc/a/b/c')).rejects.toThrow(
+        new EncryptedFSError(errno.ENOENT),
+      );
+      await expect(efs.readdir('/abc')).rejects.toThrow(
+        new EncryptedFSError(errno.ENOENT),
+      );
+      await expect(efs.stat('/test/abc/a/b/c')).rejects.toThrow(
+        new EncryptedFSError(errno.ENOENT),
+      );
+      await expect(efs.mkdir('/test/abc/a/b/c')).rejects.toThrow(
+        new EncryptedFSError(errno.EEXIST),
+      );
+      await expect(efs.writeFile('/test/abc/a/b/c', 'Hello')).rejects.toThrow(
+        new EncryptedFSError(errno.EEXIST),
+      );
       await expect(efs.readFile('/test/abc/a/b/c')).rejects.toThrow();
       await expect(efs.readFile('/test/abcd')).rejects.toThrow();
       await expect(efs.mkdir('/test/abcd/dir')).rejects.toThrow();
@@ -160,7 +174,7 @@ describe('EncryptedFS', () => {
       await efs.mkdirp('/test/dir');
       await efs.mkdirp('/test/dir');
       await efs.writeFile('/test/file', 'Hello');
-      await expect(efs.writeFile("/test/dir", "Hello")).rejects.toThrow();
+      await expect(efs.writeFile('/test/dir', 'Hello')).rejects.toThrow();
       await expect(efs.writeFile('/', 'Hello')).rejects.toThrow();
       await expect(efs.rmdir('/')).rejects.toThrow();
       await expect(efs.unlink('/')).rejects.toThrow();
@@ -215,12 +229,12 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.mkdir('/removed');
-      const statRoot = await efs.stat('/') as vfs.Stat;
+      const statRoot = (await efs.stat('/')) as vfs.Stat;
       await efs.chdir('/removed');
-      const statCurrent1 = await efs.stat('.') as vfs.Stat;
+      const statCurrent1 = (await efs.stat('.')) as vfs.Stat;
       await efs.rmdir('../removed');
-      const statCurrent2 = await efs.stat('.') as vfs.Stat;
-      const statParent = await efs.stat('..') as vfs.Stat;
+      const statCurrent2 = (await efs.stat('.')) as vfs.Stat;
+      const statParent = (await efs.stat('..')) as vfs.Stat;
       expect(statCurrent1.ino).toBe(statCurrent2.ino);
       expect(statRoot.ino).toBe(statParent.ino);
       expect(statCurrent2.nlink).toBe(1);
@@ -277,7 +291,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.mkdir(`dir`);
-      const stat = await efs.stat(`dir`) as vfs.Stat;
+      const stat = (await efs.stat(`dir`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
       expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -297,7 +311,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       await expect(efs.readdir('/')).resolves.toEqual([]);
-      const stat = await efs.stat('/') as vfs.Stat;
+      const stat = (await efs.stat('/')) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
       expect(stat.isSymbolicLink()).toStrictEqual(false);
@@ -318,11 +332,15 @@ describe('EncryptedFS', () => {
       await efs.mkdir(`first/sub/subsub`);
       await efs.mkdir(`first/sub2`);
       await efs.mkdir(`backslash\\dir`);
-      expect((await efs.readdir(`.`)).sort()).toStrictEqual(['backslash\\dir', 'first'].sort());
-      expect((await efs.readdir(`first/`)).sort()).toStrictEqual(['sub', 'sub2'].sort());
+      expect((await efs.readdir(`.`)).sort()).toStrictEqual(
+        ['backslash\\dir', 'first'].sort(),
+      );
+      expect((await efs.readdir(`first/`)).sort()).toStrictEqual(
+        ['sub', 'sub2'].sort(),
+      );
       await efs.mkdirp(`a/depth/sub/dir`);
       await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
-      const stat = await efs.stat(`a/depth/sub`) as vfs.Stat;
+      const stat = (await efs.stat(`a/depth/sub`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
     });
@@ -415,7 +433,7 @@ describe('EncryptedFS', () => {
       await efs.fchown(dirfd, 0, 0);
       const date = new Date();
       await efs.futimes(dirfd, date, date);
-      const stats = await efs.fstat(dirfd) as vfs.Stat;
+      const stats = (await efs.fstat(dirfd)) as vfs.Stat;
       expect(stats.atime.toJSON()).toEqual(date.toJSON());
       expect(stats.mtime.toJSON()).toEqual(date.toJSON());
       await efs.close(dirfd);
@@ -445,7 +463,7 @@ describe('EncryptedFS', () => {
       await expect(efs.writeFile(dirfd, `test`)).rejects.toThrow();
       await efs.close(dirfd);
     });
-    test('directory file descriptor\'s inode nlink becomes 0 after deletion of the directory', async () => {
+    test("directory file descriptor's inode nlink becomes 0 after deletion of the directory", async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -458,7 +476,7 @@ describe('EncryptedFS', () => {
       await efs.mkdir('/dir');
       const fd = await efs.open('/dir', 'r');
       await efs.rmdir('/dir');
-      const stat = await efs.fstat(fd) as vfs.Stat;
+      const stat = (await efs.fstat(fd)) as vfs.Stat;
       expect(stat.nlink).toBe(1);
       await efs.close(fd);
     });
@@ -557,7 +575,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.writeFile(`test`, 'test data');
-      const stat = await efs.stat(`test`) as vfs.Stat;
+      const stat = (await efs.stat(`test`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(true);
       expect(stat.isDirectory()).toStrictEqual(false);
       expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -577,7 +595,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       const fd = await efs.open('testFile', vfs.constants.O_CREAT);
-      let test = await efs.readdir('.');
+      const test = await efs.readdir('.');
       expect(test).toStrictEqual(['testFile']);
       await efs.close(fd);
     });
@@ -592,7 +610,7 @@ describe('EncryptedFS', () => {
         logger,
       });
       let fd = await efs.open('testFile', 'w+');
-      let test = await efs.readdir('.');
+      const test = await efs.readdir('.');
       expect(test).toStrictEqual(['testFile']);
       let readBuffer = Buffer.alloc(25);
       const compBuffer = Buffer.alloc(25);
@@ -626,17 +644,25 @@ describe('EncryptedFS', () => {
       const buffer = Buffer.from('Hello World', 'utf8');
       await efs.writeFile(`hello-world`, buffer);
       await expect(efs.readFile(`hello-world`)).resolves.toEqual(buffer);
-      await expect(efs.readFile(`hello-world`, { encoding: 'utf8' })).resolves.toBe('Hello World');
+      await expect(
+        efs.readFile(`hello-world`, { encoding: 'utf8' }),
+      ).resolves.toBe('Hello World');
       await efs.writeFile(`a`, 'Test', { encoding: 'utf-8' });
-      await expect(efs.readFile(`a`, { encoding: 'utf-8' })).resolves.toBe('Test');
-      const stat = await efs.stat(`a`) as vfs.Stat;
+      await expect(efs.readFile(`a`, { encoding: 'utf-8' })).resolves.toBe(
+        'Test',
+      );
+      const stat = (await efs.stat(`a`)) as vfs.Stat;
       expect(stat.isFile()).toBe(true);
       expect(stat.isDirectory()).toBe(false);
       expect(stat.isDirectory()).toBe(false);
       await efs.writeFile(`b`, 'Test', { encoding: 'utf8' });
-      await expect(efs.readFile(`b`, { encoding: 'utf-8' })).resolves.toEqual('Test');
+      await expect(efs.readFile(`b`, { encoding: 'utf-8' })).resolves.toEqual(
+        'Test',
+      );
       await expect(efs.readFile(`other-file`)).rejects.toThrow();
-      await expect(efs.readFile(`other-file`, { encoding: 'utf8' })).rejects.toThrow();
+      await expect(
+        efs.readFile(`other-file`, { encoding: 'utf8' }),
+      ).rejects.toThrow();
     });
     test('can write 50 files', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -760,7 +786,11 @@ describe('EncryptedFS', () => {
       await expect(efs.readFile(`test`)).resolves.toEqual(buf);
       await efs.writeFile(fd, str);
       await expect(efs.readFile(`test`)).resolves.toEqual(buf);
-      await efs.writeFile(fd, str, { encoding: 'utf8', mode: 0o666, flag: 'w' });
+      await efs.writeFile(fd, str, {
+        encoding: 'utf8',
+        mode: 0o666,
+        flag: 'w',
+      });
       await expect(efs.readFile(`test`)).resolves.toEqual(buf);
       await efs.writeFile(fd, buf);
       await expect(efs.readFile(`test`)).resolves.toEqual(buf);
@@ -796,7 +826,9 @@ describe('EncryptedFS', () => {
       await efs.appendFile(fd, 'a');
       await efs.appendFile(fd, 'a');
       await efs.appendFile(fd, 'a');
-      await expect(efs.readFile('/fdtest', { encoding:'utf8' })).resolves.toBe('aaa');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe(
+        'aaa',
+      );
       await efs.close(fd);
     });
     test('read moves with the fd position', async () => {
@@ -833,7 +865,9 @@ describe('EncryptedFS', () => {
       await efs.write(fd, 'a');
       await efs.write(fd, 'a');
       await efs.write(fd, 'a');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe('aaa');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe(
+        'aaa',
+      );
       await efs.close(fd);
     });
 
@@ -860,7 +894,9 @@ describe('EncryptedFS', () => {
       expect(bytesRead).toBe(3);
       expect(buf).toEqual(Buffer.from('abc'));
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('abcdefghi');
       await efs.close(fd);
       // reading with position null does move the fd
       await efs.writeFile('/fdtest', 'abcdef');
@@ -868,7 +904,9 @@ describe('EncryptedFS', () => {
       bytesRead = await efs.read(fd, buf, 0, buf.length);
       expect(bytesRead).toBe(3);
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe('abcghi');
+      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toBe(
+        'abcghi',
+      );
       await efs.close(fd);
       // reading with position 0 doesn't move the fd from the start
       await efs.writeFile('/fdtest', 'abcdef');
@@ -877,7 +915,9 @@ describe('EncryptedFS', () => {
       bytesRead = await efs.read(fd, buf, 0, buf.length, 0);
       expect(bytesRead).toBe(3);
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('ghidef');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('ghidef');
       await efs.close(fd);
       // reading with position 3 doesn't move the fd from the start
       await efs.writeFile('/fdtest', 'abcdef');
@@ -886,7 +926,9 @@ describe('EncryptedFS', () => {
       bytesRead = await efs.read(fd, buf, 0, buf.length, 3);
       expect(bytesRead).toBe(3);
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('ghidef');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('ghidef');
       await efs.close(fd);
     });
 
@@ -904,7 +946,9 @@ describe('EncryptedFS', () => {
       await efs.write(fd, 'abcdef');
       await efs.write(fd, 'ghi', 0);
       await efs.write(fd, 'jkl');
-      await expect(efs.readFile('./testy', { encoding: 'utf8' })).resolves.toEqual('ghidefjkl');
+      await expect(
+        efs.readFile('./testy', { encoding: 'utf8' }),
+      ).resolves.toEqual('ghidefjkl');
       await efs.close(fd);
     });
 
@@ -921,12 +965,18 @@ describe('EncryptedFS', () => {
       let fd;
       fd = await efs.open('/fdtest', 'w+');
       await efs.write(fd, 'starting');
-      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual('');
+      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual(
+        '',
+      );
       await efs.close(fd);
       fd = await efs.open('/fdtest', 'r+');
-      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual('starting');
+      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual(
+        'starting',
+      );
       await efs.write(fd, 'ending');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf-8' })).resolves.toEqual('startingending');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf-8' }),
+      ).resolves.toEqual('startingending');
       await efs.close(fd);
     });
     test('writeFile writes from the beginning, and does not move the fd position', async () => {
@@ -944,7 +994,9 @@ describe('EncryptedFS', () => {
       await efs.write(fd, 'a');
       await efs.writeFile(fd, 'b');
       await efs.write(fd, 'c');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('bac');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('bac');
       await efs.close(fd);
     });
     test('O_APPEND makes sure that writes always set their fd position to the end', async () => {
@@ -966,7 +1018,9 @@ describe('EncryptedFS', () => {
       bytesRead = await efs.read(fd, buf, 0, buf.length);
       expect(bytesRead).toBe(0);
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('abcdefghi');
       await efs.close(fd);
       // even if read moves to to position 3, write will jump the position to the end
       await efs.writeFile('/fdtest', 'abcdef');
@@ -976,7 +1030,9 @@ describe('EncryptedFS', () => {
       expect(bytesRead).toBe(3);
       expect(buf).toEqual(Buffer.from('abc'));
       await efs.write(fd, 'ghi');
-      await expect(efs.readFile('/fdtest', { encoding: 'utf8' })).resolves.toEqual('abcdefghi');
+      await expect(
+        efs.readFile('/fdtest', { encoding: 'utf8' }),
+      ).resolves.toEqual('abcdefghi');
       bytesRead = await efs.read(fd, buf, 0, buf.length);
       expect(bytesRead).toBe(0);
       await efs.close(fd);
@@ -1054,7 +1110,7 @@ describe('EncryptedFS', () => {
       const offset = 10;
       const length = 100;
       await efs.fallocate(fd, offset, length);
-      const stat = await efs.stat('allocate') as vfs.Stat;
+      const stat = (await efs.stat('allocate')) as vfs.Stat;
       expect(stat.size).toBe(offset + length);
       await efs.close(fd);
     });
@@ -1093,11 +1149,11 @@ describe('EncryptedFS', () => {
       });
       const fd = await efs.open(`allocate`, 'w');
       await efs.write(fd, Buffer.from('abc'));
-      const stat = await efs.stat(`allocate`) as vfs.Stat;
+      const stat = (await efs.stat(`allocate`)) as vfs.Stat;
       const offset = 0;
       const length = 8000;
       await efs.fallocate(fd, offset, length);
-      const stat2 = await efs.stat(`allocate`) as vfs.Stat;
+      const stat2 = (await efs.stat(`allocate`)) as vfs.Stat;
       expect(stat2.size).toEqual(offset + length);
       expect(stat2.ctime > stat.ctime).toEqual(true);
       expect(stat2.mtime).toEqual(stat.mtime);
@@ -1116,23 +1172,23 @@ describe('EncryptedFS', () => {
       });
       const str = 'abcdef';
       await efs.writeFile(`test`, str);
-      const stat = await efs.stat(`test`) as vfs.Stat;
+      const stat = (await efs.stat(`test`)) as vfs.Stat;
       await efs.truncate(`test`, str.length);
-      const stat2 = await efs.stat(`test`) as vfs.Stat;
+      const stat2 = (await efs.stat(`test`)) as vfs.Stat;
       expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(
         true,
       );
       const fd = await efs.open(`test`, 'r+');
       await efs.ftruncate(fd, str.length);
-      const stat3 = await efs.stat(`test`) as vfs.Stat;
-      expect(
-        stat2.mtime < stat3.mtime && stat2.ctime < stat3.ctime,
-      ).toEqual(true);
+      const stat3 = (await efs.stat(`test`)) as vfs.Stat;
+      expect(stat2.mtime < stat3.mtime && stat2.ctime < stat3.ctime).toEqual(
+        true,
+      );
       await efs.ftruncate(fd, str.length);
-      const stat4 = await efs.stat(`test`) as vfs.Stat;
-      expect(
-        stat3.mtime < stat4.mtime && stat3.ctime < stat4.ctime,
-      ).toEqual(true);
+      const stat4 = (await efs.stat(`test`)) as vfs.Stat;
+      expect(stat3.mtime < stat4.mtime && stat3.ctime < stat4.ctime).toEqual(
+        true,
+      );
       await efs.close(fd);
     });
   });
@@ -1150,7 +1206,7 @@ describe('EncryptedFS', () => {
       await efs.writeFile(`a`, 'data');
       await efs.symlink(`a`, `link-to-a`);
       await efs.lchown('link-to-a', 1000, 1000);
-      const stat = await efs.lstat(`link-to-a`) as vfs.Stat;
+      const stat = (await efs.lstat(`link-to-a`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(false);
       expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -1206,11 +1262,17 @@ describe('EncryptedFS', () => {
       await efs.writeFile(`test/hello-world.txt`, buffer);
       await efs.symlink(`test`, `linktotestdir`, 'dir');
       await expect(efs.readlink(`linktotestdir`)).resolves.toEqual(`test`);
-      await expect(efs.readdir(`linktotestdir`)).resolves.toContain('hello-world.txt');
+      await expect(efs.readdir(`linktotestdir`)).resolves.toContain(
+        'hello-world.txt',
+      );
       await efs.symlink(`linktotestdir/hello-world.txt`, `linktofile`);
       await efs.symlink(`linktofile`, `linktolink`);
-      await expect(efs.readFile(`linktofile`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
-      await expect(efs.readFile(`linktolink`, { encoding: 'utf-8' })).resolves.toEqual('Hello World');
+      await expect(
+        efs.readFile(`linktofile`, { encoding: 'utf-8' }),
+      ).resolves.toEqual('Hello World');
+      await expect(
+        efs.readFile(`linktolink`, { encoding: 'utf-8' }),
+      ).resolves.toEqual('Hello World');
     });
     test('unlink does not traverse symlinks', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1292,11 +1354,17 @@ describe('EncryptedFS', () => {
       await efs.writeFile('/test/hello-world.txt', buf);
       await efs.symlink('/test', '/linktotestdir');
       await expect(efs.readlink('/linktotestdir')).resolves.toBe('/test');
-      await expect(efs.readdir('/linktotestdir')).resolves.toEqual(['hello-world.txt']);
+      await expect(efs.readdir('/linktotestdir')).resolves.toEqual([
+        'hello-world.txt',
+      ]);
       await efs.symlink('/linktotestdir/hello-world.txt', '/linktofile');
       await efs.symlink('/linktofile', '/linktolink');
-      await expect(efs.readFile('/linktofile', { encoding: 'utf8' })).resolves.toBe('Hello World');
-      await expect(efs.readFile('/linktolink', { encoding: 'utf8' })).resolves.toBe('Hello World');
+      await expect(
+        efs.readFile('/linktofile', { encoding: 'utf8' }),
+      ).resolves.toBe('Hello World');
+      await expect(
+        efs.readFile('/linktolink', { encoding: 'utf8' }),
+      ).resolves.toBe('Hello World');
     });
     test('is able to traverse relative symlinks', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1312,7 +1380,9 @@ describe('EncryptedFS', () => {
       const buf = Buffer.from('Hello World');
       await efs.writeFile('/a', buf);
       await efs.symlink('../a', '/test/linktoa');
-      await expect(efs.readFile('/test/linktoa', { encoding: 'utf-8' })).resolves.toBe('Hello World');
+      await expect(
+        efs.readFile('/test/linktoa', { encoding: 'utf-8' }),
+      ).resolves.toBe('Hello World');
     });
   });
   describe('Hardlinks', () => {
@@ -1342,8 +1412,8 @@ describe('EncryptedFS', () => {
       await efs.mkdir(`test`);
       await efs.writeFile(`test/a`, '');
       await efs.link(`test/a`, `test/b`);
-      const inoA = (await efs.stat(`test/a`) as vfs.Stat).ino;
-      const inoB = (await efs.stat(`test/b`) as vfs.Stat).ino;
+      const inoA = ((await efs.stat(`test/a`)) as vfs.Stat).ino;
+      const inoB = ((await efs.stat(`test/b`)) as vfs.Stat).ino;
       expect(inoA).toEqual(inoB);
       const readB = await efs.readFile(`test/b`);
       await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
@@ -1362,7 +1432,7 @@ describe('EncryptedFS', () => {
       });
       await efs.mkdir('test');
       await efs.chown(`test`, 1000, 1000);
-      const stat = await efs.stat(`test`) as vfs.Stat;
+      const stat = (await efs.stat(`test`)) as vfs.Stat;
       expect(stat.uid).toEqual(1000);
       expect(stat.gid).toEqual(1000);
     });
@@ -1379,7 +1449,7 @@ describe('EncryptedFS', () => {
       });
       await efs.writeFile(`a`, 'abc');
       await efs.chmod(`a`, 0o000);
-      const stat = await efs.stat(`a`) as vfs.Stat;
+      const stat = (await efs.stat(`a`)) as vfs.Stat;
       expect(stat.mode).toEqual(vfs.constants.S_IFREG);
     });
 
@@ -1394,7 +1464,10 @@ describe('EncryptedFS', () => {
         logger,
       });
       await efs.mkdir(`test`, 0o644);
-      await efs.access(`test`, vfs.constants.F_OK | vfs.constants.R_OK | vfs.constants.W_OK);
+      await efs.access(
+        `test`,
+        vfs.constants.F_OK | vfs.constants.R_OK | vfs.constants.W_OK,
+      );
       await efs.chmod(`test`, 0o444);
       await efs.access(`test`, vfs.constants.F_OK | vfs.constants.R_OK);
     });
@@ -1415,23 +1488,26 @@ describe('EncryptedFS', () => {
       let stat;
       stat = await efs.stat('/file');
       expect(
-        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
-      ).toBe(
-        vfs.DEFAULT_FILE_PERM & (~umask)
-      );
+        stat.mode &
+          (vfs.constants.S_IRWXU |
+            vfs.constants.S_IRWXG |
+            vfs.constants.S_IRWXO),
+      ).toBe(vfs.DEFAULT_FILE_PERM & ~umask);
       stat = await efs.stat('/dir');
       expect(
-        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
-      ).toBe(
-        vfs.DEFAULT_DIRECTORY_PERM & (~umask)
-      );
+        stat.mode &
+          (vfs.constants.S_IRWXU |
+            vfs.constants.S_IRWXG |
+            vfs.constants.S_IRWXO),
+      ).toBe(vfs.DEFAULT_DIRECTORY_PERM & ~umask);
       // umask is not applied to symlinks
       stat = await efs.lstat('/symlink');
       expect(
-        (stat.mode & (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO))
-      ).toBe(
-        vfs.DEFAULT_SYMLINK_PERM
-      );
+        stat.mode &
+          (vfs.constants.S_IRWXU |
+            vfs.constants.S_IRWXG |
+            vfs.constants.S_IRWXO),
+      ).toBe(vfs.DEFAULT_SYMLINK_PERM);
     });
     test('non-root users can only chown uid if they own the file and they are chowning to themselves', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1493,42 +1569,28 @@ describe('EncryptedFS', () => {
       await efs.chmod('dir', 0o764);
       await efs.access(
         'testfile',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK |
-         vfs.constants.X_OK)
+        vfs.constants.R_OK | vfs.constants.W_OK | vfs.constants.X_OK,
       );
       await efs.access(
         'dir',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK |
-         vfs.constants.X_OK)
+        vfs.constants.R_OK | vfs.constants.W_OK | vfs.constants.X_OK,
       );
       efs.uid = 2000;
-      await efs.access(
-        'testfile',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK)
-      );
-      await efs.access(
-        'dir',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK)
-      );
-      await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
+      await efs.access('testfile', vfs.constants.R_OK | vfs.constants.W_OK);
+      await efs.access('dir', vfs.constants.R_OK | vfs.constants.W_OK);
+      await expect(
+        efs.access('testfile', vfs.constants.X_OK),
+      ).rejects.toThrow();
       await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
       efs.gid = 2000;
       await efs.access('testfile', vfs.constants.R_OK);
       await efs.access('dir', vfs.constants.R_OK);
-      await expect(efs.access(
-          'testfile',
-          (fs.constants.W_OK |
-           fs.constants.X_OK)
-        )).rejects.toThrow();
-      await expect(efs.access(
-          'dir',
-          (fs.constants.W_OK |
-           fs.constants.X_OK)
-        )).rejects.toThrow();
+      await expect(
+        efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK),
+      ).rejects.toThrow();
+      await expect(
+        efs.access('dir', fs.constants.W_OK | fs.constants.X_OK),
+      ).rejects.toThrow();
     });
     test('permissions are checked in stages of user, group then other (using chownSync)', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1551,15 +1613,11 @@ describe('EncryptedFS', () => {
       await efs.chmod('dir', 0o764);
       await efs.access(
         'testfile',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK |
-         vfs.constants.X_OK)
+        vfs.constants.R_OK | vfs.constants.W_OK | vfs.constants.X_OK,
       );
       await efs.access(
         'dir',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK |
-         vfs.constants.X_OK)
+        vfs.constants.R_OK | vfs.constants.W_OK | vfs.constants.X_OK,
       );
       efs.uid = vfs.DEFAULT_ROOT_UID;
       efs.uid = vfs.DEFAULT_ROOT_GID;
@@ -1567,17 +1625,11 @@ describe('EncryptedFS', () => {
       await efs.chown('dir', 2000, 1000);
       efs.uid = 1000;
       efs.gid = 1000;
-      await efs.access(
-        'testfile',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK)
-      );
-      await efs.access(
-        'dir',
-        (vfs.constants.R_OK |
-         vfs.constants.W_OK)
-      );
-      await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
+      await efs.access('testfile', vfs.constants.R_OK | vfs.constants.W_OK);
+      await efs.access('dir', vfs.constants.R_OK | vfs.constants.W_OK);
+      await expect(
+        efs.access('testfile', vfs.constants.X_OK),
+      ).rejects.toThrow();
       await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
       efs.uid = vfs.DEFAULT_ROOT_UID;
       efs.uid = vfs.DEFAULT_ROOT_GID;
@@ -1587,16 +1639,12 @@ describe('EncryptedFS', () => {
       efs.gid = 1000;
       await efs.access('testfile', vfs.constants.R_OK);
       await efs.access('dir', vfs.constants.R_OK);
-      await expect(efs.access(
-          'testfile',
-          (vfs.constants.W_OK |
-           vfs.constants.X_OK)
-        )).rejects.toThrow();
-      await expect(efs.access(
-          'dir',
-          (vfs.constants.W_OK |
-           vfs.constants.X_OK)
-        )).rejects.toThrow();
+      await expect(
+        efs.access('testfile', vfs.constants.W_OK | vfs.constants.X_OK),
+      ).rejects.toThrow();
+      await expect(
+        efs.access('dir', vfs.constants.W_OK | vfs.constants.X_OK),
+      ).rejects.toThrow();
     });
     test('--x-w-r-- permission staging', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1614,8 +1662,12 @@ describe('EncryptedFS', () => {
       await efs.chmod(`dir`, 0o111);
       efs.uid = 1000;
       efs.gid = 1000;
-      await expect(efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK)).rejects.toThrow();
-      await expect(efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK)).rejects.toThrow();
+      await expect(
+        efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK),
+      ).rejects.toThrow();
+      await expect(
+        efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK),
+      ).rejects.toThrow();
       await efs.access(`file`, vfs.constants.X_OK);
       await efs.access(`dir`, vfs.constants.X_OK);
     });
@@ -1637,7 +1689,7 @@ describe('EncryptedFS', () => {
       await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
       await expect(efs.open(`file`, 'r')).rejects.toThrow();
       await expect(efs.open(`file`, 'w')).rejects.toThrow();
-      const stat = await efs.stat(`file`) as vfs.Stat;
+      const stat = (await efs.stat(`file`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(true);
     });
 
@@ -1657,7 +1709,9 @@ describe('EncryptedFS', () => {
       efs.uid = 1000;
       efs.gid = 1000;
       await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
-      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
+        str,
+      );
       await expect(efs.open(`file`, 'w')).rejects.toThrow();
     });
     test('file permissions rw-', async () => {
@@ -1678,7 +1732,9 @@ describe('EncryptedFS', () => {
       await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
       const str = 'hello';
       await efs.writeFile(`file`, str);
-      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
+        str,
+      );
     });
     test('file permissions rwx', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1698,7 +1754,9 @@ describe('EncryptedFS', () => {
       await efs.access(`file`, vfs.constants.X_OK);
       const str = 'hello';
       await efs.writeFile(`file`, str);
-      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
+        str,
+      );
     });
 
     test('file permissions r-x', async () => {
@@ -1715,7 +1773,9 @@ describe('EncryptedFS', () => {
       await efs.writeFile(`file`, str);
       await efs.chmod(`file`, 0o500);
       await efs.access(`file`, vfs.constants.X_OK);
-      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
+        str,
+      );
     });
     test('file permissions -w-', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1790,7 +1850,7 @@ describe('EncryptedFS', () => {
       await efs.mkdir(`---`);
       await efs.chown('---', 1000, 1000);
       await efs.chmod(`---`, 0o000);
-      const stat = await efs.stat(`---`) as vfs.Stat;
+      const stat = (await efs.stat(`---`)) as vfs.Stat;
       expect(stat.isDirectory()).toStrictEqual(true);
       efs.uid = 1000;
       efs.gid = 1000;
@@ -1863,9 +1923,11 @@ describe('EncryptedFS', () => {
       await efs.chmod('rwx/a', 0o777);
       efs.uid = 1000;
       efs.gid = 1000;
-      await expect(efs.readFile(`rwx/a`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(
+        efs.readFile(`rwx/a`, { encoding: 'utf8' }),
+      ).resolves.toEqual(str);
       await expect(efs.readdir(`rwx`)).resolves.toContain('a');
-      const stat = await efs.stat(`rwx/a`) as vfs.Stat;
+      const stat = (await efs.stat(`rwx/a`)) as vfs.Stat;
       expect(stat.isFile()).toStrictEqual(true);
     });
     test('directory permissions r-x', async () => {
@@ -1896,9 +1958,11 @@ describe('EncryptedFS', () => {
       await expect(efs.readdir(`r-x`)).resolves.toContain('a');
       await expect(efs.readdir(`r-x`)).resolves.toContain('dir');
       // you can read the file
-      await expect(efs.readFile(`r-x/a`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(
+        efs.readFile(`r-x/a`, { encoding: 'utf8' }),
+      ).resolves.toEqual(str);
       // you can traverse into the directory
-      const stat = await efs.stat(`r-x/dir`) as vfs.Stat;
+      const stat = (await efs.stat(`r-x/dir`)) as vfs.Stat;
       expect(stat.isDirectory()).toStrictEqual(true);
       // you cannot delete the file
       await expect(efs.unlink(`r-x/a`)).rejects.toThrow();
@@ -1937,13 +2001,15 @@ describe('EncryptedFS', () => {
       const str = 'hello';
       await efs.writeFile(`-wx/a`, str);
       await efs.chmod(`-wx/a`, 0o777);
-      await expect(efs.readFile(`-wx/a`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(
+        efs.readFile(`-wx/a`, { encoding: 'utf8' }),
+      ).resolves.toEqual(str);
       await efs.unlink(`-wx/a`);
       await efs.mkdir(`-wx/dir`);
       efs.uid = 1000;
       efs.gid = 1000;
       await expect(efs.readdir(`-wx`)).rejects.toThrow();
-      const stat = await efs.stat(`-wx/dir`) as vfs.Stat;
+      const stat = (await efs.stat(`-wx/dir`)) as vfs.Stat;
       expect(stat.isDirectory()).toStrictEqual(true);
     });
     test('directory permissions --x', async () => {
@@ -1965,7 +2031,9 @@ describe('EncryptedFS', () => {
       await expect(efs.writeFile(`--x/b`, 'world')).rejects.toThrow();
       await expect(efs.unlink(`--x/a`)).rejects.toThrow();
       await expect(efs.readdir(`--x`)).rejects.toThrow();
-      await expect(efs.readFile(`--x/a`, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(
+        efs.readFile(`--x/a`, { encoding: 'utf8' }),
+      ).resolves.toEqual(str);
     });
     test('permissions dont affect already opened fd', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -1982,7 +2050,9 @@ describe('EncryptedFS', () => {
       await efs.chmod(`file`, 0o777);
       const fd = await efs.open(`file`, 'r+');
       await efs.chmod(`file`, 0o000);
-      await expect(efs.readFile(fd, { encoding: 'utf8' })).resolves.toEqual(str);
+      await expect(efs.readFile(fd, { encoding: 'utf8' })).resolves.toEqual(
+        str,
+      );
       await efs.close(fd);
     });
     test('chownr changes uid and gid recursively', async () => {
@@ -1999,24 +2069,24 @@ describe('EncryptedFS', () => {
       await efs.writeFile('/dir/a', 'hello');
       await efs.writeFile('/dir/b', 'world');
       await efs.chownr('/dir', 1000, 2000);
-      let stat = await efs.stat('/dir') as vfs.Stat;
+      let stat = (await efs.stat('/dir')) as vfs.Stat;
       expect(stat.uid).toBe(1000);
       expect(stat.gid).toBe(2000);
-      stat = await efs.stat('/dir/a') as vfs.Stat;
+      stat = (await efs.stat('/dir/a')) as vfs.Stat;
       expect(stat.uid).toBe(1000);
       expect(stat.gid).toBe(2000);
-      stat = await efs.stat('/dir/b') as vfs.Stat;
+      stat = (await efs.stat('/dir/b')) as vfs.Stat;
       expect(stat.uid).toBe(1000);
       expect(stat.gid).toBe(2000);
       await efs.writeFile('/file', 'hello world');
       await efs.chownr('/file', 1000, 2000);
-      stat = await efs.stat('/file') as vfs.Stat;
+      stat = (await efs.stat('/file')) as vfs.Stat;
       expect(stat.uid).toBe(1000);
       expect(stat.gid).toBe(2000);
     });
   });
   describe('Streams', () => {
-    test('readstream usage - \'for await\'', async () => {
+    test("readstream usage - 'for await'", async () => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -2039,7 +2109,7 @@ describe('EncryptedFS', () => {
       }
       expect(readString).toBe(str);
     });
-    test('readstream usage - \'event readable\'', async (done) => {
+    test("readstream usage - 'event readable'", async (done) => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -2060,7 +2130,7 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', () => {
@@ -2068,7 +2138,7 @@ describe('EncryptedFS', () => {
         done();
       });
     });
-    test('readstream usage - \'event data\'', async (done) => {
+    test("readstream usage - 'event data'", async (done) => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
@@ -2115,11 +2185,11 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', () => {
-        expect(data).toBe(str.slice(1,4));
+        expect(data).toBe(str.slice(1, 4));
         done();
       });
     });
@@ -2177,7 +2247,7 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', () => {
@@ -2206,7 +2276,7 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', () => {
@@ -2238,7 +2308,7 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', () => {
@@ -2269,7 +2339,7 @@ describe('EncryptedFS', () => {
       let data = '';
       readable.on('readable', () => {
         while ((chunk = readable.read()) != null) {
-            data += chunk;
+          data += chunk;
         }
       });
       readable.on('end', async () => {
@@ -2334,7 +2404,7 @@ describe('EncryptedFS', () => {
       });
       const str = 'Hello';
       const fileName = `file`;
-      const writable = await efs.createWriteStream(fileName, {})
+      const writable = await efs.createWriteStream(fileName, {});
       writable.end(str, async () => {
         const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
         console.log(readStr);
@@ -2379,7 +2449,9 @@ describe('EncryptedFS', () => {
         logger,
       });
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', { highWaterMark: waterMark });
+      const writable = await efs.createWriteStream('file', {
+        highWaterMark: waterMark,
+      });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
       const times = 4;
       for (let i = 0; i < times; ++i) {
@@ -2402,10 +2474,12 @@ describe('EncryptedFS', () => {
         logger,
       });
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', { highWaterMark: waterMark });
+      const writable = await efs.createWriteStream('file', {
+        highWaterMark: waterMark,
+      });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
       let times = 10;
-      const timesOrig  = times;
+      const timesOrig = times;
       const writing = () => {
         let status;
         do {
@@ -2448,1527 +2522,1514 @@ describe('EncryptedFS', () => {
     });
   });
 
-      // test('write then read - single block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const fd = await efs.open(`test.txt`, 'w+');
-    //   const writeBuffer = Buffer.from('Super confidential information');
-    //   const bytesWritten = await efs.write(fd, writeBuffer);
-    //   expect(bytesWritten).toEqual(writeBuffer.length);
-    //   const readBuffer = Buffer.alloc(writeBuffer.length);
-    //   const bytesRead = await efs.read(fd, readBuffer);
-    //   expect(bytesRead).toEqual(bytesWritten);
-    //   expect(writeBuffer).toStrictEqual(readBuffer);
-    // });
-    // test('write then read - multiple blocks', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const fd = await efs.open(`test.txt`, 'w+');
-    //   const blockSize = 4096;
-    //   // Write data
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const bytesWritten = await efs.write(fd, writeBuffer);
-    //   expect(bytesWritten).toEqual(writeBuffer.length);
-    //   // Read data back
-    //   const readBuffer = Buffer.alloc(writeBuffer.length);
-    //   const bytesRead = await efs.read(fd, readBuffer);
-    //   expect(bytesRead).toEqual(bytesWritten);
-    //   expect(writeBuffer).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of start block - with text buffer', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // Define file descriptor
-    //   const filename = `test_middle_text.txt`;
-    //   const fd = await efs.open(filename, 'w+');
-    //   // Write initial data
-    //   const writeBuffer = Buffer.alloc(blockSize);
-    //   writeBuffer.write('one two three four five six seven eight nine ten');
-    //   await efs.write(fd, writeBuffer);
-    //   // write data in the middle
-    //   const middlePosition = 240;
-    //   const middleText = ' Malcom in the middle ';
-    //   const middleData = Buffer.from(middleText);
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(expected).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of start block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const filename = `test_middle.txt`;
-    //   const fd = await efs.open(filename, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middlePosition = 2000;
-    //   const middleText = 'Malcom in the';
-    //   const middleData = Buffer.from(middleText);
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(expected).toStrictEqual(readBuffer);
-    // });
-    // test('write non-zero position - middle of middle block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const filename = `test_middle.txt`;
-    //   let fd = await efs.open(filename, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middlePosition = blockSize + 2000;
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   fd = await efs.open(filename, 'r+');
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, middlePosition);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
-
-    // test('write non-zero position - middle of end block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writePos = 2 * blockSize + 2000;
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const fd = await efs.open(`test_middle.txt`, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, writePos);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
-    // test('write segment spanning across two block', async () => {
-    //   const efs = await EncryptedFS.createEncryptedFS({
-    //     dbKey,
-    //     dbPath,
-    //     db,
-    //     devMgr,
-    //     iNodeMgr,
-    //     umask: 0o022,
-    //     logger,
-    //   });
-    //   const blockSize = 4096;
-    //   // write a three block file
-    //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
-    //   const fd = await efs.open(`test_middle.txt`, 'w+');
-    //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
-    //   // write data in the middle
-    //   const writePos = 4090;
-    //   const middleData = Buffer.from('Malcom in the');
-    //   await efs.write(fd, middleData, 0, middleData.length, writePos);
-    //   // re-read the blocks
-    //   const readBuffer = Buffer.alloc(blockSize * 3);
-    //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
-    //   middleData.copy(writeBuffer, writePos);
-    //   const expected = writeBuffer;
-    //   expect(readBuffer).toEqual(expected);
-    // });
-
-// ////////////////////////
-// // Bisimulation tests //
-// ////////////////////////
-// describe('bisimulation with nodejs fs tests', () => {
-//   let efsdataDir: string;
-//   let fsdataDir: string;
-//   beforeEach(() => {
-//     efsdataDir = `efsTesting`;
-//     fsdataDir = `${dataDir}/fsTesting`;
-//   });
-
-//   describe('one set of read/write operations', () => {
-//     describe('one set of read/write operations - 1 block', () => {
-//       test('one set of read/write operations - 1 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<---------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 1 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<-------->--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           0,
-//           3000,
-//           0,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           0,
-//           3000,
-//           0,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 1 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<-------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           3096,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 3096, 1000);
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           3096,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 3096, 1000);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 1 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<------>--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2000,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 2000, 1000);
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2000,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 2000, 1000);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//     describe('one set of read/write operations - 2 block', () => {
-//       test('one set of read/write operations - 2 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<---------->|<---------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 2 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<---------->|<-------->--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           0,
-//           6000,
-//           0,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           0,
-//           6000,
-//           0,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 2 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<-------->|<---------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2 * blockSize - 1000,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           1000,
-//           2 * blockSize - 1000,
-//           1000,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2 * blockSize - 1000,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(
-//           fsFd,
-//           fsFirstReadBuffer,
-//           1000,
-//           2 * blockSize - 1000,
-//           1000,
-//         );
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 2 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<-------->|<-------->--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           6000,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 6000, 1000);
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           6000,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 6000, 1000);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//     describe('one set of read/write operations - 3 block', () => {
-//       test('one set of read/write operations - 3 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<---------->|<---------->|<---------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//       });
-
-//       test('one set of read/write operations - 3 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |<---------->|<---------->|<-------->--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           0,
-//           2 * blockSize + 1000,
-//           0,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           0,
-//           2 * blockSize + 1000,
-//           0,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 3 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<-------->|<---------->|<---------->|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           3 * blockSize - 1000,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           1000,
-//           3 * blockSize - 1000,
-//           1000,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           3 * blockSize - 1000,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(
-//           fsFd,
-//           fsFirstReadBuffer,
-//           1000,
-//           3 * blockSize - 1000,
-//           1000,
-//         );
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('one set of read/write operations - 3 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // case: |--<-------->|<---------->|<-------->--|
-//         const blockSize = 4096;
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         const efsFd = efs.openSync(efsFilename, 'w+');
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2 * blockSize + 1000,
-//           1000,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           1000,
-//           2 * blockSize + 1000,
-//           1000,
-//         );
-
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         const fsFd = fs.openSync(fsFilename, 'w+');
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           1000,
-//           2 * blockSize + 1000,
-//           1000,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(
-//           fsFd,
-//           fsFirstReadBuffer,
-//           1000,
-//           2 * blockSize + 1000,
-//           1000,
-//         );
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//   });
-
-//   describe('read/write operations on existing 3 block file', () => {
-//     let efsFd: number;
-//     let fsFd: number;
-//     const blockSize = 20;
-//     // Write 3 block file
-//     // case: |<---------->|<---------->|<---------->|
-//     const WriteBuffer = crypto.randomBytes(3 * blockSize);
-
-//     describe('read/write operations on existing 3 block file - one set of read/write operations - 1 block', () => {
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<---------->|<==========>|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         const offset = 0;
-//         const length = blockSize;
-//         const position = 0;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<-------->==|<==========>|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         const offset = 0;
-//         const length = Math.ceil(blockSize * 0.8);
-//         const position = 0;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<-------->|<==========>|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = blockSize - offset;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<------>==|<==========>|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = Math.ceil(blockSize * 0.6);
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//     describe('read/write operations on existing 3 block file - one set of read/write operations - 2 block', () => {
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<---------->|<---------->|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         const offset = 0;
-//         const length = 2 * blockSize;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<---------->|<-------->==|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         const offset = 0;
-//         const length = blockSize + Math.ceil(blockSize * 0.8);
-//         const position = 0;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           offset,
-//           efsFirstReadBuffer.length,
-//           position,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(
-//           fsFd,
-//           fsFirstReadBuffer,
-//           offset,
-//           fsFirstReadBuffer.length,
-//           position,
-//         );
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<-------->|<---------->|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = 2 * blockSize - offset;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<-------->|<-------->==|<==========>|
-//         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = 2 * (blockSize - offset);
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//     describe('read/write operations on existing 3 block file - one set of read/write operations - 3 block', () => {
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - full block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<---------->|<---------->|<---------->|
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         const offset = 0;
-//         const length = 3 * blockSize;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - left block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |<---------->|<---------->|<-------->==|
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         const offset = 0;
-//         const length = 3 * blockSize - Math.ceil(blockSize * 0.2);
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(
-//           efsFd,
-//           efsFirstReadBuffer,
-//           0,
-//           efsFirstReadBuffer.length,
-//           0,
-//         );
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - right block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<-------->|<---------->|<---------->|
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = 3 * blockSize - offset;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-
-//       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - not block aligned', () => {
-//         const efs = new EncryptedFS(key, fs, dataDir);
-//         efs.mkdirSync(efsdataDir);
-//         fs.mkdirSync(fsdataDir);
-//         // efs
-//         const efsFilename = `${efsdataDir}/file`;
-//         efsFd = efs.openSync(efsFilename, 'w+');
-//         efs.writeSync(efsFd, WriteBuffer);
-//         // fs
-//         const fsFilename = `${fsdataDir}/file`;
-//         fsFd = fs.openSync(fsFilename, 'w+');
-//         fs.writeSync(fsFd, WriteBuffer);
-//         // case: |==<-------->|<---------->|<-------->==|
-//         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
-//         const offset = Math.ceil(blockSize * 0.2);
-//         const length = 3 * blockSize - 2 * offset;
-//         const position = offset;
-//         // efs
-//         const efsFirstBytesWritten = efs.writeSync(
-//           efsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
-
-//         // fs
-//         const fsFirstBytesWritten = fs.writeSync(
-//           fsFd,
-//           firstWriteBuffer,
-//           offset,
-//           length,
-//           position,
-//         );
-//         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
-//         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
-
-//         // Comparison
-//         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
-//         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//         efs.rmdirSync(efsdataDir, { recursive: true });
-//         fs.mkdirSync(fsdataDir, { recursive: true });
-//       });
-//     });
-//   });
-
-//   describe('readFile/writeFile operations', () => {
-//     const blockSize = 4096;
-
-//     test('readFile/writeFile operations - under block size', () => {
-//       const efs = new EncryptedFS(key, fs, dataDir);
-//       efs.mkdirSync(efsdataDir);
-//       fs.mkdirSync(fsdataDir);
-//       const firstWriteBuffer = crypto.randomBytes(
-//         Math.ceil(blockSize * Math.random()),
-//       );
-//       // efs
-//       const efsFilename = `${efsdataDir}/file`;
-//       efs.writeFileSync(efsFilename, firstWriteBuffer);
-//       const efsFirstReadBuffer = efs.readFileSync(efsFilename);
-
-//       // fs
-//       const fsFilename = `${fsdataDir}/file`;
-//       fs.writeFileSync(fsFilename, firstWriteBuffer);
-//       const fsFirstReadBuffer = fs.readFileSync(fsFilename);
-
-//       // Comparison
-//       expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//       efs.rmdirSync(efsdataDir, { recursive: true });
-//       fs.mkdirSync(fsdataDir, { recursive: true });
-//     });
-
-//     test('readFile/writeFile operations - over block size', () => {
-//       const efs = new EncryptedFS(key, fs, dataDir);
-//       efs.mkdirSync(efsdataDir);
-//       fs.mkdirSync(fsdataDir);
-//       const firstWriteBuffer = crypto.randomBytes(
-//         Math.ceil(blockSize + blockSize * Math.random()),
-//       );
-//       // efs
-//       const efsFilename = `${efsdataDir}/file`;
-//       efs.writeFileSync(efsFilename, firstWriteBuffer);
-//       const efsFirstReadBuffer = efs.readFileSync(efsFilename);
-
-//       // fs
-//       const fsFilename = `${fsdataDir}/file`;
-//       fs.writeFileSync(fsFilename, firstWriteBuffer);
-//       const fsFirstReadBuffer = fs.readFileSync(fsFilename);
-
-//       // Comparison
-//       expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
-//       efs.rmdirSync(efsdataDir, { recursive: true });
-//       fs.mkdirSync(fsdataDir, { recursive: true });
-//     });
-//   });
-// });
-
-// describe('aynchronous worker tests', () => {
-//   test('encryption and decryption using workers - read/write', async () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const workerManager = new WorkerManager({ logger });
-//     await workerManager.start();
-//     const plainBuf = Buffer.from('very important secret');
-//     const deciphered = Buffer.from(plainBuf).fill(0);
-//     const fd = efs.openSync('test', 'w+');
-//     efs.setWorkerManager(workerManager);
-//     await utils.promisify(efs.write.bind(efs))(
-//       fd,
-//       plainBuf,
-//       0,
-//       plainBuf.length,
-//       0,
-//     );
-//     await utils.promisify(efs.read.bind(efs))(
-//       fd,
-//       deciphered,
-//       0,
-//       deciphered.length,
-//       0,
-//     );
-//     expect(deciphered).toStrictEqual(plainBuf);
-//     efs.unsetWorkerManager();
-//     await workerManager.stop();
-//   });
-
-//   test('encryption and decryption using workers', async () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const workerManager = new WorkerManager({ logger });
-//     await workerManager.start();
-//     const plainBuf = Buffer.from('very important secret');
-//     efs.setWorkerManager(workerManager);
-//     await utils.promisify(efs.writeFile.bind(efs))(`test`, plainBuf, {});
-//     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
-//       `test`,
-//       {},
-//     );
-//     expect(deciphered).toStrictEqual(plainBuf);
-//     efs.unsetWorkerManager();
-//     await workerManager.stop();
-//   });
-
-//   test('encryption and decryption using workers for encryption but not decryption', async () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const workerManager = new WorkerManager({ logger });
-//     await workerManager.start();
-//     const plainBuf = Buffer.from('very important secret');
-//     efs.setWorkerManager(workerManager);
-//     await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
-//     efs.unsetWorkerManager();
-//     await workerManager.stop();
-//     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
-//       `test`,
-//       {},
-//     );
-//     expect(deciphered).toStrictEqual(plainBuf);
-//   });
-
-//   test('encryption and decryption using workers for decryption but not encryption', async () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const workerManager = new WorkerManager({ logger });
-//     await workerManager.start();
-//     const plainBuf = Buffer.from('very important secret');
-//     await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
-//     efs.setWorkerManager(workerManager);
-//     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
-//       `test`,
-//       {},
-//     );
-//     expect(deciphered).toStrictEqual(plainBuf);
-//     efs.unsetWorkerManager();
-//     await workerManager.stop();
-//   });
-// });
-
-// describe('vfs chache', () => {
-//   test('read file cache', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const buffer = Buffer.from('Hello World', 'utf8');
-//     efs.writeFileSync(`hello-world`, buffer);
-//     expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
-//     const efs2 = new EncryptedFS(key, fs, dataDir);
-//     expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
-//   });
-//   test('read cache', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const buffer = Buffer.from('Hello World', 'utf8');
-//     efs.writeFileSync(`hello-world`, buffer);
-//     expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
-//     const efs2 = new EncryptedFS(key, fs, dataDir);
-//     expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
-//   });
-//   test('block cache using block mapping', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const buffer = Buffer.from('Hello World', 'utf8');
-//     const bufferRead = Buffer.from(buffer).fill(0);
-//     const fd = efs.openSync('hello-world', 'w+');
-//     efs.writeSync(fd, buffer, 0, buffer.length, 5000);
-//     efs.closeSync(fd);
-//     const fd2 = efs.openSync('hello-world', 'r+');
-//     efs.readSync(fd2, bufferRead, 0, buffer.length, 5000);
-//     expect(bufferRead).toEqual(buffer);
-//     efs.closeSync(fd2);
-//   });
-//   test('block cache not using block mapping', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const buffer = Buffer.from('Hello World', 'utf8');
-//     const bufferRead = Buffer.from(buffer).fill(0);
-//     const fd = efs.openSync('hello-world', 'w+');
-//     efs.writeSync(fd, buffer, 0, buffer.length, 5000);
-//     efs.closeSync(fd);
-//     const efs2 = new EncryptedFS(key, fs, dataDir);
-//     const fd2 = efs2.openSync('hello-world', 'r+');
-//     efs2.readSync(fd2, bufferRead, 0, buffer.length, 5000);
-//     expect(bufferRead).toEqual(buffer);
-//     efs2.closeSync(fd2);
-//   });
-//   test('access rights are retreived from cache', () => {
-//     const efs = new EncryptedFS(key, fs, dataDir);
-//     const buffer = Buffer.from('Hello World', 'utf8');
-//     efs.writeFileSync('hello-world', buffer);
-//     efs.setuid(1000);
-//     efs.setgid(1000);
-//     efs.accessSync('hello-world', efs.constants.R_OK);
-//     efs.setuid(0);
-//     efs.setgid(0);
-//     efs.chmodSync('hello-world', 0o333);
-//     const efs2 = new EncryptedFS(key, fs, dataDir);
-//     efs2.setuid(1000);
-//     efs2.setgid(1000);
-//     expect(() => {
-//       efs2.accessSync('hello-world', efs2.constants.R_OK);
-//     }).toThrow();
-//   });
-// });
-// });
-
-
-
-
-
-
-
-
-
-
-
-
-
+  // test('write then read - single block', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const fd = await efs.open(`test.txt`, 'w+');
+  //   const writeBuffer = Buffer.from('Super confidential information');
+  //   const bytesWritten = await efs.write(fd, writeBuffer);
+  //   expect(bytesWritten).toEqual(writeBuffer.length);
+  //   const readBuffer = Buffer.alloc(writeBuffer.length);
+  //   const bytesRead = await efs.read(fd, readBuffer);
+  //   expect(bytesRead).toEqual(bytesWritten);
+  //   expect(writeBuffer).toStrictEqual(readBuffer);
+  // });
+  // test('write then read - multiple blocks', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const fd = await efs.open(`test.txt`, 'w+');
+  //   const blockSize = 4096;
+  //   // Write data
+  //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+  //   const bytesWritten = await efs.write(fd, writeBuffer);
+  //   expect(bytesWritten).toEqual(writeBuffer.length);
+  //   // Read data back
+  //   const readBuffer = Buffer.alloc(writeBuffer.length);
+  //   const bytesRead = await efs.read(fd, readBuffer);
+  //   expect(bytesRead).toEqual(bytesWritten);
+  //   expect(writeBuffer).toStrictEqual(readBuffer);
+  // });
+  // test('write non-zero position - middle of start block - with text buffer', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const blockSize = 4096;
+  //   // Define file descriptor
+  //   const filename = `test_middle_text.txt`;
+  //   const fd = await efs.open(filename, 'w+');
+  //   // Write initial data
+  //   const writeBuffer = Buffer.alloc(blockSize);
+  //   writeBuffer.write('one two three four five six seven eight nine ten');
+  //   await efs.write(fd, writeBuffer);
+  //   // write data in the middle
+  //   const middlePosition = 240;
+  //   const middleText = ' Malcom in the middle ';
+  //   const middleData = Buffer.from(middleText);
+  //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+  //   // re-read the blocks
+  //   const readBuffer = Buffer.alloc(blockSize);
+  //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+  //   middleData.copy(writeBuffer, middlePosition);
+  //   const expected = writeBuffer;
+  //   expect(expected).toStrictEqual(readBuffer);
+  // });
+  // test('write non-zero position - middle of start block', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const blockSize = 4096;
+  //   // write a three block file
+  //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+  //   const filename = `test_middle.txt`;
+  //   const fd = await efs.open(filename, 'w+');
+  //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+  //   // write data in the middle
+  //   const middlePosition = 2000;
+  //   const middleText = 'Malcom in the';
+  //   const middleData = Buffer.from(middleText);
+  //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+  //   // re-read the blocks
+  //   const readBuffer = Buffer.alloc(blockSize * 3);
+  //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+  //   middleData.copy(writeBuffer, middlePosition);
+  //   const expected = writeBuffer;
+  //   expect(expected).toStrictEqual(readBuffer);
+  // });
+  // test('write non-zero position - middle of middle block', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const blockSize = 4096;
+  //   // write a three block file
+  //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+  //   const filename = `test_middle.txt`;
+  //   let fd = await efs.open(filename, 'w+');
+  //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+  //   // write data in the middle
+  //   const middlePosition = blockSize + 2000;
+  //   const middleData = Buffer.from('Malcom in the');
+  //   await efs.write(fd, middleData, 0, middleData.length, middlePosition);
+  //   // re-read the blocks
+  //   const readBuffer = Buffer.alloc(blockSize * 3);
+  //   fd = await efs.open(filename, 'r+');
+  //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+  //   middleData.copy(writeBuffer, middlePosition);
+  //   const expected = writeBuffer;
+  //   expect(readBuffer).toEqual(expected);
+  // });
+
+  // test('write non-zero position - middle of end block', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const blockSize = 4096;
+  //   // write a three block file
+  //   const writePos = 2 * blockSize + 2000;
+  //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+  //   const fd = await efs.open(`test_middle.txt`, 'w+');
+  //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+  //   // write data in the middle
+  //   const middleData = Buffer.from('Malcom in the');
+  //   await efs.write(fd, middleData, 0, middleData.length, writePos);
+  //   // re-read the blocks
+  //   const readBuffer = Buffer.alloc(blockSize * 3);
+  //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+  //   middleData.copy(writeBuffer, writePos);
+  //   const expected = writeBuffer;
+  //   expect(readBuffer).toEqual(expected);
+  // });
+  // test('write segment spanning across two block', async () => {
+  //   const efs = await EncryptedFS.createEncryptedFS({
+  //     dbKey,
+  //     dbPath,
+  //     db,
+  //     devMgr,
+  //     iNodeMgr,
+  //     umask: 0o022,
+  //     logger,
+  //   });
+  //   const blockSize = 4096;
+  //   // write a three block file
+  //   const writeBuffer = await utils.getRandomBytes(blockSize * 3);
+  //   const fd = await efs.open(`test_middle.txt`, 'w+');
+  //   await efs.write(fd, writeBuffer, 0, writeBuffer.length, 0);
+  //   // write data in the middle
+  //   const writePos = 4090;
+  //   const middleData = Buffer.from('Malcom in the');
+  //   await efs.write(fd, middleData, 0, middleData.length, writePos);
+  //   // re-read the blocks
+  //   const readBuffer = Buffer.alloc(blockSize * 3);
+  //   await efs.read(fd, readBuffer, 0, readBuffer.length, 0);
+  //   middleData.copy(writeBuffer, writePos);
+  //   const expected = writeBuffer;
+  //   expect(readBuffer).toEqual(expected);
+  // });
+
+  // ////////////////////////
+  // // Bisimulation tests //
+  // ////////////////////////
+  // describe('bisimulation with nodejs fs tests', () => {
+  //   let efsdataDir: string;
+  //   let fsdataDir: string;
+  //   beforeEach(() => {
+  //     efsdataDir = `efsTesting`;
+  //     fsdataDir = `${dataDir}/fsTesting`;
+  //   });
+
+  //   describe('one set of read/write operations', () => {
+  //     describe('one set of read/write operations - 1 block', () => {
+  //       test('one set of read/write operations - 1 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<---------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 1 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<-------->--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           3000,
+  //           0,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           3000,
+  //           0,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 1 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<-------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           3096,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 3096, 1000);
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           3096,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 3096, 1000);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 1 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<------>--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2000,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 2000, 1000);
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2000,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 2000, 1000);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //     describe('one set of read/write operations - 2 block', () => {
+  //       test('one set of read/write operations - 2 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<---------->|<---------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 2 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<---------->|<-------->--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           6000,
+  //           0,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           6000,
+  //           0,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 2 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<-------->|<---------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2 * blockSize - 1000,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           1000,
+  //           2 * blockSize - 1000,
+  //           1000,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2 * blockSize - 1000,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(
+  //           fsFd,
+  //           fsFirstReadBuffer,
+  //           1000,
+  //           2 * blockSize - 1000,
+  //           1000,
+  //         );
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 2 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<-------->|<-------->--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           6000,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, 1000, 6000, 1000);
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           6000,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 1000, 6000, 1000);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //     describe('one set of read/write operations - 3 block', () => {
+  //       test('one set of read/write operations - 3 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<---------->|<---------->|<---------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(efsFd, firstWriteBuffer);
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(fsFd, firstWriteBuffer);
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //       });
+
+  //       test('one set of read/write operations - 3 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |<---------->|<---------->|<-------->--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           2 * blockSize + 1000,
+  //           0,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           0,
+  //           2 * blockSize + 1000,
+  //           0,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 3 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<-------->|<---------->|<---------->|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           3 * blockSize - 1000,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           1000,
+  //           3 * blockSize - 1000,
+  //           1000,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           3 * blockSize - 1000,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(
+  //           fsFd,
+  //           fsFirstReadBuffer,
+  //           1000,
+  //           3 * blockSize - 1000,
+  //           1000,
+  //         );
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('one set of read/write operations - 3 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // case: |--<-------->|<---------->|<-------->--|
+  //         const blockSize = 4096;
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         const efsFd = efs.openSync(efsFilename, 'w+');
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2 * blockSize + 1000,
+  //           1000,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           1000,
+  //           2 * blockSize + 1000,
+  //           1000,
+  //         );
+
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         const fsFd = fs.openSync(fsFilename, 'w+');
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           1000,
+  //           2 * blockSize + 1000,
+  //           1000,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(
+  //           fsFd,
+  //           fsFirstReadBuffer,
+  //           1000,
+  //           2 * blockSize + 1000,
+  //           1000,
+  //         );
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //   });
+
+  //   describe('read/write operations on existing 3 block file', () => {
+  //     let efsFd: number;
+  //     let fsFd: number;
+  //     const blockSize = 20;
+  //     // Write 3 block file
+  //     // case: |<---------->|<---------->|<---------->|
+  //     const WriteBuffer = crypto.randomBytes(3 * blockSize);
+
+  //     describe('read/write operations on existing 3 block file - one set of read/write operations - 1 block', () => {
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<---------->|<==========>|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         const offset = 0;
+  //         const length = blockSize;
+  //         const position = 0;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<-------->==|<==========>|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         const offset = 0;
+  //         const length = Math.ceil(blockSize * 0.8);
+  //         const position = 0;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<-------->|<==========>|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = blockSize - offset;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 1 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<------>==|<==========>|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = Math.ceil(blockSize * 0.6);
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //     describe('read/write operations on existing 3 block file - one set of read/write operations - 2 block', () => {
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<---------->|<---------->|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         const offset = 0;
+  //         const length = 2 * blockSize;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<---------->|<-------->==|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         const offset = 0;
+  //         const length = blockSize + Math.ceil(blockSize * 0.8);
+  //         const position = 0;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           offset,
+  //           efsFirstReadBuffer.length,
+  //           position,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(
+  //           fsFd,
+  //           fsFirstReadBuffer,
+  //           offset,
+  //           fsFirstReadBuffer.length,
+  //           position,
+  //         );
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<-------->|<---------->|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = 2 * blockSize - offset;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 2 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<-------->|<-------->==|<==========>|
+  //         const firstWriteBuffer = crypto.randomBytes(2 * blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = 2 * (blockSize - offset);
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(2 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //     describe('read/write operations on existing 3 block file - one set of read/write operations - 3 block', () => {
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - full block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<---------->|<---------->|<---------->|
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         const offset = 0;
+  //         const length = 3 * blockSize;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - left block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |<---------->|<---------->|<-------->==|
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         const offset = 0;
+  //         const length = 3 * blockSize - Math.ceil(blockSize * 0.2);
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(
+  //           efsFd,
+  //           efsFirstReadBuffer,
+  //           0,
+  //           efsFirstReadBuffer.length,
+  //           0,
+  //         );
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, 0, fsFirstReadBuffer.length, 0);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - right block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<-------->|<---------->|<---------->|
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = 3 * blockSize - offset;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+
+  //       test('read/write operations on existing 3 block file - one set of read/write operations - 3 block - not block aligned', () => {
+  //         const efs = new EncryptedFS(key, fs, dataDir);
+  //         efs.mkdirSync(efsdataDir);
+  //         fs.mkdirSync(fsdataDir);
+  //         // efs
+  //         const efsFilename = `${efsdataDir}/file`;
+  //         efsFd = efs.openSync(efsFilename, 'w+');
+  //         efs.writeSync(efsFd, WriteBuffer);
+  //         // fs
+  //         const fsFilename = `${fsdataDir}/file`;
+  //         fsFd = fs.openSync(fsFilename, 'w+');
+  //         fs.writeSync(fsFd, WriteBuffer);
+  //         // case: |==<-------->|<---------->|<-------->==|
+  //         const firstWriteBuffer = crypto.randomBytes(3 * blockSize);
+  //         const offset = Math.ceil(blockSize * 0.2);
+  //         const length = 3 * blockSize - 2 * offset;
+  //         const position = offset;
+  //         // efs
+  //         const efsFirstBytesWritten = efs.writeSync(
+  //           efsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const efsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         efs.readSync(efsFd, efsFirstReadBuffer, offset, length, position);
+
+  //         // fs
+  //         const fsFirstBytesWritten = fs.writeSync(
+  //           fsFd,
+  //           firstWriteBuffer,
+  //           offset,
+  //           length,
+  //           position,
+  //         );
+  //         const fsFirstReadBuffer = Buffer.alloc(3 * blockSize);
+  //         fs.readSync(fsFd, fsFirstReadBuffer, offset, length, position);
+
+  //         // Comparison
+  //         expect(efsFirstBytesWritten).toEqual(fsFirstBytesWritten);
+  //         expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //         efs.rmdirSync(efsdataDir, { recursive: true });
+  //         fs.mkdirSync(fsdataDir, { recursive: true });
+  //       });
+  //     });
+  //   });
+
+  //   describe('readFile/writeFile operations', () => {
+  //     const blockSize = 4096;
+
+  //     test('readFile/writeFile operations - under block size', () => {
+  //       const efs = new EncryptedFS(key, fs, dataDir);
+  //       efs.mkdirSync(efsdataDir);
+  //       fs.mkdirSync(fsdataDir);
+  //       const firstWriteBuffer = crypto.randomBytes(
+  //         Math.ceil(blockSize * Math.random()),
+  //       );
+  //       // efs
+  //       const efsFilename = `${efsdataDir}/file`;
+  //       efs.writeFileSync(efsFilename, firstWriteBuffer);
+  //       const efsFirstReadBuffer = efs.readFileSync(efsFilename);
+
+  //       // fs
+  //       const fsFilename = `${fsdataDir}/file`;
+  //       fs.writeFileSync(fsFilename, firstWriteBuffer);
+  //       const fsFirstReadBuffer = fs.readFileSync(fsFilename);
+
+  //       // Comparison
+  //       expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //       efs.rmdirSync(efsdataDir, { recursive: true });
+  //       fs.mkdirSync(fsdataDir, { recursive: true });
+  //     });
+
+  //     test('readFile/writeFile operations - over block size', () => {
+  //       const efs = new EncryptedFS(key, fs, dataDir);
+  //       efs.mkdirSync(efsdataDir);
+  //       fs.mkdirSync(fsdataDir);
+  //       const firstWriteBuffer = crypto.randomBytes(
+  //         Math.ceil(blockSize + blockSize * Math.random()),
+  //       );
+  //       // efs
+  //       const efsFilename = `${efsdataDir}/file`;
+  //       efs.writeFileSync(efsFilename, firstWriteBuffer);
+  //       const efsFirstReadBuffer = efs.readFileSync(efsFilename);
+
+  //       // fs
+  //       const fsFilename = `${fsdataDir}/file`;
+  //       fs.writeFileSync(fsFilename, firstWriteBuffer);
+  //       const fsFirstReadBuffer = fs.readFileSync(fsFilename);
+
+  //       // Comparison
+  //       expect(efsFirstReadBuffer).toEqual(fsFirstReadBuffer);
+  //       efs.rmdirSync(efsdataDir, { recursive: true });
+  //       fs.mkdirSync(fsdataDir, { recursive: true });
+  //     });
+  //   });
+  // });
+
+  // describe('aynchronous worker tests', () => {
+  //   test('encryption and decryption using workers - read/write', async () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const workerManager = new WorkerManager({ logger });
+  //     await workerManager.start();
+  //     const plainBuf = Buffer.from('very important secret');
+  //     const deciphered = Buffer.from(plainBuf).fill(0);
+  //     const fd = efs.openSync('test', 'w+');
+  //     efs.setWorkerManager(workerManager);
+  //     await utils.promisify(efs.write.bind(efs))(
+  //       fd,
+  //       plainBuf,
+  //       0,
+  //       plainBuf.length,
+  //       0,
+  //     );
+  //     await utils.promisify(efs.read.bind(efs))(
+  //       fd,
+  //       deciphered,
+  //       0,
+  //       deciphered.length,
+  //       0,
+  //     );
+  //     expect(deciphered).toStrictEqual(plainBuf);
+  //     efs.unsetWorkerManager();
+  //     await workerManager.stop();
+  //   });
+
+  //   test('encryption and decryption using workers', async () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const workerManager = new WorkerManager({ logger });
+  //     await workerManager.start();
+  //     const plainBuf = Buffer.from('very important secret');
+  //     efs.setWorkerManager(workerManager);
+  //     await utils.promisify(efs.writeFile.bind(efs))(`test`, plainBuf, {});
+  //     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+  //       `test`,
+  //       {},
+  //     );
+  //     expect(deciphered).toStrictEqual(plainBuf);
+  //     efs.unsetWorkerManager();
+  //     await workerManager.stop();
+  //   });
+
+  //   test('encryption and decryption using workers for encryption but not decryption', async () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const workerManager = new WorkerManager({ logger });
+  //     await workerManager.start();
+  //     const plainBuf = Buffer.from('very important secret');
+  //     efs.setWorkerManager(workerManager);
+  //     await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
+  //     efs.unsetWorkerManager();
+  //     await workerManager.stop();
+  //     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+  //       `test`,
+  //       {},
+  //     );
+  //     expect(deciphered).toStrictEqual(plainBuf);
+  //   });
+
+  //   test('encryption and decryption using workers for decryption but not encryption', async () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const workerManager = new WorkerManager({ logger });
+  //     await workerManager.start();
+  //     const plainBuf = Buffer.from('very important secret');
+  //     await utils.promisify(efs.writeFile.bind(efs))('test', plainBuf, {});
+  //     efs.setWorkerManager(workerManager);
+  //     const deciphered = await utils.promisify(efs.readFile.bind(efs))(
+  //       `test`,
+  //       {},
+  //     );
+  //     expect(deciphered).toStrictEqual(plainBuf);
+  //     efs.unsetWorkerManager();
+  //     await workerManager.stop();
+  //   });
+  // });
+
+  // describe('vfs chache', () => {
+  //   test('read file cache', () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const buffer = Buffer.from('Hello World', 'utf8');
+  //     efs.writeFileSync(`hello-world`, buffer);
+  //     expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
+  //     const efs2 = new EncryptedFS(key, fs, dataDir);
+  //     expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
+  //   });
+  //   test('read cache', () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const buffer = Buffer.from('Hello World', 'utf8');
+  //     efs.writeFileSync(`hello-world`, buffer);
+  //     expect(efs.readFileSync(`hello-world`, {})).toEqual(buffer);
+  //     const efs2 = new EncryptedFS(key, fs, dataDir);
+  //     expect(efs2.readFileSync(`hello-world`, {})).toEqual(buffer);
+  //   });
+  //   test('block cache using block mapping', () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const buffer = Buffer.from('Hello World', 'utf8');
+  //     const bufferRead = Buffer.from(buffer).fill(0);
+  //     const fd = efs.openSync('hello-world', 'w+');
+  //     efs.writeSync(fd, buffer, 0, buffer.length, 5000);
+  //     efs.closeSync(fd);
+  //     const fd2 = efs.openSync('hello-world', 'r+');
+  //     efs.readSync(fd2, bufferRead, 0, buffer.length, 5000);
+  //     expect(bufferRead).toEqual(buffer);
+  //     efs.closeSync(fd2);
+  //   });
+  //   test('block cache not using block mapping', () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const buffer = Buffer.from('Hello World', 'utf8');
+  //     const bufferRead = Buffer.from(buffer).fill(0);
+  //     const fd = efs.openSync('hello-world', 'w+');
+  //     efs.writeSync(fd, buffer, 0, buffer.length, 5000);
+  //     efs.closeSync(fd);
+  //     const efs2 = new EncryptedFS(key, fs, dataDir);
+  //     const fd2 = efs2.openSync('hello-world', 'r+');
+  //     efs2.readSync(fd2, bufferRead, 0, buffer.length, 5000);
+  //     expect(bufferRead).toEqual(buffer);
+  //     efs2.closeSync(fd2);
+  //   });
+  //   test('access rights are retreived from cache', () => {
+  //     const efs = new EncryptedFS(key, fs, dataDir);
+  //     const buffer = Buffer.from('Hello World', 'utf8');
+  //     efs.writeFileSync('hello-world', buffer);
+  //     efs.setuid(1000);
+  //     efs.setgid(1000);
+  //     efs.accessSync('hello-world', efs.constants.R_OK);
+  //     efs.setuid(0);
+  //     efs.setgid(0);
+  //     efs.chmodSync('hello-world', 0o333);
+  //     const efs2 = new EncryptedFS(key, fs, dataDir);
+  //     efs2.setuid(1000);
+  //     efs2.setgid(1000);
+  //     expect(() => {
+  //       efs2.accessSync('hello-world', efs2.constants.R_OK);
+  //     }).toThrow();
+  //   });
+  // });
+  // });
 
   // test('translating paths at current directory', async () => {
   //   const efs = new EncryptedFS(key);

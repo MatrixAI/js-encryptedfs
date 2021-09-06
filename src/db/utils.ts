@@ -1,10 +1,6 @@
 import type { DBDomain } from './types';
 
-import {
-  random,
-  cipher,
-  util as forgeUtil,
-} from 'node-forge';
+import { random, cipher, util as forgeUtil } from 'node-forge';
 import sublevelprefixer from 'sublevel-prefixer';
 import * as dbErrors from './errors';
 
@@ -12,7 +8,7 @@ const ivSize = 16;
 const authTagSize = 16;
 const prefixer = sublevelprefixer('!');
 
-function domainPath(levels: DBDomain, key: string|Buffer): string | Buffer {
+function domainPath(levels: DBDomain, key: string | Buffer): string | Buffer {
   if (!levels.length) {
     return key;
   }
@@ -74,10 +70,4 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
   return Buffer.from(d.output.getBytes(), 'binary');
 }
 
-export {
-  domainPath,
-  serialize,
-  deserialize,
-  encryptWithKey,
-  decryptWithKey
- };
+export { domainPath, serialize, deserialize, encryptWithKey, decryptWithKey };

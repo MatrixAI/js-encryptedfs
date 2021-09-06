@@ -9,11 +9,11 @@ interface WorkerManagerInterface<T extends ModuleMethods> {
   start(): Promise<void>;
   stop(): Promise<void>;
   call<R>(f: (worker: ModuleThread<T>) => Promise<R>): Promise<R>;
-  queue<R>(f: (worker: ModuleThread<T>) => Promise<R>): QueuedTask<ModuleThread<T>, R>;
+  queue<R>(
+    f: (worker: ModuleThread<T>) => Promise<R>,
+  ): QueuedTask<ModuleThread<T>, R>;
   completed(): Promise<void>;
   settled(): Promise<Error[]>;
 }
 
-export type {
-  WorkerManagerInterface
-};
+export type { WorkerManagerInterface };

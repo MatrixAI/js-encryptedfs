@@ -26,5 +26,5 @@ export type {
   INodeParams,
   INodeData,
   BufferIndex,
-  BufferId
+  BufferId,
 };

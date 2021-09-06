@@ -18,23 +18,16 @@ import * as dbErrors from './errors';
  * non-repeatable reads for both iteration/streaming and get. However we would still have lost-updates.
  */
 class Transaction implements DBTransaction {
-
   protected db: DB;
   protected logger: Logger;
   protected _ops: DBOps = [];
-  protected _snap: Map<string, any> = new Map;
+  protected _snap: Map<string, any> = new Map();
   protected _callbacksSuccess: Array<() => any> = [];
   protected _callbacksFailure: Array<() => any> = [];
   protected _committed: boolean = false;
   protected _rollbacked: boolean = false;
 
-  public constructor({
-    db,
-    logger ,
-  }: {
-    db: DB;
-    logger?: Logger;
-  }) {
+  public constructor({ db, logger }: { db: DB; logger?: Logger }) {
     this.logger = logger ?? new Logger(this.constructor.name);
     this.db = db;
   }
@@ -96,13 +89,13 @@ class Transaction implements DBTransaction {
     domain: DBDomain,
     key: string | Buffer,
     value: any,
-    raw?: false
+    raw?: false,
   ): Promise<void>;
   public async put(
     domain: DBDomain,
     key: string | Buffer,
     value: Buffer,
-    raw: true
+    raw: true,
   ): Promise<void>;
   public async put(
     domain: DBDomain,
@@ -117,14 +110,11 @@ class Transaction implements DBTransaction {
       domain,
       key,
       value,
-      raw
+      raw,
     });
   }
 
-  public async del(
-    domain: DBDomain,
-    key: string | Buffer,
-  ): Promise<void> {
+  public async del(domain: DBDomain, key: string | Buffer): Promise<void> {
     const path = dbUtils.domainPath(domain, key).toString('binary');
     this._snap.set(path, undefined);
     this._ops.push({
@@ -144,7 +134,7 @@ class Transaction implements DBTransaction {
 
   public async commit(): Promise<void> {
     if (this._rollbacked) {
-      throw new dbErrors.ErrorDBRollbacked;
+      throw new dbErrors.ErrorDBRollbacked();
     }
     if (this._committed) {
       return;
@@ -160,7 +150,7 @@ class Transaction implements DBTransaction {
 
   public async rollback(): Promise<void> {
     if (this._committed) {
-      throw new dbErrors.ErrorDBCommitted;
+      throw new dbErrors.ErrorDBCommitted();
     }
     if (this._rollbacked) {
       return;
@@ -171,18 +161,17 @@ class Transaction implements DBTransaction {
     }
   }
 
-  public async finalize (): Promise<void> {
+  public async finalize(): Promise<void> {
     if (this._rollbacked) {
-      throw new dbErrors.ErrorDBRollbacked;
+      throw new dbErrors.ErrorDBRollbacked();
     }
     if (!this._committed) {
-      throw new dbErrors.ErrorDBNotCommited;
+      throw new dbErrors.ErrorDBNotCommited();
     }
     for (const f of this._callbacksSuccess) {
       await f();
     }
   }
-
 }
 
 export default Transaction;

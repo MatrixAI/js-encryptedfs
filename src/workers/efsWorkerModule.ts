@@ -36,23 +36,14 @@ const efsWorker = {
     keyLength: number,
     plainText: ArrayBuffer,
     plainTextOffset: number,
-    plainTextLength: number
+    plainTextLength: number,
   ): TransferDescriptor<[ArrayBuffer, number, number]> {
     const key_ = Buffer.from(key, keyOffset, keyLength);
     const plainText_ = Buffer.from(plainText, plainTextOffset, plainTextLength);
-    const cipherText = utils.encryptWithKey(
-      key_,
-      plainText_
-    );
+    const cipherText = utils.encryptWithKey(key_, plainText_);
     return Transfer(
-      [
-        cipherText.buffer,
-        cipherText.byteOffset,
-        cipherText.byteLength
-      ],
-      [
-        cipherText.buffer
-      ]
+      [cipherText.buffer, cipherText.byteOffset, cipherText.byteLength],
+      [cipherText.buffer],
     );
   },
   /**
@@ -64,29 +55,24 @@ const efsWorker = {
     keyLength: number,
     cipherText: ArrayBuffer,
     cipherTextOffset: number,
-    cipherTextLength: number
+    cipherTextLength: number,
   ): TransferDescriptor<[ArrayBuffer, number, number]> | undefined {
     const key_ = Buffer.from(key, keyOffset, keyLength);
-    const cipherText_ = Buffer.from(cipherText, cipherTextOffset, cipherTextLength);
-    const plainText = utils.decryptWithKey(
-      key_,
-      cipherText_
+    const cipherText_ = Buffer.from(
+      cipherText,
+      cipherTextOffset,
+      cipherTextLength,
     );
+    const plainText = utils.decryptWithKey(key_, cipherText_);
     if (plainText != null) {
       return Transfer(
-        [
-          plainText.buffer,
-          plainText.byteOffset,
-          plainText.byteLength
-        ],
-        [
-          plainText.buffer
-        ]
+        [plainText.buffer, plainText.byteOffset, plainText.byteLength],
+        [plainText.buffer],
       );
     } else {
       return;
     }
-  }
+  },
 };
 
 type EFSWorker = typeof efsWorker;

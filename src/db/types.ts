@@ -8,17 +8,19 @@ type DBLevel = LevelUp<
   AbstractIterator<Buffer, Buffer>
 >;
 
-type DBOp_ = {
-  domain: DBDomain;
-  key: string | Buffer;
-  value: any;
-  raw?: false;
-} | {
-  domain: DBDomain;
-  key: string | Buffer;
-  value: Buffer;
-  raw: true;
-};
+type DBOp_ =
+  | {
+      domain: DBDomain;
+      key: string | Buffer;
+      value: any;
+      raw?: false;
+    }
+  | {
+      domain: DBDomain;
+      key: string | Buffer;
+      value: Buffer;
+      raw: true;
+    };
 
 type DBOp =
   | ({
@@ -31,7 +33,6 @@ type DBOp =
 type DBOps = Array<DBOp>;
 
 interface DBTransaction {
-
   ops: Readonly<DBOps>;
   snap: ReadonlyMap<string, any>;
   callbacksSuccess: Readonly<Array<() => any>>;
@@ -53,28 +54,20 @@ interface DBTransaction {
     domain: DBDomain,
     key: string | Buffer,
     value: any,
-    raw?: false
+    raw?: false,
   ): Promise<void>;
   put(
     domain: DBDomain,
     key: string | Buffer,
     value: Buffer,
-    raw: true
+    raw: true,
   ): Promise<void>;
 
-  del(
-    domain: DBDomain,
-    key: string | Buffer,
-  ): Promise<void>;
+  del(domain: DBDomain, key: string | Buffer): Promise<void>;
 
-  queueSuccess(
-    f: () => any
-  ): void;
+  queueSuccess(f: () => any): void;
 
-  queueFailure(
-    f: () => any
-  ): void;
-
+  queueFailure(f: () => any): void;
 }
 
 export type { DBDomain, DBLevel, DBOp, DBOps, DBTransaction };

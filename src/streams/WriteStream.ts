@@ -6,8 +6,7 @@ import * as vfs from 'virtualfs';
 import { Writable } from 'stream';
 import { Callback } from '@/types';
 
- class WriteStream extends Writable {
-
+class WriteStream extends Writable {
   protected _bytesWritten: number;
   protected _fs: EncryptedFS;
   protected _path: string;
@@ -21,17 +20,19 @@ import { Callback } from '@/types';
   /**
    * Creates WriteStream.
    */
-  constructor (path: string, options: optionsStream, fs: EncryptedFS) {
+  constructor(path: string, options: optionsStream, fs: EncryptedFS) {
     super({
-      highWaterMark: options.highWaterMark
+      highWaterMark: options.highWaterMark,
     });
     this._fs = fs;
     this._bytesWritten = 0;
     this._path = path;
     this._fd = options.fd === undefined ? undefined : options.fd;
     this._flags = options.flags === undefined ? 'w' : options.flags;
-    this._mode = options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
-    this._autoClose = options.autoClose === undefined ? true : options.autoClose;
+    this._mode =
+      options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
+    this._autoClose =
+      options.autoClose === undefined ? true : options.autoClose;
     this._pos = options.start; // WriteStream maintains its own position
     if (options.encoding) {
       super.setDefaultEncoding(options.encoding);
@@ -66,24 +67,35 @@ import { Callback } from '@/types';
   /**
    * Asynchronous write hook for stream implementation.
    */
-  public _write(data: Buffer | string, encoding: string | undefined, callback: Callback<[WriteStream]>): WriteStream | void {
+  public _write(
+    data: Buffer | string,
+    encoding: string | undefined,
+    callback: Callback<[WriteStream]>,
+  ): WriteStream | void {
     if (typeof this._fd !== 'number') {
       return super.once('open', () => {
         this._write(data, encoding, callback);
       });
     }
     if (this._pos) {
-      this._fs.write(this._fd, data, 0, data.length, this._pos, (e, bytesWritten) => {
-        if (e) {
-          if (this._autoClose) {
-            this.destroy();
+      this._fs.write(
+        this._fd,
+        data,
+        0,
+        data.length,
+        this._pos,
+        (e, bytesWritten) => {
+          if (e) {
+            if (this._autoClose) {
+              this.destroy();
+            }
+            callback(e);
+            return;
           }
+          this._bytesWritten += bytesWritten;
           callback(e);
-          return;
-        }
-        this._bytesWritten += bytesWritten;
-        callback(e);
-      });
+        },
+      );
     } else {
       this._fs.write(this._fd, data, 0, data.length, (e, bytesWritten) => {
         if (e) {
@@ -105,11 +117,14 @@ import { Callback } from '@/types';
   /**
    * Vectorised write hook for stream implementation.
    */
-  public _writev(chunks:Array<{chunk: Buffer}>, callback: Callback<[WriteStream]>): void {
+  public _writev(
+    chunks: Array<{ chunk: Buffer }>,
+    callback: Callback<[WriteStream]>,
+  ): void {
     this._write(
       Buffer.concat(chunks.map((chunk) => chunk.chunk)),
       undefined,
-      callback
+      callback,
     );
     return;
   }
@@ -137,7 +152,7 @@ import { Callback } from '@/types';
   /**
    * Custom error handling for stream implementation
    */
-   protected _error(err?: Error): void {
+  protected _error(err?: Error): void {
     if (err) {
       if (this._autoClose) {
         this.destroy();

@@ -6,18 +6,18 @@ import * as vfs from 'virtualfs';
  * Parameters to construct a Stat object
  */
 type StatParams = {
-  dev?: number,
-  ino: number,
-  mode: number,
-  nlink: number,
-  uid: number,
-  gid: number,
-  rdev?: number,
-  size: number,
-  atime: Date,
-  mtime: Date,
-  ctime: Date,
-  birthtime: Date
+  dev?: number;
+  ino: number;
+  mode: number;
+  nlink: number;
+  uid: number;
+  gid: number;
+  rdev?: number;
+  size: number;
+  atime: Date;
+  mtime: Date;
+  ctime: Date;
+  birthtime: Date;
   blksize?: number;
   blocks?: number;
 };
@@ -35,20 +35,17 @@ type StatProps = NonFunctionProperties<Stat>;
 class Stat extends vfs.Stat {
   blksize: number;
   blocks: number;
-  constructor (params: StatParams) {
+  constructor(params: StatParams) {
     super(params);
     this.blksize = params.blksize ?? 0;
     this.blocks = params.blocks ?? 0;
   }
 
   getProps(): StatProps {
-    return {...this};
+    return { ...this };
   }
 }
 
 export default Stat;
 
-export type {
-  StatParams,
-  StatProps,
-};
+export type { StatParams, StatProps };

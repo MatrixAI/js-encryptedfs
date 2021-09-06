@@ -8,11 +8,13 @@ import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
 
 describe('INodeManager Symlink', () => {
-  const logger = new Logger('INodeManager Symlink Test', LogLevel.WARN, [new StreamHandler()]);
+  const logger = new Logger('INodeManager Symlink Test', LogLevel.WARN, [
+    new StreamHandler(),
+  ]);
   const devMgr = new vfs.DeviceManager();
   let dataDir: string;
   let db: DB;
-  let dbKey: Buffer = utils.generateKeySync(256);
+  const dbKey: Buffer = utils.generateKeySync(256);
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       path.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -20,7 +22,7 @@ describe('INodeManager Symlink', () => {
     db = await DB.createDB({
       dbKey,
       dbPath: `${dataDir}/db`,
-      logger
+      logger,
     });
     await db.start();
   });
@@ -35,23 +37,29 @@ describe('INodeManager Symlink', () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
       devMgr,
-      logger
+      logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(rootIno);
-      });
-      await iNodeMgr.dirCreate(tran, rootIno, {});
-    }, [rootIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(rootIno);
+        });
+        await iNodeMgr.dirCreate(tran, rootIno, {});
+      },
+      [rootIno],
+    );
     const symlinkIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(async (tran) => {
-      tran.queueFailure(() => {
-        iNodeMgr.inoDeallocate(symlinkIno);
-      });
-      await iNodeMgr.symlinkCreate(tran, symlinkIno, {}, 'a link');
-      await iNodeMgr.dirSetEntry(tran, rootIno, 'somelink', symlinkIno);
-    }, [rootIno, symlinkIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        tran.queueFailure(() => {
+          iNodeMgr.inoDeallocate(symlinkIno);
+        });
+        await iNodeMgr.symlinkCreate(tran, symlinkIno, {}, 'a link');
+        await iNodeMgr.dirSetEntry(tran, rootIno, 'somelink', symlinkIno);
+      },
+      [rootIno, symlinkIno],
+    );
     await iNodeMgr.transact(async (tran) => {
       expect(await iNodeMgr.symlinkGetLink(tran, symlinkIno)).toBe('a link');
       const statSymlink = await iNodeMgr.statGet(tran, symlinkIno);
@@ -61,9 +69,12 @@ describe('INodeManager Symlink', () => {
       const statDir = await iNodeMgr.statGet(tran, rootIno);
       expect(statDir['nlink']).toBe(2);
     });
-    await iNodeMgr.transact(async (tran) => {
-      await iNodeMgr.dirUnsetEntry(tran, rootIno, 'somelink');
-    }, [rootIno, symlinkIno]);
+    await iNodeMgr.transact(
+      async (tran) => {
+        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'somelink');
+      },
+      [rootIno, symlinkIno],
+    );
     await iNodeMgr.transact(async (tran) => {
       expect(await iNodeMgr.get(tran, symlinkIno)).toBeUndefined();
       const stat = await iNodeMgr.statGet(tran, rootIno);

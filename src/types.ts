@@ -57,16 +57,16 @@ type Navigated = {
 };
 
 type ParsedPath = {
-  segment: string,
-  rest: string,
-}
+  segment: string;
+  rest: string;
+};
 
 type path = string | Buffer | URL;
 
 type options = {
-  encoding?: BufferEncoding | undefined,
-  mode?: number,
-  flag?: string
+  encoding?: BufferEncoding | undefined;
+  mode?: number;
+  flag?: string;
 };
 
 type data = string | Buffer | Uint8Array;
@@ -106,8 +106,6 @@ type file = FdIndex | path;
 // queuing up the transformations
 // after the batching succeeds
 // it makes sense that these are not asynchronous?
-
-
 
 /**
  * Minimal filesystem type

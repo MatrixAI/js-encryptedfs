@@ -2,10 +2,9 @@ import { CustomError } from 'ts-custom-error';
 import { VirtualFSError } from 'virtualfs';
 
 class EncryptedFSError extends CustomError {
-
   public readonly error?: VirtualFSError | NodeJS.ErrnoException;
 
-  constructor (
+  constructor(
     error?: VirtualFSError | NodeJS.ErrnoException,
     message: string = '',
   ) {
@@ -28,7 +27,6 @@ class EncryptedFSError extends CustomError {
   get syscall(): string | undefined {
     return this.error?.syscall;
   }
-
 }
 
 export { EncryptedFSError };
