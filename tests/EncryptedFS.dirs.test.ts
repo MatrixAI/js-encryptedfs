@@ -11,7 +11,7 @@ import { INodeManager } from '@/inodes';
 import { expectError } from './utils';
 
 describe('EncryptedFS Directories', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+  const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
     new StreamHandler(),
   ]);
   let dataDir: string;
@@ -340,5 +340,5 @@ describe('EncryptedFS Directories', () => {
     await expect(efs.mkdirp('one/two')).resolves.not.toThrow();
     await expect(efs.mkdirp('three/four')).resolves.not.toThrow();
     await expect(efs.mkdirp('five/six/.')).resolves.not.toThrow();
-  })
+  });
 });

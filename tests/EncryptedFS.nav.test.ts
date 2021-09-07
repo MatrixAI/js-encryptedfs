@@ -68,7 +68,7 @@ describe('EncryptedFS Navigation', () => {
       logger,
     });
     const str = 'callback';
-    const flags = (vfs.constants.O_CREAT | vfs.constants.O_RDWR);
+    const flags = vfs.constants.O_CREAT | vfs.constants.O_RDWR;
     const readBuffer = Buffer.alloc(str.length);
     efs.mkdir('callback', () => {
       efs.open('callback/cb', flags, (err, fdIndex) => {

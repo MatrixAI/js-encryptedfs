@@ -202,10 +202,16 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 2000;
     await efs.access('testfile', vfs.constants.R_OK);
     await efs.access('dir', vfs.constants.R_OK);
-    await expectError(efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK), errno.EACCES);
-    await expectError(efs.access('dir', fs.constants.W_OK | fs.constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK),
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access('dir', fs.constants.W_OK | fs.constants.X_OK),
+      errno.EACCES,
+    );
   });
-  test('permissions are checked in stages of user, group then other (using chownSync)', async () => {
+  test('permissions are checked in stages of user, group then other (using chown)', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
@@ -250,8 +256,14 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.access('testfile', vfs.constants.R_OK);
     await efs.access('dir', vfs.constants.R_OK);
-    await expectError(efs.access('testfile', vfs.constants.W_OK | vfs.constants.X_OK), errno.EACCES);
-    await expectError(efs.access('dir', vfs.constants.W_OK | vfs.constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access('testfile', vfs.constants.W_OK | vfs.constants.X_OK),
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access('dir', vfs.constants.W_OK | vfs.constants.X_OK),
+      errno.EACCES,
+    );
   });
   test('--x-w-r-- permission staging', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -269,8 +281,14 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`dir`, 0o111);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expectError(efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK), errno.EACCES);
-    await expectError(efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK), errno.EACCES);
+    await expectError(
+      efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK),
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK),
+      errno.EACCES,
+    );
     await efs.access(`file`, vfs.constants.X_OK);
     await efs.access(`dir`, vfs.constants.X_OK);
   });
@@ -773,8 +791,14 @@ describe('EncryptedFS Permissions', () => {
     await efs.mkdir('dir');
     await efs.chmod('file', 0o124);
     await efs.chmod('dir', 0o124);
-    await expectError(efs.access('file', (vfs.constants.R_OK | vfs.constants.W_OK)), errno.EACCES);
-    await expectError(efs.access('dir', (vfs.constants.R_OK | vfs.constants.W_OK)), errno.EACCES);
+    await expectError(
+      efs.access('file', vfs.constants.R_OK | vfs.constants.W_OK),
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access('dir', vfs.constants.R_OK | vfs.constants.W_OK),
+      errno.EACCES,
+    );
     await efs.access('file', fs.constants.X_OK);
     await efs.access('dir', fs.constants.X_OK);
   });

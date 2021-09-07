@@ -740,9 +740,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async fstat(
-    fdIndex: FdIndex,
-  ): Promise<vfs.Stat>;
+  public async fstat(fdIndex: FdIndex): Promise<vfs.Stat>;
   public async fstat(
     fdIndex: FdIndex,
     callback: Callback<[vfs.Stat]>,
@@ -1087,13 +1085,8 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async lstat(
-    path: path,
-  ): Promise<vfs.Stat>;
-  public async lstat(
-    path: path,
-    callback: Callback<[vfs.Stat]>,
-  ): Promise<void>;
+  public async lstat(path: path): Promise<vfs.Stat>;
+  public async lstat(path: path, callback: Callback<[vfs.Stat]>): Promise<void>;
   public async lstat(
     path: path,
     callback?: Callback<[vfs.Stat]>,
@@ -1300,7 +1293,10 @@ class EncryptedFS {
     pathSPrefix: string,
     options?: options,
   ): Promise<string | Buffer>;
-  public async mkdtemp(pathSPrefix: string, callback: Callback<[string | Buffer]>): Promise<void>;
+  public async mkdtemp(
+    pathSPrefix: string,
+    callback: Callback<[string | Buffer]>,
+  ): Promise<void>;
   public async mkdtemp(
     pathSPrefix: string,
     options: options,
@@ -1308,7 +1304,9 @@ class EncryptedFS {
   ): Promise<void>;
   public async mkdtemp(
     pathSPrefix: path,
-    optionsOrCallback: options | Callback<[string | Buffer]> = { encoding: 'utf8' },
+    optionsOrCallback: options | Callback<[string | Buffer]> = {
+      encoding: 'utf8',
+    },
     callback?: Callback<[string | Buffer]>,
   ): Promise<string | Buffer | void> {
     const options =
@@ -1752,19 +1750,19 @@ class EncryptedFS {
     callback?: Callback<[number]>,
   ): Promise<number | void> {
     const offset =
-      typeof offsetOrCallback !== 'function'
-        ? offsetOrCallback
-        : 0;
+      typeof offsetOrCallback !== 'function' ? offsetOrCallback : 0;
     const length =
-      typeof lengthOrCallback !== 'function'
-        ? lengthOrCallback
-        : 0;
+      typeof lengthOrCallback !== 'function' ? lengthOrCallback : 0;
     const position =
       typeof positionOrCallback !== 'function' ? positionOrCallback : undefined;
     callback =
-      typeof offsetOrCallback === 'function' ? offsetOrCallback :
-        (typeof lengthOrCallback === 'function' ? lengthOrCallback :
-          (typeof positionOrCallback === 'function' ? positionOrCallback : callback));
+      typeof offsetOrCallback === 'function'
+        ? offsetOrCallback
+        : typeof lengthOrCallback === 'function'
+        ? lengthOrCallback
+        : typeof positionOrCallback === 'function'
+        ? positionOrCallback
+        : callback;
     return maybeCallback(async () => {
       const fd = this._fdMgr.getFd(fdIndex);
       if (!fd) {
@@ -1811,7 +1809,10 @@ class EncryptedFS {
     path: path,
     options?: options,
   ): Promise<Array<string | Buffer>>;
-  public async readdir(path: path, callback: Callback<[Array<string | Buffer>]>): Promise<void>;
+  public async readdir(
+    path: path,
+    callback: Callback<[Array<string | Buffer>]>,
+  ): Promise<void>;
   public async readdir(
     path: path,
     options: options,
@@ -1878,7 +1879,10 @@ class EncryptedFS {
     file: file,
     options?: options,
   ): Promise<string | Buffer>;
-  public async readFile(file: file, callback: Callback<[string | Buffer]>): Promise<void>;
+  public async readFile(
+    file: file,
+    callback: Callback<[string | Buffer]>,
+  ): Promise<void>;
   public async readFile(
     file: file,
     options: options,
@@ -2259,13 +2263,8 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async stat(
-    path: path,
-  ): Promise<vfs.Stat>;
-  public async stat(
-    path: path,
-    callback: Callback<[vfs.Stat]>,
-  ): Promise<void>;
+  public async stat(path: path): Promise<vfs.Stat>;
+  public async stat(path: path, callback: Callback<[vfs.Stat]>): Promise<void>;
   public async stat(
     path: path,
     callback?: Callback<[vfs.Stat]>,
@@ -2528,9 +2527,13 @@ class EncryptedFS {
     let position =
       typeof positionOrCallback !== 'function' ? positionOrCallback : undefined;
     callback =
-      typeof offsetOrPosOrCallback === 'function' ? offsetOrPosOrCallback :
-        (typeof lengthOrEncodingOrCallback === 'function' ? lengthOrEncodingOrCallback :
-          (typeof positionOrCallback === 'function' ? positionOrCallback : callback));
+      typeof offsetOrPosOrCallback === 'function'
+        ? offsetOrPosOrCallback
+        : typeof lengthOrEncodingOrCallback === 'function'
+        ? lengthOrEncodingOrCallback
+        : typeof positionOrCallback === 'function'
+        ? positionOrCallback
+        : callback;
     return maybeCallback(async () => {
       const fd = this._fdMgr.getFd(fdIndex);
       if (!fd) {

@@ -8,10 +8,10 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError } from "./utils";
+import { expectError } from './utils';
 
 describe('EncryptedFS Files', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+  const logger = new Logger('EncryptedFS Files', LogLevel.WARN, [
     new StreamHandler(),
   ]);
   let dataDir: string;
@@ -141,7 +141,10 @@ describe('EncryptedFS Files', () => {
       'Test',
     );
     await expectError(efs.readFile(`other-file`), errno.ENOENT);
-    await expectError(efs.readFile(`other-file`, { encoding: 'utf8' }), errno.ENOENT);
+    await expectError(
+      efs.readFile(`other-file`, { encoding: 'utf8' }),
+      errno.ENOENT,
+    );
   });
   test('can write 50 files', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -240,7 +243,7 @@ describe('EncryptedFS Files', () => {
     expect(contents).toEqual(str);
     await efs.close(fd);
   });
-  test('writeFileSync calling styles', async () => {
+  test('writeFile calling styles', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
@@ -531,9 +534,9 @@ describe('EncryptedFS Files', () => {
     efs.uid = 1000;
     efs.gid = 1000;
     await efs.access('/test1', vfs.constants.R_OK);
-    await expectError(efs.access('/test1', vfs.constants.W_OK),errno.EACCES);
+    await expectError(efs.access('/test1', vfs.constants.W_OK), errno.EACCES);
     await efs.access('/test2', vfs.constants.R_OK);
-    await expectError(efs.access('/test1', vfs.constants.W_OK),errno.EACCES);
+    await expectError(efs.access('/test1', vfs.constants.W_OK), errno.EACCES);
   });
   test('can seek and overwrite parts of a file', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -681,7 +684,9 @@ describe('EncryptedFS Files', () => {
     await efs.write(fd, 'abcdef');
     await efs.ftruncate(fd, 3);
     await efs.write(fd, 'ghi');
-    expect(await efs.readFile('/fdtest', { encoding: "utf8" })).toEqual('abcghi');
+    expect(await efs.readFile('/fdtest', { encoding: 'utf8' })).toEqual(
+      'abcghi',
+    );
     await efs.close(fd);
     await efs.writeFile('/fdtest', 'abcdef');
     fd = await efs.open('/fdtest', 'r+');
@@ -690,6 +695,56 @@ describe('EncryptedFS Files', () => {
     await efs.ftruncate(fd, 4);
     await efs.read(fd, buf, 0, buf.length);
     expect(buf).toEqual(Buffer.from('dbc'));
+    await efs.close(fd);
+  });
+  test('Uint8Array data support', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const buf = Buffer.from('abc');
+    const array = new Uint8Array(buf);
+    await efs.writeFile('/a', array);
+    await expect(efs.readFile('/a')).resolves.toEqual(buf);
+    const fd = await efs.open('/a', 'r+');
+    await efs.write(fd, array);
+    await efs.lseek(fd, 0);
+    const array2 = new Uint8Array(array.length);
+    await efs.read(fd, array2, 0, array2.length);
+    expect(array2).toEqual(array);
+    await efs.close(fd);
+  });
+  test('URL path support', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    let url;
+    url = new URL('file:///file');
+    const str = 'Hello World';
+    await efs.writeFile(url, str);
+    await expect(efs.readFile(url, { encoding: 'utf8' })).resolves.toBe(str);
+    const fd = await efs.open(url, 'a+');
+    const str2 = 'abc';
+    await efs.write(fd, str2);
+    const buf = Buffer.allocUnsafe(str.length + str2.length);
+    await efs.lseek(fd, 0);
+    await efs.read(fd, buf, 0, buf.length);
+    expect(buf).toEqual(Buffer.from(str + str2));
+    url = new URL('file://hostname/file');
+    await expect(efs.open(url, 'w')).rejects.toThrow(
+      'ERR_INVALID_FILE_URL_HOST',
+    );
     await efs.close(fd);
   });
 });

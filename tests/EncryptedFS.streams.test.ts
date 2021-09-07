@@ -1,7 +1,6 @@
-import os, { constants } from 'os';
+import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import process from 'process';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
@@ -10,14 +9,12 @@ import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { expectError } from './utils';
-import { WriteStream } from "@/streams";
-import { Readable, Writable } from "readable-stream";
+import { Readable, Writable } from 'readable-stream';
 
 describe('EncryptedFS Streams', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+  const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  // const cwd = process.cwd();
   let dataDir: string;
   let dbPath: string;
   let db: DB;
@@ -365,7 +362,7 @@ describe('EncryptedFS Streams', () => {
     testWritable.on('finish', () => {
       expect(data).toEqual(str);
       done();
-    })
+    });
   });
   test('writestreams can compose with pipes', async (done) => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -383,15 +380,15 @@ describe('EncryptedFS Streams', () => {
 
     const writeStream = await efs.createWriteStream('file', {
       encoding: 'utf8',
-    } )
+    });
 
-    class TestReadableStream extends Readable{
+    class TestReadableStream extends Readable {
       written = false;
-      constructor(){
+      constructor() {
         super();
       }
       _read(size) {
-        if(!this.written) {
+        if (!this.written) {
           this.push(message);
           this.written = true;
         } else {
@@ -403,10 +400,10 @@ describe('EncryptedFS Streams', () => {
     const testReadableStream = new TestReadableStream();
     testReadableStream.pipe(writeStream);
     writeStream.on('finish', async () => {
-      const data = await efs.readFile('file')
+      const data = await efs.readFile('file');
       expect(data.toString()).toEqual(message);
       done();
-    })
+    });
   });
   test('writestream can create and truncate files', async (done) => {
     const efs = await EncryptedFS.createEncryptedFS({
