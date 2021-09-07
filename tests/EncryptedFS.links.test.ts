@@ -9,6 +9,7 @@ import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { expectError } from "./utils";
+import path from "path";
 
 describe('EncryptedFS Symlinks', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -269,4 +270,74 @@ describe('EncryptedFS Symlinks', () => {
     const readB = await efs.readFile(`test/b`);
     await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
   });
+
+  describe('link returns ENOTDIR if a component of either path prefix is not a directory', () => {
+    const name0 = 'zero';
+    const name1 = 'one';
+    const name2 = 'two';
+
+    let efs: EncryptedFS;
+    beforeEach(async ()=> {
+      efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      }
+    )
+
+    const types = ['regular', 'dir', 'block', 'char', 'symlink'];
+    test.each(types)('%s', async (type) => {
+      await efs.mkdir(name0, 0o0755);
+      await createFile(efs, type as fileTypes, path.join(name0, name1));
+      await expectError(efs.link(path.join(name0, name1, 'test'), path.join(name0, name2)), errno.ENOTDIR);
+      await createFile(efs, type as fileTypes, path.join(name0, name2));
+      await expectError(efs.link(path.join(name0, name2), path.join(name0, name1, 'test')), errno.ENOTDIR);
+    });
+
+  });
 });
+
+type fileTypes = 'none' | 'regular' | 'dir' | 'block' | 'char' | 'symlink' ;
+async function createFile(efs: EncryptedFS, type: fileTypes, name: string, a?: number, b?: number, c?: number ) {
+  switch (type) {
+    default:
+      fail("invalidType: " + type);
+    case 'none':
+      return
+    case 'regular':
+      await efs.writeFile(name, '', { mode: 0o0644 });
+      break;
+    case 'dir':
+      await efs.mkdir(name, 0o0755);
+      break;
+    case 'block':
+      await efs.mknod(name, vfs.constants.S_IFREG, 0o0644, 1, 2);
+      break;
+    case 'char':
+      await efs.mknod(name, vfs.constants.S_IFCHR, 0o0644, 1, 2);
+      break;
+    case 'symlink':
+      await efs.symlink('test', name);
+  }
+  if(a && b && c){
+    if(type === 'symlink'){
+      await efs.lchmod(name, a);
+    }else {
+      await efs.chmod(name, a);
+    }
+    await efs.lchown(name, b, c);
+  } else if(a && b) {
+    await efs.lchown(name, a, b);
+  } else if(a) {
+    if (type === 'symlink') {
+      await efs.lchmod(name, a);
+    } else {
+      await efs.chmod(name, a);
+    }
+  }
+}
