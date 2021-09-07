@@ -47,11 +47,16 @@ describe('INodeManager File', () => {
       tran.queueFailure(() => {
         iNodeMgr.inoDeallocate(fileIno);
       });
-      await iNodeMgr.fileCreate(tran, fileIno, {
-        mode: vfs.DEFAULT_FILE_PERM,
-        uid: vfs.DEFAULT_ROOT_UID,
-        gid: vfs.DEFAULT_ROOT_GID,
-      }, blockSize);
+      await iNodeMgr.fileCreate(
+        tran,
+        fileIno,
+        {
+          mode: vfs.DEFAULT_FILE_PERM,
+          uid: vfs.DEFAULT_ROOT_UID,
+          gid: vfs.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+      );
       const stat = await iNodeMgr.statGet(tran, fileIno);
       expect(stat['ino']).toBe(fileIno);
       expect(stat.isDirectory()).toBe(false);
@@ -151,11 +156,16 @@ describe('INodeManager File', () => {
         tran.queueFailure(() => {
           iNodeMgr.inoDeallocate(fileIno);
         });
-        await iNodeMgr.fileCreate(tran, fileIno, {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
-        }, blockSize);
+        await iNodeMgr.fileCreate(
+          tran,
+          fileIno,
+          {
+            mode: vfs.DEFAULT_FILE_PERM,
+            uid: vfs.DEFAULT_ROOT_UID,
+            gid: vfs.DEFAULT_ROOT_GID,
+          },
+          blockSize,
+        );
         await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
       },
       [fileIno],
@@ -229,11 +239,16 @@ describe('INodeManager File', () => {
         tran.queueFailure(() => {
           iNodeMgr.inoDeallocate(fileIno);
         });
-        await iNodeMgr.fileCreate(tran, fileIno, {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
-        }, blockSize);
+        await iNodeMgr.fileCreate(
+          tran,
+          fileIno,
+          {
+            mode: vfs.DEFAULT_FILE_PERM,
+            uid: vfs.DEFAULT_ROOT_UID,
+            gid: vfs.DEFAULT_ROOT_GID,
+          },
+          blockSize,
+        );
         await iNodeMgr.fileSetBlocks(tran, fileIno, buffer, blockSize);
       },
       [fileIno],

@@ -1,4 +1,4 @@
-import os, { constants } from "os";
+import os, { constants } from 'os';
 import fs from 'fs';
 import pathNode from 'path';
 import process from 'process';
@@ -9,7 +9,7 @@ import EncryptedFS from '@/EncryptedFS';
 import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import {expectError} from "./utils";
+import { expectError } from './utils';
 
 describe('EncryptedFS', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -143,14 +143,17 @@ describe('EncryptedFS', () => {
       await expectError(efs.readdir('/abc'), errno.ENOENT);
       await expectError(efs.stat('/test/abc/a/b/c'), errno.ENOENT);
       await expectError(efs.mkdir('/test/abc/a/b/c'), errno.ENOENT);
-      await expectError(efs.writeFile('/test/abc/a/b/c', 'Hello'), errno.ENOENT);
-      await expectError(efs.readFile('/test/abc/a/b/c'), errno.ENOENT)
-      await expectError(efs.readFile('/test/abcd'), errno.ENOENT)
-      await expectError(efs.mkdir('/test/abcd/dir'), errno.ENOENT)
-      await expectError(efs.unlink('/test/abcd'), errno.ENOENT)
-      await expectError(efs.unlink('/test/abcd/file'), errno.ENOENT)
-      await expectError(efs.stat('/test/a/d/b/c'), errno.ENOENT)
-      await expectError(efs.stat('/test/abcd'), errno.ENOENT)
+      await expectError(
+        efs.writeFile('/test/abc/a/b/c', 'Hello'),
+        errno.ENOENT,
+      );
+      await expectError(efs.readFile('/test/abc/a/b/c'), errno.ENOENT);
+      await expectError(efs.readFile('/test/abcd'), errno.ENOENT);
+      await expectError(efs.mkdir('/test/abcd/dir'), errno.ENOENT);
+      await expectError(efs.unlink('/test/abcd'), errno.ENOENT);
+      await expectError(efs.unlink('/test/abcd/file'), errno.ENOENT);
+      await expectError(efs.stat('/test/a/d/b/c'), errno.ENOENT);
+      await expectError(efs.stat('/test/abcd'), errno.ENOENT);
     });
     test('various failure situations', async () => {
       const efs = await EncryptedFS.createEncryptedFS({
@@ -449,9 +452,9 @@ describe('EncryptedFS', () => {
       const buffer = Buffer.alloc(10);
       await expectError(efs.ftruncate(dirfd), errno.EINVAL);
       await expectError(efs.read(dirfd, buffer, 0, 10), errno.EISDIR);
-      await expectError(efs.write(dirfd, buffer), errno.EBADF)
-      await expectError(efs.readFile(dirfd), errno.EISDIR)
-      await expectError(efs.writeFile(dirfd, `test`), errno.EBADF)
+      await expectError(efs.write(dirfd, buffer), errno.EBADF);
+      await expectError(efs.readFile(dirfd), errno.EISDIR);
+      await expectError(efs.writeFile(dirfd, `test`), errno.EBADF);
       await efs.close(dirfd);
     });
     test("directory file descriptor's inode nlink becomes 0 after deletion of the directory", async () => {

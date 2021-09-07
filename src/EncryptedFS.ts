@@ -475,8 +475,18 @@ class EncryptedFS {
           const dstINodeType = (await this._iNodeMgr.get(tran, dstINode))?.type;
           if (dstINodeType === 'File') {
             let blkCounter = 0;
-            for await (const block of this._iNodeMgr.fileGetBlocks(tran, srcINode, this._blkSize)) {
-              await this._iNodeMgr.fileSetBlocks(tran, dstFd.ino, block, this._blkSize, blkCounter);
+            for await (const block of this._iNodeMgr.fileGetBlocks(
+              tran,
+              srcINode,
+              this._blkSize,
+            )) {
+              await this._iNodeMgr.fileSetBlocks(
+                tran,
+                dstFd.ino,
+                block,
+                this._blkSize,
+                blkCounter,
+              );
               blkCounter++;
             }
           } else {
@@ -616,9 +626,12 @@ class EncryptedFS {
           if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
             throw new EncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
           }
-          let data = Buffer.alloc(0);
+          const data = Buffer.alloc(0);
           if (offset + len > data.length) {
-            const [index, data] = await this._iNodeMgr.fileGetLastBlock(tran, iNode);
+            const [index, data] = await this._iNodeMgr.fileGetLastBlock(
+              tran,
+              iNode,
+            );
             let newData;
             try {
               newData = Buffer.concat([
@@ -1381,11 +1394,16 @@ class EncryptedFS {
           }
           switch (type) {
             case vfs.constants.S_IFREG:
-              await this._iNodeMgr.fileCreate(tran, iNode, {
-                mode: vfs.applyUmask(mode, this._umask),
-                uid: this._uid,
-                gid: this._gid,
-              }, this._blkSize);
+              await this._iNodeMgr.fileCreate(
+                tran,
+                iNode,
+                {
+                  mode: vfs.applyUmask(mode, this._umask),
+                  uid: this._uid,
+                  gid: this._gid,
+                },
+                this._blkSize,
+              );
               break;
             case vfs.constants.S_IFCHR:
               if (typeof major !== 'number' || typeof minor !== 'number') {
@@ -1559,11 +1577,16 @@ class EncryptedFS {
               ) {
                 throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
               }
-              await this._iNodeMgr.fileCreate(tran, fileINode, {
-                mode: vfs.applyUmask(mode, this._umask),
-                uid: this._uid,
-                gid: this._gid,
-              }, this._blkSize);
+              await this._iNodeMgr.fileCreate(
+                tran,
+                fileINode,
+                {
+                  mode: vfs.applyUmask(mode, this._umask),
+                  uid: this._uid,
+                  gid: this._gid,
+                },
+                this._blkSize,
+              );
               await this._iNodeMgr.dirSetEntry(
                 tran,
                 navigated.dir,

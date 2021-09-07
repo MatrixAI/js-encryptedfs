@@ -147,11 +147,7 @@ class FileDescriptor {
         // Determines the offset of blocks
         const blockOffset = utils.blockOffset(blkSize, currentPos);
         // Determines the number of blocks
-        const blockLength = utils.blockLength(
-          blkSize,
-          blockOffset,
-          bytesRead,
-        );
+        const blockLength = utils.blockLength(blkSize, blockOffset, bytesRead);
         // Get the ending block index
         const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
 
