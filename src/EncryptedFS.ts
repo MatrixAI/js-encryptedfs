@@ -820,7 +820,6 @@ class EncryptedFS {
             if (len > data.length) {
               newData = Buffer.alloc(len);
               data.copy(newData, 0, 0, data.length);
-              await this._iNodeMgr.fileClearData(tran, iNode);
               await this._iNodeMgr.fileSetBlocks(
                 tran,
                 iNode,
@@ -830,6 +829,7 @@ class EncryptedFS {
             } else if (len < data.length) {
               newData = Buffer.allocUnsafe(len);
               data.copy(newData, 0, 0, len);
+              await this._iNodeMgr.fileClearData(tran, iNode);
               await this._iNodeMgr.fileSetBlocks(
                 tran,
                 iNode,
