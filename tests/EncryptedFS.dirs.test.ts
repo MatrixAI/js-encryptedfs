@@ -132,7 +132,7 @@ describe('EncryptedFS Directories', () => {
       logger,
     });
     const tempSubDir = `dir`;
-    await efs.mkdir(tempSubDir);
+    await efs.mkdirp(tempSubDir);
     const buffer = Buffer.from('abc');
     await efs.writeFile(`${tempSubDir}/test`, buffer);
     await expect(
@@ -327,4 +327,18 @@ describe('EncryptedFS Directories', () => {
     await efs.mkdir('/cwd1/cwd2/cwd3');
     await expectError(efs.rename('./cwd3', './cwd3/cwd4'), errno.EINVAL);
   });
+  test('trailing /. for mkdirp should not result in any errors', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    await expect(efs.mkdirp('one/two')).resolves.not.toThrow();
+    await expect(efs.mkdirp('three/four')).resolves.not.toThrow();
+    await expect(efs.mkdirp('five/six/.')).resolves.not.toThrow();
+  })
 });
