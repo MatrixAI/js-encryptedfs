@@ -276,9 +276,9 @@ describe('EncryptedFS Symlinks', () => {
     const name1 = 'one';
     const name2 = 'two';
 
-    let efs: EncryptedFS;
-    beforeEach(async ()=> {
-      efs = await EncryptedFS.createEncryptedFS({
+    const types = ['regular', 'dir', 'block', 'char', 'symlink'];
+    test.each(types)('%s', async (type) => {
+      const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
         db,
@@ -287,11 +287,7 @@ describe('EncryptedFS Symlinks', () => {
         umask: 0o022,
         logger,
       });
-      }
-    )
 
-    const types = ['regular', 'dir', 'block', 'char', 'symlink'];
-    test.each(types)('%s', async (type) => {
       await efs.mkdir(name0, 0o0755);
       await createFile(efs, type as fileTypes, path.join(name0, name1));
       await expectError(efs.link(path.join(name0, name1, 'test'), path.join(name0, name2)), errno.ENOTDIR);
