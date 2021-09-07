@@ -742,6 +742,13 @@ class EncryptedFS {
 
   public async fstat(
     fdIndex: FdIndex,
+  ): Promise<vfs.Stat>;
+  public async fstat(
+    fdIndex: FdIndex,
+    callback: Callback<[vfs.Stat]>,
+  ): Promise<void>;
+  public async fstat(
+    fdIndex: FdIndex,
     callback?: Callback<[vfs.Stat]>,
   ): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
@@ -1293,16 +1300,16 @@ class EncryptedFS {
     pathSPrefix: string,
     options?: options,
   ): Promise<string | Buffer>;
-  public async mkdtemp(pathSPrefix: string, callback: Callback): Promise<void>;
+  public async mkdtemp(pathSPrefix: string, callback: Callback<[string | Buffer]>): Promise<void>;
   public async mkdtemp(
     pathSPrefix: string,
     options: options,
-    callback: Callback,
+    callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async mkdtemp(
     pathSPrefix: path,
-    optionsOrCallback: options | Callback = { encoding: 'utf8' },
-    callback?: Callback,
+    optionsOrCallback: options | Callback<[string | Buffer]> = { encoding: 'utf8' },
+    callback?: Callback<[string | Buffer]>,
   ): Promise<string | Buffer | void> {
     const options =
       typeof optionsOrCallback !== 'function'
@@ -1871,11 +1878,11 @@ class EncryptedFS {
     file: file,
     options?: options,
   ): Promise<string | Buffer>;
-  public async readFile(file: file, callback: Callback): Promise<void>;
+  public async readFile(file: file, callback: Callback<[string | Buffer]>): Promise<void>;
   public async readFile(
     file: file,
     options: options,
-    callback: Callback,
+    callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async readFile(
     file: file,
