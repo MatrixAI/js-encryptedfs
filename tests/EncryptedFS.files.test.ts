@@ -666,4 +666,30 @@ describe('EncryptedFS Files', () => {
     );
     await efs.close(fd);
   });
+  test('ftruncate truncates the fd position', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    let fd;
+    fd = await efs.open('/fdtest', 'w+');
+    await efs.write(fd, 'abcdef');
+    await efs.ftruncate(fd, 3);
+    await efs.write(fd, 'ghi');
+    expect(await efs.readFile('/fdtest', { encoding: "utf8" })).toEqual('abcghi');
+    await efs.close(fd);
+    await efs.writeFile('/fdtest', 'abcdef');
+    fd = await efs.open('/fdtest', 'r+');
+    const buf = Buffer.allocUnsafe(3);
+    await efs.read(fd, buf, 0, buf.length);
+    await efs.ftruncate(fd, 4);
+    await efs.read(fd, buf, 0, buf.length);
+    expect(buf).toEqual(Buffer.from('dbc'));
+    await efs.close(fd);
+  });
 });
