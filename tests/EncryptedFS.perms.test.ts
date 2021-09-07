@@ -146,10 +146,10 @@ describe('EncryptedFS Permissions', () => {
     await efs.chown('file', 1000, 1000);
     let error;
     // you cannot give away files
-    await expect(efs.chown('file', 2000, 2000)).rejects.toThrow();
+    await expectError(efs.chown('file', 2000, 2000), errno.EPERM);
     // if you don't own the file, you also cannot change (even if your change is noop)
     efs.uid = 3000;
-    await expect(efs.chown('file', 1000, 1000)).rejects.toThrow();
+    await expectError(efs.chown('file', 1000, 1000), errno.EPERM);
   });
   test('chmod only works if you are the owner of the file', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -166,7 +166,7 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 1000;
     await efs.chmod('file', 0o000);
     efs.uid = 2000;
-    await expect(efs.chmod('file', 0o777)).rejects.toThrow();
+    await expectError(efs.chmod('file', 0o777), errno.EPERM);
   });
   test('permissions are checked in stages of user, group then other', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -198,17 +198,13 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 2000;
     await efs.access('testfile', vfs.constants.R_OK | vfs.constants.W_OK);
     await efs.access('dir', vfs.constants.R_OK | vfs.constants.W_OK);
-    await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
-    await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
+    await expectError(efs.access('testfile', vfs.constants.X_OK), errno.EACCES);
+    await expectError(efs.access('dir', vfs.constants.X_OK), errno.EACCES);
     efs.gid = 2000;
     await efs.access('testfile', vfs.constants.R_OK);
     await efs.access('dir', vfs.constants.R_OK);
-    await expect(
-      efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK),
-    ).rejects.toThrow();
-    await expect(
-      efs.access('dir', fs.constants.W_OK | fs.constants.X_OK),
-    ).rejects.toThrow();
+    await expectError(efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK), errno.EACCES);
+    await expectError(efs.access('dir', fs.constants.W_OK | fs.constants.X_OK), errno.EACCES);
   });
   test('permissions are checked in stages of user, group then other (using chownSync)', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -245,8 +241,8 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.access('testfile', vfs.constants.R_OK | vfs.constants.W_OK);
     await efs.access('dir', vfs.constants.R_OK | vfs.constants.W_OK);
-    await expect(efs.access('testfile', vfs.constants.X_OK)).rejects.toThrow();
-    await expect(efs.access('dir', vfs.constants.X_OK)).rejects.toThrow();
+    await expectError(efs.access('testfile', vfs.constants.X_OK), errno.EACCES);
+    await expectError(efs.access('dir', vfs.constants.X_OK), errno.EACCES);
     efs.uid = vfs.DEFAULT_ROOT_UID;
     efs.uid = vfs.DEFAULT_ROOT_GID;
     await efs.chown('testfile', 2000, 2000);
@@ -255,12 +251,8 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.access('testfile', vfs.constants.R_OK);
     await efs.access('dir', vfs.constants.R_OK);
-    await expect(
-      efs.access('testfile', vfs.constants.W_OK | vfs.constants.X_OK),
-    ).rejects.toThrow();
-    await expect(
-      efs.access('dir', vfs.constants.W_OK | vfs.constants.X_OK),
-    ).rejects.toThrow();
+    await expectError(efs.access('testfile', vfs.constants.W_OK | vfs.constants.X_OK), errno.EACCES);
+    await expectError(efs.access('dir', vfs.constants.W_OK | vfs.constants.X_OK), errno.EACCES);
   });
   test('--x-w-r-- permission staging', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -278,12 +270,8 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`dir`, 0o111);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(
-      efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK),
-    ).rejects.toThrow();
-    await expect(
-      efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK),
-    ).rejects.toThrow();
+    await expectError(efs.access(`file`, vfs.constants.R_OK | vfs.constants.W_OK), errno.EACCES);
+    await expectError(efs.access(`dir`, vfs.constants.R_OK | vfs.constants.W_OK), errno.EACCES);
     await efs.access(`file`, vfs.constants.X_OK);
     await efs.access(`dir`, vfs.constants.X_OK);
   });
@@ -302,9 +290,9 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`file`, 0o000);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
-    await expect(efs.open(`file`, 'r')).rejects.toThrow();
-    await expect(efs.open(`file`, 'w')).rejects.toThrow();
+    await expectError(efs.access(`file`, vfs.constants.X_OK), errno.EACCES);
+    await expectError(efs.open(`file`, 'r'), errno.EACCES);
+    await expectError(efs.open(`file`, 'w'), errno.EACCES);
     const stat = (await efs.stat(`file`)) as vfs.Stat;
     expect(stat.isFile()).toStrictEqual(true);
   });
@@ -324,11 +312,11 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`file`, 0o444);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
+    await expectError(efs.access(`file`, vfs.constants.X_OK), errno.EACCES);
     await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
       str,
     );
-    await expect(efs.open(`file`, 'w')).rejects.toThrow();
+    await expectError(efs.open(`file`, 'w'), errno.EACCES);
   });
   test('file permissions rw-', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -345,7 +333,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`file`, 0o666);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
+    await expectError(efs.access(`file`, vfs.constants.X_OK), errno.EACCES);
     const str = 'hello';
     await efs.writeFile(`file`, str);
     await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
@@ -409,9 +397,9 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`file`, 0o222);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.access(`file`, vfs.constants.X_OK)).rejects.toThrow();
+    await expectError(efs.access(`file`, vfs.constants.X_OK), errno.EACCES);
     await efs.writeFile(`file`, str);
-    await expect(efs.open(`file`, 'r')).rejects.toThrow();
+    await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
 
   test('file permissions -wx', async () => {
@@ -432,7 +420,7 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.access(`file`, vfs.constants.X_OK);
     await efs.writeFile(`file`, str);
-    await expect(efs.open(`file`, 'r')).rejects.toThrow();
+    await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
   test('file permissions --x', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -450,8 +438,8 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 1000;
     efs.gid = 1000;
     await efs.access(`file`, vfs.constants.X_OK);
-    await expect(efs.open(`file`, 'w')).rejects.toThrow();
-    await expect(efs.open(`file`, 'r')).rejects.toThrow();
+    await expectError(efs.open(`file`, 'w'), errno.EACCES);
+    await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
   test('directory permissions ---', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -470,8 +458,8 @@ describe('EncryptedFS Permissions', () => {
     expect(stat.isDirectory()).toStrictEqual(true);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.writeFile(`---/a`, 'hello')).rejects.toThrow();
-    await expect(efs.readdir(`---`)).rejects.toThrow();
+    await expectError(efs.writeFile(`---/a`, 'hello'), errno.EACCES);
+    await expectError(efs.readdir(`---`), errno.EACCES);
   });
 
   test('directory permissions r--', async () => {
@@ -489,7 +477,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`r--`, 0o444);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.writeFile(`r--/b`, 'hello')).rejects.toThrow();
+    await expectError(efs.writeFile(`r--/b`, 'hello'), errno.EACCES);
     await expect(efs.readdir(`r--`)).resolves.toContain('a');
     // you can always change metadata even without write permissions
     await efs.utimes(`r--`, new Date(), new Date());
@@ -512,11 +500,11 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 1000;
     efs.gid = 1000;
     // you cannot write into a file
-    await expect(efs.writeFile(`rw-/a`, 'world')).rejects.toThrow();
+    await expectError(efs.writeFile(`rw-/a`, 'world'), errno.EACCES);
     // you cannot create a new file
-    await expect(efs.writeFile(`rw-/b`, 'hello')).rejects.toThrow();
+    await expectError(efs.writeFile(`rw-/b`, 'hello'), errno.EACCES);
     // you cannot remove files
-    await expect(efs.unlink(`rw-/a`)).rejects.toThrow();
+    await expectError(efs.unlink(`rw-/a`), errno.EACCES);
     await expect(efs.readdir(`rw-`)).resolves.toContain('a');
     await efs.utimes(`rw-`, new Date(), new Date());
   });
@@ -569,7 +557,7 @@ describe('EncryptedFS Permissions', () => {
     // you can write to the file
     await efs.writeFile(`r-x/a`, str);
     // you cannot create new files
-    await expect(efs.writeFile(`r-x/b`, str)).rejects.toThrow();
+    await expectError(efs.writeFile(`r-x/b`, str), errno.EACCES);
     // you can read the directory
     await expect(efs.readdir(`r-x`)).resolves.toContain('a');
     await expect(efs.readdir(`r-x`)).resolves.toContain('dir');
@@ -581,9 +569,9 @@ describe('EncryptedFS Permissions', () => {
     const stat = (await efs.stat(`r-x/dir`)) as vfs.Stat;
     expect(stat.isDirectory()).toStrictEqual(true);
     // you cannot delete the file
-    await expect(efs.unlink(`r-x/a`)).rejects.toThrow();
+    await expectError(efs.unlink(`r-x/a`), errno.EACCES);
     // cannot delete the directory
-    await expect(efs.rmdir(`r-x/dir`)).rejects.toThrow();
+    await expectError(efs.rmdir(`r-x/dir`), errno.EACCES);
   });
   test('directory permissions -w-', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -599,8 +587,8 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`-w-`, 0o000);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.writeFile(`-w-/a`, 'hello')).rejects.toThrow();
-    await expect(efs.readdir(`-w-`)).rejects.toThrow();
+    await expectError(efs.writeFile(`-w-/a`, 'hello'), errno.EACCES);
+    await expectError(efs.readdir(`-w-`), errno.EACCES);
   });
   test('directory permissions -wx', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -624,7 +612,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.mkdir(`-wx/dir`);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.readdir(`-wx`)).rejects.toThrow();
+    await expectError(efs.readdir(`-wx`), errno.EACCES);
     const stat = (await efs.stat(`-wx/dir`)) as vfs.Stat;
     expect(stat.isDirectory()).toStrictEqual(true);
   });
@@ -644,9 +632,9 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`--x`, 0o111);
     efs.uid = 1000;
     efs.gid = 1000;
-    await expect(efs.writeFile(`--x/b`, 'world')).rejects.toThrow();
-    await expect(efs.unlink(`--x/a`)).rejects.toThrow();
-    await expect(efs.readdir(`--x`)).rejects.toThrow();
+    await expectError(efs.writeFile(`--x/b`, 'world'), errno.EACCES);
+    await expectError(efs.unlink(`--x/a`), errno.EACCES);
+    await expectError(efs.readdir(`--x`), errno.EACCES);
     await expect(efs.readFile(`--x/a`, { encoding: 'utf8' })).resolves.toEqual(
       str,
     );

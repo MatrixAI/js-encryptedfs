@@ -1,14 +1,14 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import process from 'process';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
-import { EncryptedFSError, errno } from '@/EncryptedFSError';
+import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
+import { expectError } from "./utils";
 
 describe('EncryptedFS Symlinks', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -82,7 +82,7 @@ describe('EncryptedFS Symlinks', () => {
     });
     await efs.mkdir(`directory`);
     await efs.symlink(`directory`, `linktodirectory`);
-    await expect(efs.rmdir(`linktodirectory`)).rejects.toThrow();
+    await expectError(efs.rmdir(`linktodirectory`), errno.ENOTDIR);
   });
   test('symlink paths can contain multiple slashes', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -174,7 +174,7 @@ describe('EncryptedFS Symlinks', () => {
       logger,
     });
     await efs.symlink('/test', '/test');
-    await expect(efs.readFile('/test')).rejects.toThrow();
+    await expectError(efs.readFile('/test'), errno.ELOOP);
   });
 
   test('resolves symlink loops 2', async () => {
@@ -190,7 +190,7 @@ describe('EncryptedFS Symlinks', () => {
     await efs.mkdir('/dirtolink');
     await efs.symlink('/dirtolink/test', '/test');
     await efs.symlink('/test', '/dirtolink/test');
-    await expect(efs.readFile('/test/non-existent')).rejects.toThrow();
+    await expectError(efs.readFile('/test/non-existent'), errno.ELOOP);
   });
   test('is able to add and traverse symlinks transitively', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -248,7 +248,7 @@ describe('EncryptedFS Symlinks', () => {
       logger,
     });
     await efs.mkdir(`test`);
-    await expect(efs.link(`test`, `hardlinkttotest`)).rejects.toThrow();
+    await expectError(efs.link(`test`, `hardlinkttotest`), errno.EISDIR);
   });
   test('multiple hardlinks to the same file', async () => {
     const efs = await EncryptedFS.createEncryptedFS({

@@ -5,7 +5,7 @@ import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
-import { EncryptedFSError, errno } from '@/EncryptedFSError';
+import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { expectError } from './utils';
@@ -276,7 +276,7 @@ describe('EncryptedFS Directories', () => {
     });
     await efs.mkdir('/removed');
     await efs.chdir('/removed');
-    await expect(efs.rmdir('.')).rejects.toThrow();
+    await expectError(efs.rmdir('.'), errno.EINVAL);
   });
   test('cannot delete parent directory using .. even when current directory is deleted', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -292,7 +292,7 @@ describe('EncryptedFS Directories', () => {
     await efs.chdir('/removeda/removedb');
     await efs.rmdir('../removedb');
     await efs.rmdir('../../removeda');
-    await expect(efs.rmdir('..')).rejects.toThrow();
+    await expectError(efs.rmdir('..'), errno.EINVAL);
   });
   test('cannot rename the current or parent directory to a subdirectory', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -306,10 +306,10 @@ describe('EncryptedFS Directories', () => {
     });
     await efs.mkdir('/cwd');
     await efs.chdir('/cwd');
-    await expect(efs.rename('.', 'subdir')).rejects.toThrow();
+    await expectError(efs.rename('.', 'subdir'), errno.EBUSY);
     await efs.mkdir('/cwd/cwd');
     await efs.chdir('/cwd/cwd');
-    await expect(efs.rename('..', 'subdir')).rejects.toThrow();
+    await expectError(efs.rename('..', 'subdir'), errno.EBUSY);
   });
   test('cannot rename where the old path is a strict prefix of the new path', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -323,8 +323,8 @@ describe('EncryptedFS Directories', () => {
     });
     await efs.mkdirp('/cwd1/cwd2');
     await efs.chdir('/cwd1/cwd2');
-    await expect(efs.rename('../cwd2', 'subdir')).rejects.toThrow();
+    await expectError(efs.rename('../cwd2', 'subdir'), errno.EINVAL);
     await efs.mkdir('/cwd1/cwd2/cwd3');
-    await expect(efs.rename('./cwd3', './cwd3/cwd4')).rejects.toThrow();
+    await expectError(efs.rename('./cwd3', './cwd3/cwd4'), errno.EINVAL);
   });
 });

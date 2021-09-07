@@ -5,9 +5,10 @@ import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
-import { EncryptedFSError, errno } from '@/EncryptedFSError';
+import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
+import { expectError } from "./utils";
 
 describe('EncryptedFS Files', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -139,10 +140,8 @@ describe('EncryptedFS Files', () => {
     await expect(efs.readFile(`b`, { encoding: 'utf-8' })).resolves.toEqual(
       'Test',
     );
-    await expect(efs.readFile(`other-file`)).rejects.toThrow();
-    await expect(
-      efs.readFile(`other-file`, { encoding: 'utf8' }),
-    ).rejects.toThrow();
+    await expectError(efs.readFile(`other-file`), errno.ENOENT);
+    await expectError(efs.readFile(`other-file`, { encoding: 'utf8' }), errno.ENOENT);
   });
   test('can write 50 files', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
@@ -532,9 +531,9 @@ describe('EncryptedFS Files', () => {
     efs.uid = 1000;
     efs.gid = 1000;
     await efs.access('/test1', vfs.constants.R_OK);
-    await expect(efs.access('/test1', vfs.constants.W_OK)).rejects.toThrow();
+    await expectError(efs.access('/test1', vfs.constants.W_OK),errno.EACCES);
     await efs.access('/test2', vfs.constants.R_OK);
-    await expect(efs.access('/test1', vfs.constants.W_OK)).rejects.toThrow();
+    await expectError(efs.access('/test1', vfs.constants.W_OK),errno.EACCES);
   });
   test('can seek and overwrite parts of a file', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
