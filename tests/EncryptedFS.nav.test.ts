@@ -5,13 +5,13 @@ import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
-import { EncryptedFSError, errno } from '@/EncryptedFSError';
+import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { expectError } from './utils';
 
 describe('EncryptedFS Navigation', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+  const logger = new Logger('EncryptedFS Navigation', LogLevel.WARN, [
     new StreamHandler(),
   ]);
   let dataDir: string;
@@ -109,7 +109,7 @@ describe('EncryptedFS Navigation', () => {
     const stat = (await efs.stat(`abc/`)) as vfs.Stat;
     expect(stat.isDirectory()).toStrictEqual(true);
   });
-  test('trailing `/.` for mkdirSync should result in errors', async () => {
+  test('trailing `/.` for mkdir should result in errors', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
