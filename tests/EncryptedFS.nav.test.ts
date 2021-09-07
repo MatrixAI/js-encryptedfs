@@ -57,6 +57,50 @@ describe('EncryptedFS Navigation', () => {
     });
     expect(efs).toBeInstanceOf(EncryptedFS);
   });
+  test('EFS using callback style functions', async (done) => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const str = 'callback';
+    const flags = (vfs.constants.O_CREAT | vfs.constants.O_RDWR);
+    const readBuffer = Buffer.alloc(str.length);
+    efs.mkdir('callback', () => {
+      efs.open('callback/cb', flags, (err, fdIndex) => {
+        expect(err).toBe(null);
+        efs.write(fdIndex, str, 0, (err, bytesWritten) => {
+          expect(err).toBe(null);
+          expect(bytesWritten).toBe(str.length);
+          efs.read(fdIndex, readBuffer, 0, str.length, (err, bytesRead) => {
+            expect(err).toBe(null);
+            expect(bytesRead).toBe(str.length);
+            efs.close(fdIndex, () => {
+              efs.unlink('callback/cb', () => {
+                efs.rename('callback', 'cb', () => {
+                  efs.symlink('callback', 'cb', () => {
+                    efs.readdir('.', (err, list) => {
+                      expect(err).toBe(null);
+                      expect(list.sort()).toEqual(['cb'].sort());
+                      efs.unlink('callback', () => {
+                        efs.rmdir('cb', () => {
+                          done();
+                        });
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  });
   test('should be able to navigate before root', async () => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,
