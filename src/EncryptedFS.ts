@@ -1082,6 +1082,13 @@ class EncryptedFS {
 
   public async lstat(
     path: path,
+  ): Promise<vfs.Stat>;
+  public async lstat(
+    path: path,
+    callback: Callback<[vfs.Stat]>,
+  ): Promise<void>;
+  public async lstat(
+    path: path,
     callback?: Callback<[vfs.Stat]>,
   ): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
@@ -2239,6 +2246,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  public async stat(
+    path: path,
+  ): Promise<vfs.Stat>;
+  public async stat(
+    path: path,
+    callback: Callback<[vfs.Stat]>,
+  ): Promise<void>;
   public async stat(
     path: path,
     callback?: Callback<[vfs.Stat]>,
