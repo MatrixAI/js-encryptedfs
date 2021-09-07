@@ -10,6 +10,8 @@ import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { expectError } from './utils';
+import { WriteStream } from "@/streams";
+import { Readable, Writable } from "readable-stream";
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -330,29 +332,82 @@ describe('EncryptedFS Streams', () => {
     });
     stream.read(10);
   });
-  // test('readstreams can compose with pipes', async (done) => {
-  //   const efs = await EncryptedFS.createEncryptedFS({
-  //     dbKey,
-  //     dbPath,
-  //     db,
-  //     devMgr,
-  //     iNodeMgr,
-  //     umask: 0o022,
-  //     logger,
-  //   });
-  //   const str = 'Hello';
-  //   await efs.writeFile(`file`, str);
-  //   const readStream = efs.createReadStream(`file`, {
-  //     encoding: 'utf8',
-  //     end: 10,
-  //   });
-  //   const b = new bl(function() { return Buffer.from('d')});
-  //   b.read()
-  //   (await efs.createReadStream('/file')).pipe((new bl([() => {}]) as unknown) as WriteStream);
-  //   (await efs.createReadStream('/file')).pipe(bl((err, data) => {
-  //     expect(data.toString('utf8')).toBe(str);
-  //   }));
-  // });
+  test('readstreams can compose with pipes', async (done) => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const str = 'Hello';
+    await efs.writeFile(`file`, str);
+    const readStream = await efs.createReadStream(`file`, {
+      encoding: 'utf8',
+      end: 10,
+    });
+    // Creating a test writable stream.
+    let data = '';
+    class TestWritable extends Writable {
+      constructor() {
+        super();
+      }
+      _write(chunk, encoding, callback) {
+        data += chunk.toString();
+        callback();
+      }
+    }
+
+    const testWritable = new TestWritable();
+    readStream.pipe(testWritable);
+    testWritable.on('finish', () => {
+      expect(data).toEqual(str);
+      done();
+    })
+  });
+  test('writestreams can compose with pipes', async (done) => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
+    const message = 'Hello there kenobi';
+    const str = '';
+    await efs.writeFile(`file`, str);
+
+    const writeStream = await efs.createWriteStream('file', {
+      encoding: 'utf8',
+    } )
+
+    class TestReadableStream extends Readable{
+      written = false;
+      constructor(){
+        super();
+      }
+      _read(size) {
+        if(!this.written) {
+          this.push(message);
+          this.written = true;
+        } else {
+          this.push(null);
+        }
+      }
+    }
+
+    const testReadableStream = new TestReadableStream();
+    testReadableStream.pipe(writeStream);
+    writeStream.on('finish', async () => {
+      const data = await efs.readFile('file')
+      expect(data.toString()).toEqual(message);
+      done();
+    })
+  });
   test('writestream can create and truncate files', async (done) => {
     const efs = await EncryptedFS.createEncryptedFS({
       dbKey,
