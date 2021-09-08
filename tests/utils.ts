@@ -65,4 +65,21 @@ async function createFile(
   }
 }
 
-export { expectError, createFile };
+const supportedTypes = [
+  'regular' as fileTypes,
+  'dir' as fileTypes,
+  'block' as fileTypes,
+  'char' as fileTypes,
+  'symlink' as fileTypes,
+];
+
+async function sleep(ms: number) {
+  return await new Promise((r) => setTimeout(r, ms));
+}
+
+function setId(efs: EncryptedFS, uid: number, gid?: number) {
+  efs.uid = uid;
+  efs.gid = gid ?? uid;
+}
+
+export { expectError, createFile, supportedTypes, sleep, setId };

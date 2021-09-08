@@ -8,7 +8,14 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError, createFile } from './utils';
+import {
+  expectError,
+  createFile,
+  fileTypes,
+  supportedTypes,
+  sleep,
+  setId,
+} from './utils';
 import path from 'path';
 
 describe('EncryptedFS Links', () => {
@@ -270,13 +277,114 @@ describe('EncryptedFS Links', () => {
     await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
   });
 
+  describe('symlink', () => {
+    let efs: EncryptedFS;
+    let n0: string;
+    let n1: string;
+    let n2: string;
+
+    const dp = 0o0755;
+    const tuid = 0o65534;
+    beforeEach(async () => {
+      efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      n0 = 'zero';
+      n1 = 'one';
+      n2 = 'two';
+    });
+    test('creates symbolic links (00)', async () => {
+      await createFile(efs, 'regular', n0);
+      const stat = await efs.lstat(n0);
+      // expect(stat.mode).toEqual(0o0644);
+      await efs.symlink(n0, n1);
+      // Should check that it is a link here.
+      await efs.unlink(n0);
+      await expectError(efs.stat(n1), errno.ENOENT);
+      await efs.unlink(n1);
+
+      await efs.mkdir(n0, dp);
+      let stat2 = await efs.stat(n0);
+      const time = stat2.birthtime.getTime();
+      //sleep here if needed.
+      await sleep(100);
+      await efs.symlink('test', path.join(n0, n1));
+      stat2 = await efs.stat(n0);
+      const mtime = stat2.mtime.getTime();
+      const ctime = stat2.ctime.getTime();
+      expect(time).toBeLessThan(mtime);
+      expect(time).toBeLessThan(ctime);
+    });
+    test('returns ENOENT if a component of the name2 path prefix does not exist (04)', async () => {
+      await efs.mkdir(n0, dp);
+      await expectError(
+        efs.symlink('test', path.join(n0, n1, 'test')),
+        errno.ENOENT,
+      );
+    });
+    test('returns EACCES when a component of the name2 path prefix denies search permission (05)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+
+      await efs.symlink('test', path.join(n1, n2));
+      await efs.unlink(path.join(n1, n2));
+
+      await efs.chmod(n1, 0o0644);
+      setId(efs, tuid);
+      await expectError(efs.symlink('test', path.join(n1, n2)), errno.EACCES);
+      await efs.chmod(n1, dp);
+      await efs.symlink('test', path.join(n1, n2));
+      await efs.unlink(path.join(n1, n2));
+    });
+    test('returns EACCES if the parent directory of the file to be created denies write permission (06)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+
+      setId(efs, tuid);
+      await efs.symlink('test', path.join(n1, n2));
+      await efs.unlink(path.join(n1, n2));
+
+      // setId(efs, uid);
+      await efs.chmod(n1, 0o0555);
+      setId(efs, tuid);
+      await expectError(efs.symlink('test', path.join(n1, n2)), errno.EACCES);
+      await efs.chmod(n1, 0o0755);
+      await efs.symlink('test', path.join(n1, n2));
+      await efs.unlink(path.join(n1, n2));
+    });
+    test('returns ELOOP if too many symbolic links were encountered in translating the name2 path name (07)', async () => {
+      await efs.symlink(n0, n1);
+      await efs.symlink(n1, n0);
+      await expectError(
+        efs.symlink('test', path.join(n0, 'test')),
+        errno.ELOOP,
+      );
+      await expectError(
+        efs.symlink('test', path.join(n1, 'test')),
+        errno.ELOOP,
+      );
+      await efs.unlink(n0);
+      await efs.unlink(n1);
+    });
+    describe('returns EEXIST if the name2 argument already exists (08)', () => {
+      test.each(supportedTypes)('for %s', async (type) => {
+        await createFile(efs, type, n0);
+        await expectError(efs.symlink('test', n0), errno.EEXIST);
+      });
+    });
+  });
   describe('link returns ENOTDIR if a component of either path prefix is not a directory', () => {
     const name0 = 'zero';
     const name1 = 'one';
     const name2 = 'two';
 
-    const types = ['regular', 'dir', 'block', 'char', 'symlink'];
-    test.each(types)('%s', async (type) => {
+    test.each(supportedTypes)('%s', async (type) => {
       const efs = await EncryptedFS.createEncryptedFS({
         dbKey,
         dbPath,
