@@ -17,6 +17,7 @@ import {
   setId,
 } from './utils';
 import path from 'path';
+import * as buffer from "buffer";
 
 describe('EncryptedFS Links', () => {
   const logger = new Logger('EncryptedFS Links', LogLevel.WARN, [
@@ -379,6 +380,177 @@ describe('EncryptedFS Links', () => {
       });
     });
   });
+  describe('unlink', () => {
+    let efs: EncryptedFS;
+    let n0: string;
+    let n1: string;
+    let n2: string;
+
+    const dp = 0o0755;
+    const tuid = 0o65534;
+    beforeEach(async () => {
+      efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      n0 = 'zero';
+      n1 = 'one';
+      n2 = 'two';
+    });
+
+    describe('removes regular files, symbolic links, fifos and sockets (00)', () => {
+      const types = supportedTypes.filter(item => {return (item != 'dir' && item != 'symlink')});
+      describe.each(types)('type: %s', (type) => {
+        test('Can create and remove a link', async () => {
+          await createFile(efs, type, n0);
+          await efs.unlink(n0);
+        });
+        test('successful unlink(2) updates ctime', async () => {
+          await createFile(efs, type, n0);
+          await efs.link(n0, n1);
+          const ctime1 = (await efs.stat(n0)).ctime.getTime();
+          await sleep(10);
+          await efs.unlink(n1);
+          const ctime2 = (await efs.stat(n0)).ctime.getTime();
+          expect(ctime1).toBeLessThan(ctime2);
+        });
+        test('unsuccessful unlink(2) does not update ctime.', async () => {
+          await createFile(efs, type, n0);
+          await efs.link(n0, n1);
+          const ctime1 = (await efs.stat(n0)).ctime.getTime();
+          await sleep(10);
+          setId(efs, tuid);
+          await expectError(efs.unlink(n1), errno.EACCES);
+          const ctime2 = (await efs.stat(n0)).ctime.getTime();
+          expect(ctime1).toEqual(ctime2);
+        });
+
+      });
+
+    });
+    test('returns ENOTDIR if a component of the path prefix is not a directory (01)', async () => {
+      await efs.mkdir(n0, dp);
+      await createFile(efs, 'regular', path.join(n0, n1));
+      await expectError(efs.unlink(path.join(n0, n1, 'test')), errno.ENOTDIR);
+    });
+    test('returns ENOENT if the named file does not exist (04)', async () => {
+      await createFile(efs, 'regular', n0);
+      await efs.unlink(n0);
+      await expectError(efs.unlink(n0), errno.ENOENT);
+      await expectError(efs.unlink(n1), errno.ENOENT);
+    });
+    test('returns EACCES when search permission is denied for a component of the path prefix (05)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+      setId(efs, tuid);
+      await createFile(efs, 'regular', path.join(n1, n2));
+      await efs.chmod(n1, 0o0644);
+      await expectError(efs.unlink(path.join(n1, n2)), errno.EACCES);
+    });
+    test('returns EACCES when write permission is denied on the directory containing the link to be removed (06)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+      setId(efs, tuid);
+      await createFile(efs, 'regular', path.join(n1, n2));
+      await efs.chmod(n1, 0o0555);
+      await expectError(efs.unlink(path.join(n1, n2)), errno.EACCES);
+    });
+    test('returns ELOOP if too many symbolic links were encountered in translating the pathname (07)', async () => {
+      await efs.symlink(n0, n1);
+      await efs.symlink(n1, n0);
+      await expectError(efs.unlink(path.join(n0, 'test')), errno.ELOOP);
+      await expectError(efs.unlink(path.join(n1, 'test')), errno.ELOOP);
+    });
+    test('may return EPERM if the named file is a directory (08)', async () => {
+      await efs.mkdir(n0, dp);
+      await expectError(efs.unlink(n0), errno.EISDIR); // was EPERM
+      // await expectError(efs.rmdir(n0), errno.ENOENT); // Succeeds, I think that's intended.
+    });
+    describe('returns EACCES or EPERM if the directory containing the file is marked sticky, and neither the containing directory nor the file to be removed are owned by the effective user ID (11)',() => {
+      beforeEach(async () => {
+        await efs.mkdir(n0, dp);
+        await efs.chmod(n0, 0o01777);
+        await efs.chown(n0, tuid, tuid);
+      })
+
+      const types = supportedTypes.filter(item => {return item != 'dir'});
+      describe.each(types)('type: %s', (type) => {
+        test('User owns both: the sticky directory and the file', async () => {
+        const PUT = path.join(n0, n1);
+        await efs.chown(n0, tuid, tuid);
+        await createFile(efs, type, PUT, tuid, tuid);
+        const stat = await efs.lstat(PUT);
+        expect(stat.uid).toEqual(tuid);
+        expect(stat.gid).toEqual(tuid);
+        setId(efs, tuid);
+        await efs.unlink(PUT);
+        await expectError(efs.lstat(PUT), errno.ENOENT);
+      })
+        test('User owns the sticky directory, but doesn\'t own the file.', async () => {
+          for (let id = 0; id < 65533; id+=0o10000) { // Spot checking ids
+            const PUT = path.join(n0, n1);
+            await efs.chown(n0, tuid, tuid);
+            await createFile(efs, type, PUT, id, id);
+            const stat = await efs.lstat(PUT);
+            expect(stat.uid).toEqual(id);
+            expect(stat.gid).toEqual(id);
+            await efs.unlink(PUT);
+            await expectError(efs.lstat(PUT), errno.ENOENT);
+          }
+        })
+        test('User owns the file, but doesn\'t own the sticky directory.', async () => {
+          for (let id = 0; id < 65533; id+=0o10000) { // Spot checking ids
+            const PUT = path.join(n0, n1);
+            await efs.chown(n0, id, id);
+            await createFile(efs, type, PUT, tuid, tuid);
+            const stat = await efs.lstat(PUT);
+            expect(stat.uid).toEqual(tuid);
+            expect(stat.gid).toEqual(tuid);
+            await efs.unlink(PUT);
+            await expectError(efs.lstat(PUT), errno.ENOENT);
+          }
+        })
+        test('User doesn\'t own the sticky directory nor the file.', async () => {
+          for (let id = 0; id < 65533; id+=0o10000) { // Spot checking ids
+            const PUT = path.join(n0, n1);
+            await efs.chown(n0, id, id);
+            await createFile(efs, type, PUT, id, id);
+            const stat = await efs.lstat(PUT);
+            expect(stat.uid).toEqual(id);
+            expect(stat.gid).toEqual(id);
+            setId(efs, tuid);
+            await expectError(efs.unlink(PUT), errno.ENOENT);
+          }
+        })
+      });
+    });
+    test('An open file will not be immediately freed by unlink (14)', async () => {
+      const message = 'Hello, World!';
+      const message2 = 'Hello,_World!';
+      await createFile(efs, 'regular', n0);
+      let fd = await efs.open(n0, 'w');
+      await efs.write(fd, message);
+      await efs.unlink(n0);
+      // A deleted file's link count should be 0
+      let stat = await efs.fstat(fd);
+      expect(stat.nlink).toEqual(0);
+      await efs.close(fd);
+
+      // I/O to open but deleted files should work, too
+      await createFile(efs, 'regular', n0);
+      fd = await efs.open(n0, 'r+');
+      await efs.write(fd, message2, 0, "utf-8");
+      // await efs.unlink(n0);
+      const buf = new Buffer(20);
+      await efs.read(fd, buf);
+      expect(buf).toEqual(message2);
+    });
+  })
   describe('link returns ENOTDIR if a component of either path prefix is not a directory', () => {
     const name0 = 'zero';
     const name1 = 'one';
