@@ -8,7 +8,13 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError, createFile, fileTypes } from './utils';
+import {
+  expectError,
+  createFile,
+  fileTypes,
+  setId,
+  supportedTypes,
+} from './utils';
 import path from 'path';
 
 describe('EncryptedFS Directories', () => {
@@ -467,6 +473,47 @@ describe('EncryptedFS Directories', () => {
         expect(stat2.uid).toEqual(id);
         await efs.rmdir(PUT);
       }
+    });
+  });
+  describe('mkdir', () => {
+    let efs: EncryptedFS;
+    let n0: string;
+    let n1: string;
+    let n2: string;
+
+    const dp = 0o0755;
+    const tuid = 0o65534;
+    beforeEach(async () => {
+      efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      n0 = 'zero';
+      n1 = 'one';
+      n2 = 'two';
+    });
+
+    test('mkdir returns EACCES when write permission is denied on the parent directory of the directory to be created (06)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+      setId(efs, tuid);
+      await efs.mkdir(path.join(n1, n2), dp);
+      await efs.rmdir(path.join(n1, n2));
+      await efs.chmod(n1, 0o0555);
+      await expectError(efs.mkdir(path.join(n1, n2)), errno.EACCES);
+      await efs.chmod(n1, dp);
+      await efs.mkdir(path.join(n1, n2), dp);
+    });
+    describe('mkdir returns EEXIST if the named file exists (10)', () => {
+      test.each(supportedTypes)('Type: %s', async (type) => {
+        await createFile(efs, type, n0);
+        await expectError(efs.mkdir(n0, dp), errno.EEXIST);
+      });
     });
   });
 });
