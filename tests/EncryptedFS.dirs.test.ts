@@ -8,7 +8,8 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError } from './utils';
+import { expectError, createFile, fileTypes } from './utils';
+import path from 'path';
 
 describe('EncryptedFS Directories', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -340,5 +341,132 @@ describe('EncryptedFS Directories', () => {
     await expect(efs.mkdirp('one/two')).resolves.not.toThrow();
     await expect(efs.mkdirp('three/four')).resolves.not.toThrow();
     await expect(efs.mkdirp('five/six/.')).resolves.not.toThrow();
+  });
+  describe('rmdir', () => {
+    let efs: EncryptedFS;
+    let n0: string;
+    let n1: string;
+    let n2: string;
+    const supportedTypes = ['regular', 'dir', 'block', 'char', 'symlink'];
+    beforeEach(async () => {
+      efs = await EncryptedFS.createEncryptedFS({
+        dbKey,
+        dbPath,
+        db,
+        devMgr,
+        iNodeMgr,
+        umask: 0o022,
+        logger,
+      });
+      n0 = 'zero';
+      n1 = 'one';
+      n2 = 'two';
+    });
+    test('returns ENOENT if the named directory does not exist (04)', async () => {
+      await efs.mkdir(n0, 0o0755);
+      await efs.rmdir(n0);
+      await expectError(efs.rmdir(n0), errno.ENOENT);
+      await expectError(efs.rmdir(n1), errno.ENOENT);
+    });
+    test('returns ELOOP if too many symbolic links were encountered in translating the pathname (05)', async () => {
+      await efs.symlink(n0, n1);
+      await efs.symlink(n1, n0);
+      await expectError(efs.rmdir(path.join(n0, 'test')), errno.ELOOP);
+      await expectError(efs.rmdir(path.join(n1, 'test')), errno.ELOOP);
+      await efs.unlink(n0);
+      await efs.unlink(n1);
+    });
+    describe("returns ENOTEMPTY if the named directory contains files other than '.' and '..' in it (06)", () => {
+      beforeEach(async () => {
+        await efs.mkdir(n0, 0o0755);
+      });
+      test.each(supportedTypes)('for %s', async (type) => {
+        await createFile(efs, type as fileTypes, path.join(n0, n1));
+        await expectError(efs.rmdir(n0), errno.ENOTEMPTY);
+      });
+    });
+    test('returns EACCES when search permission is denied for a component of the path prefix (07)', async () => {
+      await efs.mkdir(n0, 0o0755);
+      await efs.mkdir(path.join(n0, n1), 0o0755);
+      await efs.chown(path.join(n0, n1), 0o65534, 0o65534);
+      await efs.mkdir(path.join(n0, n1, n2), 0o0755);
+      await efs.chown(path.join(n0, n1, n2), 0o65534, 0o65534);
+      await efs.chmod(path.join(n0, n1), 0o0644);
+      efs.gid = 0o65534;
+      efs.uid = 0o65534;
+      await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
+    });
+    test('returns EACCES when write permission is denied on the directory containing the link to be removed (08)', async () => {
+      await efs.mkdir(n0, 0o0755);
+      await efs.mkdir(path.join(n0, n1), 0o0755);
+      await efs.chown(path.join(n0, n1), 0o65534, 0o65534);
+      await efs.mkdir(path.join(n0, n1, n2), 0o0755);
+      await efs.chown(path.join(n0, n1, n2), 0o65534, 0o65534);
+      await efs.chmod(path.join(n0, n1), 0o0555);
+      efs.gid = 0o65543;
+      efs.uid = 0o65543;
+      await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
+    });
+    test('returns EACCES or EPERM if the directory containing the directory to be removed is marked sticky, and neither the containing directory nor the directory to be removed are owned by the effective user ID (11)', async () => {
+      const dp = 0o0755;
+      const dg = 0o65534;
+      await efs.mkdir(n2, dp);
+
+      await efs.mkdir(path.join(n2, n0), dp);
+      await efs.chown(path.join(n2, n0), dg, dg);
+      await efs.chmod(path.join(n2, n0), 0o01777);
+
+      //User owns both: the sticky directory and the directory to be removed.
+      await efs.mkdir(path.join(n2, n0, n1), dp);
+      await efs.chown(path.join(n2, n0, n1), dg, dg);
+      const stat = await efs.lstat(path.join(n2, n0, n1));
+      expect(stat.gid).toEqual(dg);
+      expect(stat.uid).toEqual(dg);
+      await efs.rmdir(path.join(n2, n0, n1));
+      await expectError(efs.lstat(path.join(n2, n0, n1)), errno.ENOENT);
+
+      // User owns the directory to be removed, but doesn't own the sticky directory.
+      for (let id = 0; id < 0o65533; id += 0o1000) {
+        //spot checking IDs
+        const PUT = path.join(n2, n0, n1);
+        await efs.chown(path.join(n2, n0), id, id);
+        await createFile(efs, 'dir', PUT, dg, dg);
+        const stat = await efs.lstat(PUT);
+        expect(stat.gid).toEqual(dg);
+        expect(stat.uid).toEqual(dg);
+        await efs.rmdir(PUT);
+        await expectError(efs.lstat(PUT), errno.ENOENT);
+      }
+
+      // User owns the sticky directory, but doesn't own the directory to be removed.
+      for (let id = 0; id < 0o65533; id += 0o1000) {
+        //spot checking IDs
+        const PUT = path.join(n2, n0, n1);
+        await createFile(efs, 'dir', PUT, id, id);
+        const stat = await efs.lstat(PUT);
+        expect(stat.gid).toEqual(id);
+        expect(stat.uid).toEqual(id);
+        await efs.rmdir(PUT);
+        await expectError(efs.lstat(PUT), errno.ENOENT);
+      }
+
+      // User doesn't own the sticky directory nor the directory to be removed.
+      for (let id = 0; id < 0o65533; id += 0o1000) {
+        //spot checking IDs
+        const PUT = path.join(n2, n0, n1);
+        await efs.chown(path.join(n2, n0), id, id);
+        await createFile(efs, 'dir', PUT, id, id);
+        const stat = await efs.lstat(PUT);
+        expect(stat.gid).toEqual(id);
+        expect(stat.uid).toEqual(id);
+        efs.gid = dg;
+        efs.uid = dg;
+        await expectError(efs.rmdir(PUT), errno.EACCES);
+        const stat2 = await efs.lstat(PUT);
+        expect(stat2.gid).toEqual(id);
+        expect(stat2.uid).toEqual(id);
+        await efs.rmdir(PUT);
+      }
+    });
   });
 });
