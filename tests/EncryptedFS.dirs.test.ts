@@ -498,7 +498,7 @@ describe('EncryptedFS Directories', () => {
       n2 = 'two';
     });
 
-    test('mkdir returns EACCES when write permission is denied on the parent directory of the directory to be created (06)', async () => {
+    test('returns EACCES when write permission is denied on the parent directory of the directory to be created (06)', async () => {
       await efs.mkdir(n1, dp);
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
@@ -509,7 +509,7 @@ describe('EncryptedFS Directories', () => {
       await efs.chmod(n1, dp);
       await efs.mkdir(path.join(n1, n2), dp);
     });
-    describe('mkdir returns EEXIST if the named file exists (10)', () => {
+    describe('returns EEXIST if the named file exists (10)', () => {
       test.each(supportedTypes)('Type: %s', async (type) => {
         await createFile(efs, type, n0);
         await expectError(efs.mkdir(n0, dp), errno.EEXIST);

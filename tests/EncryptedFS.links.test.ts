@@ -582,7 +582,7 @@ describe('EncryptedFS Links', () => {
       n3 = 'three';
       n4 = 'four';
     });
-    describe('link creates hardlinks (00)', () => {
+    describe('creates hardlinks (00)', () => {
       const types = ['regular', 'block', 'char'];
       describe.each(types)('Type: %s', (type) => {
         test('creates links.', async () => {
@@ -677,7 +677,7 @@ describe('EncryptedFS Links', () => {
         });
       });
     });
-    describe('link returns ENOTDIR if a component of either path prefix is not a directory (01)', () => {
+    describe('returns ENOTDIR if a component of either path prefix is not a directory (01)', () => {
       test.each(supportedTypes)('%s', async (type) => {
         await efs.mkdir(n0, dp);
         await createFile(efs, type as fileTypes, path.join(n0, n1));
@@ -692,7 +692,7 @@ describe('EncryptedFS Links', () => {
         );
       });
     });
-    test('link returns EACCES when a component of either path prefix denies search permission (06)', async () => {
+    test('returns EACCES when a component of either path prefix denies search permission (06)', async () => {
       await efs.mkdir(n1, dp);
       await efs.chown(n1, tuid, tuid);
       await efs.mkdir(n2, dp);
@@ -720,7 +720,7 @@ describe('EncryptedFS Links', () => {
         errno.EACCES,
       );
     });
-    test('link returns EACCES when the requested link requires writing in a directory with a mode that denies write permission (07)', async () => {
+    test('returns EACCES when the requested link requires writing in a directory with a mode that denies write permission (07)', async () => {
       await efs.mkdir(n1, dp);
       await efs.chown(n1, tuid, tuid);
       await efs.mkdir(n2, dp);
@@ -742,7 +742,7 @@ describe('EncryptedFS Links', () => {
         errno.EACCES,
       );
     });
-    test('link returns ELOOP if too many symbolic links were encountered in translating one of the pathnames (08)', async () => {
+    test('returns ELOOP if too many symbolic links were encountered in translating one of the pathnames (08)', async () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(efs.link(path.join(n0, 'test'), n2), errno.ELOOP);
@@ -751,20 +751,20 @@ describe('EncryptedFS Links', () => {
       await expectError(efs.link(n2, path.join(n0, 'test')), errno.ELOOP);
       await expectError(efs.link(n2, path.join(n1, 'test')), errno.ELOOP);
     });
-    test('link returns ENOENT if the source file does not exist (09)', async () => {
+    test('returns ENOENT if the source file does not exist (09)', async () => {
       await createFile(efs, 'regular', n0);
       await efs.link(n0, n1);
       await efs.unlink(n0);
       await efs.unlink(n1);
       await expectError(efs.link(n0, n1), errno.ENOENT);
     });
-    describe('link returns EEXIST if the destination file does exist (10)', () => {
+    describe('returns EEXIST if the destination file does exist (10)', () => {
       test.each(supportedTypes)('Type: %s', async (type) => {
         await createFile(efs, type, n1);
         await expectError(efs.link(n0, n1), errno.EEXIST);
       });
     });
-    test('link returns EPERM if the source file is a directory (11)', async () => {
+    test('returns EPERM if the source file is a directory (11)', async () => {
       await efs.mkdir(n0);
       await expectError(efs.link(n0, n1), errno.EPERM);
 
