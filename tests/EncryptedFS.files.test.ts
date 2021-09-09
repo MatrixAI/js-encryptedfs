@@ -8,7 +8,14 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { createFile, expectError, sleep } from './utils';
+import {
+  createFile,
+  expectError,
+  FileTypes,
+  setId,
+  sleep,
+  supportedTypes,
+} from './utils';
 import path from 'path';
 
 describe('EncryptedFS Files', () => {
@@ -859,32 +866,210 @@ describe('EncryptedFS Files', () => {
         await efs.unlink(PUT);
       });
     });
-    test.todo(
-      'returns ENOTDIR if a component of the path prefix is not a directory (01)',
-    );
-    test.todo(
-      'returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist (04)',
-    );
-    test.todo(
-      'returns EACCES when search permission is denied for a component of the path prefix (05)',
-    );
-    test.todo(
-      'returns EACCES when the required permissions (for reading and/or writing) are denied for the given flags (06)',
-    );
-    test.todo(
-      'returns EACCES when O_TRUNC is specified and write permission is denied (07)',
-    );
-    test.todo(
-      'returns ELOOP if too many symbolic links were encountered in translating the pathname (12)',
-    );
-    test.todo(
-      'returns EISDIR when trying to open a directory for writing (13)',
-    );
-    test.todo(
-      'returns ELOOP when O_NOFOLLOW was specified and the target is a symbolic link (16)',
-    );
-    test.todo(
-      'returns EEXIST when O_CREAT and O_EXCL were specified and the file exists (22)',
-    );
+    describe('returns ENOTDIR if a component of the path prefix is not a directory (01)', () => {
+      test.each(['regular', 'block', 'char'])('Type: %s', async (type) => {
+        const PUT = path.join(n1, 'test');
+        await createFile(efs, type as FileTypes, n1);
+        await expectError(efs.open(PUT, 'r'), errno.ENOTDIR);
+        await expectError(efs.open(PUT, 'w', 0o0644), errno.ENOTDIR);
+      });
+    });
+    test('returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist (04)', async () => {
+      await efs.mkdir(n0, dp);
+      await expectError(
+        efs.open(path.join(n0, n1, 'test'), vfs.constants.O_CREAT, 0o0644),
+        errno.ENOENT,
+      );
+      await expectError(
+        efs.open(path.join(n0, n1, 'test'), vfs.constants.O_RDONLY),
+        errno.ENOENT,
+      );
+    });
+    test('returns EACCES when search permission is denied for a component of the path prefix (05)', async () => {
+      await efs.mkdir(n1, dp);
+      await efs.chown(n1, tuid, tuid);
+      setId(efs, tuid);
+      await createFile(efs, 'regular', path.join(n1, n2));
+      let fd = await efs.open(path.join(n1, n2), vfs.constants.O_RDONLY);
+      await efs.close(fd);
+      await efs.chmod(n1, 0o0644);
+      await expectError(
+        efs.open(path.join(n1, n2), vfs.constants.O_RDONLY),
+        errno.EACCES,
+      );
+      await efs.chmod(n1, 0o0755);
+      fd = await efs.open(path.join(n1, n2), vfs.constants.O_RDONLY);
+      await efs.close(fd);
+    });
+    describe('returns EACCES when the required permissions (for reading and/or writing) are denied for the given flags (06)', () => {
+      const oCon = vfs.constants;
+      test('regular file', async () => {
+        await efs.mkdir(n0, dp);
+        // await efs.chown(n0, tuid, tuid);
+        const PUT = path.join(n0, n1);
+        // setId(efs, tuid);
+        await createFile(efs, 'regular', PUT);
+        // await efs.chown(PUT, tuid, tuid);
+
+        let fd;
+        let modes = [0o0600, 0o0060, 0o0006];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          fd = await efs.open(PUT, oCon.O_RDONLY);
+          await efs.close(fd);
+          fd = await efs.open(PUT, oCon.O_WRONLY);
+          await efs.close(fd);
+          fd = await efs.open(PUT, oCon.O_RDWR);
+          await efs.close(fd);
+        }
+
+        modes = [0o0477, 0o0747, 0o0774];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          fd = await efs.open(PUT, oCon.O_RDONLY);
+          await efs.close(fd);
+          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+        }
+
+        modes = [0o0277, 0o0727, 0o0772];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          fd = await efs.open(PUT, oCon.O_WRONLY);
+          await efs.close(fd);
+          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+        }
+
+        modes = [0o0177, 0o0717, 0o0771];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+        }
+
+        modes = [0o0077, 0o0707, 0o0770];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+        }
+      });
+      test('directory', async () => {
+        await efs.mkdir(n0, dp);
+        // await efs.chown(n0, tuid, tuid);
+        const PUT = path.join(n0, n1);
+        await efs.mkdir(PUT, dp);
+
+        let fd;
+        let modes = [0o0600, 0o0060, 0o0006];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          fd = await efs.open(PUT, oCon.O_RDONLY);
+          await efs.close(fd);
+        }
+
+        modes = [0o0477, 0o0747, 0o0774];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          fd = await efs.open(PUT, oCon.O_RDONLY);
+          await efs.close(fd);
+        }
+
+        modes = [0o0277, 0o0727, 0o0772];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+        }
+
+        modes = [0o0177, 0o0717, 0o0771];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+        }
+
+        modes = [0o0077, 0o0707, 0o0770];
+        for (const mode of modes) {
+          await efs.chmod(PUT, mode);
+          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+        }
+      });
+    });
+    test('returns EACCES when O_TRUNC is specified and write permission is denied (07)', async () => {
+      const message = 'The Quick Brown Fox Jumped Over The Lazy Dog';
+      await efs.writeFile(n1, message, { mode: 0o0644 });
+
+      const modes = [
+        0o0477,
+        0o0747,
+        0o0774,
+        0o0177,
+        0o0717,
+        0o0771,
+        0o0077,
+        0o0707,
+        0o0770,
+      ];
+      for (const mode of modes) {
+        const flags = vfs.constants.O_RDONLY | vfs.constants.O_TRUNC;
+        await expectError(efs.open(n1, flags), errno.EACCES);
+      }
+    });
+    test('returns ELOOP if too many symbolic links were encountered in translating the pathname (12)', async () => {
+      await efs.symlink(n0, n1);
+      await efs.symlink(n1, n0);
+      await expectError(
+        efs.open(path.join(n0, 'test'), vfs.constants.O_RDONLY),
+        errno.ELOOP,
+      );
+      await expectError(
+        efs.open(path.join(n1, 'test'), vfs.constants.O_RDONLY),
+        errno.ELOOP,
+      );
+    });
+    test('returns EISDIR when trying to open a directory for writing (13)', async () => {
+      const flags = vfs.constants;
+      await efs.mkdir(n0, dp);
+      const fd = await efs.open(n0, flags.O_RDONLY);
+      await efs.close(fd);
+      await expectError(efs.open(n0, flags.O_WRONLY), errno.EISDIR);
+      await expectError(efs.open(n0, flags.O_RDWR), errno.EISDIR);
+      await expectError(
+        efs.open(n0, flags.O_RDONLY | flags.O_TRUNC),
+        errno.EISDIR,
+      );
+      await expectError(
+        efs.open(n0, flags.O_WRONLY | flags.O_TRUNC),
+        errno.EISDIR,
+      );
+      await expectError(
+        efs.open(n0, flags.O_RDWR | flags.O_TRUNC),
+        errno.EISDIR,
+      );
+    });
+    test('returns ELOOP when O_NOFOLLOW was specified and the target is a symbolic link (16)', async () => {
+      await efs.symlink(n0, n1);
+      const flags = vfs.constants;
+      const nf = flags.O_NOFOLLOW;
+      await expectError(
+        efs.open(n1, flags.O_RDONLY | flags.O_CREAT | nf),
+        errno.ELOOP,
+      );
+      await expectError(efs.open(n1, flags.O_RDONLY | nf), errno.ELOOP);
+      await expectError(efs.open(n1, flags.O_WRONLY | nf), errno.ELOOP);
+      await expectError(efs.open(n1, flags.O_RDWR | nf), errno.ELOOP);
+    });
+    describe('returns EEXIST when O_CREAT and O_EXCL were specified and the file exists (22)', () => {
+      const flags = vfs.constants;
+      test.each(supportedTypes)('Type: %s', async (type) => {
+        await createFile(efs, type, n0);
+        await expectError(
+          efs.open(n0, flags.O_CREAT | flags.O_EXCL, 0o0644),
+          errno.EEXIST,
+        );
+      });
+    });
   });
 });

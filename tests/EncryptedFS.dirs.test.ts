@@ -11,7 +11,7 @@ import { INodeManager } from '@/inodes';
 import {
   expectError,
   createFile,
-  fileTypes,
+  FileTypes,
   setId,
   supportedTypes,
 } from './utils';
@@ -387,7 +387,7 @@ describe('EncryptedFS Directories', () => {
         await efs.mkdir(n0, 0o0755);
       });
       test.each(supportedTypes)('for %s', async (type) => {
-        await createFile(efs, type as fileTypes, path.join(n0, n1));
+        await createFile(efs, type as FileTypes, path.join(n0, n1));
         await expectError(efs.rmdir(n0), errno.ENOTEMPTY);
       });
     });

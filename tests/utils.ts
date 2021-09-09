@@ -12,7 +12,7 @@ async function expectError(promise: Promise<any>, code) {
   await expect(promise).rejects.toHaveProperty('errno', code.errno);
 }
 
-export type fileTypes =
+export type FileTypes =
   | 'none'
   | 'regular'
   | 'dir'
@@ -21,7 +21,7 @@ export type fileTypes =
   | 'symlink';
 async function createFile(
   efs: EncryptedFS,
-  type: fileTypes,
+  type: FileTypes,
   name: string,
   a?: number,
   b?: number,
@@ -66,11 +66,11 @@ async function createFile(
 }
 
 const supportedTypes = [
-  'regular' as fileTypes,
-  'dir' as fileTypes,
-  'block' as fileTypes,
-  'char' as fileTypes,
-  'symlink' as fileTypes,
+  'regular' as FileTypes,
+  'dir' as FileTypes,
+  'block' as FileTypes,
+  'char' as FileTypes,
+  'symlink' as FileTypes,
 ];
 
 async function sleep(ms: number) {

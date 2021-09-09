@@ -11,7 +11,7 @@ import { INodeManager } from '@/inodes';
 import {
   expectError,
   createFile,
-  fileTypes,
+  FileTypes,
   supportedTypes,
   sleep,
   setId,
@@ -586,7 +586,7 @@ describe('EncryptedFS Links', () => {
       const types = ['regular', 'block', 'char'];
       describe.each(types)('Type: %s', (type) => {
         test('creates links.', async () => {
-          await createFile(efs, type as fileTypes, n0);
+          await createFile(efs, type as FileTypes, n0);
           expect((await efs.lstat(n0)).nlink).toEqual(1);
 
           await efs.link(n0, n1);
@@ -645,7 +645,7 @@ describe('EncryptedFS Links', () => {
           await expectError(efs.lstat(n2), errno.ENOENT);
         });
         test('successful link(2) updates ctime.', async () => {
-          await createFile(efs, type as fileTypes, n0);
+          await createFile(efs, type as FileTypes, n0);
           const ctime1 = (await efs.stat(n0)).ctime.getTime();
           const dctime1 = (await efs.stat(n0)).ctime.getTime();
           const dmtime1 = (await efs.stat(n0)).mtime.getTime();
@@ -660,7 +660,7 @@ describe('EncryptedFS Links', () => {
           expect(dctime1).toBeLessThan(dmtime2);
         });
         test('unsuccessful link(2) does not update ctime.', async () => {
-          await createFile(efs, type as fileTypes, n0);
+          await createFile(efs, type as FileTypes, n0);
           await efs.chown(n0, 0o65534, -1);
           const ctime1 = (await efs.stat(n0)).ctime.getTime();
           const dctime1 = (await efs.stat(n0)).ctime.getTime();
@@ -680,12 +680,12 @@ describe('EncryptedFS Links', () => {
     describe('returns ENOTDIR if a component of either path prefix is not a directory (01)', () => {
       test.each(supportedTypes)('%s', async (type) => {
         await efs.mkdir(n0, dp);
-        await createFile(efs, type as fileTypes, path.join(n0, n1));
+        await createFile(efs, type as FileTypes, path.join(n0, n1));
         await expectError(
           efs.link(path.join(n0, n1, 'test'), path.join(n0, n2)),
           errno.ENOTDIR,
         );
-        await createFile(efs, type as fileTypes, path.join(n0, n2));
+        await createFile(efs, type as FileTypes, path.join(n0, n2));
         await expectError(
           efs.link(path.join(n0, n2), path.join(n0, n1, 'test')),
           errno.ENOTDIR,
