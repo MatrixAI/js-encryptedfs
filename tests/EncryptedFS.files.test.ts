@@ -780,13 +780,22 @@ describe('EncryptedFS Files', () => {
     });
     describe('opens (and eventually creates) a file (00)', () => {
       test("If O_CREAT is specified and the file doesn't exist", async () => {
-        const modeCheck = (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO);
+        const modeCheck =
+          vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO;
         let fd;
-        fd = await efs.open(n0, (vfs.constants.O_CREAT | vfs.constants.O_WRONLY), dp);
+        fd = await efs.open(
+          n0,
+          vfs.constants.O_CREAT | vfs.constants.O_WRONLY,
+          dp,
+        );
         expect((await efs.lstat(n0)).mode & modeCheck).toEqual(dp & ~0o022);
         await efs.unlink(n0);
         await efs.close(fd);
-        fd = await efs.open(n0, (vfs.constants.O_CREAT | vfs.constants.O_WRONLY), 0o0151);
+        fd = await efs.open(
+          n0,
+          vfs.constants.O_CREAT | vfs.constants.O_WRONLY,
+          0o0151,
+        );
         expect((await efs.lstat(n0)).mode & modeCheck).toEqual(0o0151 & ~0o022);
         await efs.unlink(n0);
         await efs.close(fd);
@@ -816,7 +825,11 @@ describe('EncryptedFS Files', () => {
         const dmtime = (await efs.stat(n1)).mtime.getTime();
         const dctime = (await efs.stat(n1)).ctime.getTime();
         await sleep(10);
-        let fd = await efs.open(PUT, vfs.constants.O_CREAT | vfs.constants.O_RDONLY, 0o0644);
+        const fd = await efs.open(
+          PUT,
+          vfs.constants.O_CREAT | vfs.constants.O_RDONLY,
+          0o0644,
+        );
         const mtime = (await efs.stat(n1)).mtime.getTime();
         expect(dmtime).toEqual(mtime);
         const ctime = (await efs.stat(n1)).ctime.getTime();

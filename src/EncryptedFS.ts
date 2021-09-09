@@ -1652,7 +1652,10 @@ class EncryptedFS {
           // cannot be directory if write capabilities are requested
           if (
             targetType === 'Directory' &&
-            flags & (vfs.constants.O_WRONLY | (flags & (vfs.constants.O_RDWR | (flags & vfs.constants.O_TRUNC))))
+            flags &
+              (vfs.constants.O_WRONLY |
+                (flags &
+                  (vfs.constants.O_RDWR | (flags & vfs.constants.O_TRUNC))))
           ) {
             throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
           }
@@ -1690,7 +1693,10 @@ class EncryptedFS {
     let access;
     if (flags & vfs.constants.O_RDWR) {
       access = vfs.constants.R_OK | vfs.constants.W_OK;
-    } else if (flags & vfs.constants.O_WRONLY | flags & vfs.constants.O_TRUNC) {
+    } else if (
+      (flags & vfs.constants.O_WRONLY) |
+      (flags & vfs.constants.O_TRUNC)
+    ) {
       access = vfs.constants.W_OK;
     } else {
       access = vfs.constants.R_OK;
