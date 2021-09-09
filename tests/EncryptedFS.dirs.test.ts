@@ -413,7 +413,7 @@ describe('EncryptedFS Directories', () => {
       efs.uid = 0o65543;
       await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
     });
-    test('returns EACCES or EPERM if the directory containing the directory to be removed is marked sticky, and neither the containing directory nor the directory to be removed are owned by the effective user ID (11)', async () => {
+    test.skip('returns EACCES or EPERM if the directory containing the directory to be removed is marked sticky, and neither the containing directory nor the directory to be removed are owned by the effective user ID (11)', async () => {
       const dp = 0o0755;
       const dg = 0o65534;
       await efs.mkdir(n2, dp);
@@ -511,6 +511,7 @@ describe('EncryptedFS Directories', () => {
     });
     describe('returns EEXIST if the named file exists (10)', () => {
       test.each(supportedTypes)('Type: %s', async (type) => {
+        await efs.mkdir('test');
         await createFile(efs, type, n0);
         await expectError(efs.mkdir(n0, dp), errno.EEXIST);
       });
