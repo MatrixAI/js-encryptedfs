@@ -779,31 +779,18 @@ describe('EncryptedFS Files', () => {
       n2 = 'two';
     });
     describe('opens (and eventually creates) a file (00)', () => {
-      test.skip("If O_CREAT is specified and the file doesn't exist", async () => {
-      //   // # POSIX: (If O_CREAT is specified and the file doesn't exist) [...] the access
-      //   // # permission bits of the file mode shall be set to the value of the third
-      //   // # argument taken as type mode_t modified as follows: a bitwise AND is performed
-      //   // # on the file-mode bits and the corresponding bits in the complement of the
-      //   // # process' file mode creation mask. Thus, all bits in the file mode whose
-      //   // # corresponding bit in the file mode creation mask is set are cleared.
-      const modeCheck = (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO);
-      let fd;
+      test("If O_CREAT is specified and the file doesn't exist", async () => {
+        const modeCheck = (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO);
+        let fd;
         fd = await efs.open(n0, (vfs.constants.O_CREAT | vfs.constants.O_WRONLY), dp);
         expect((await efs.lstat(n0)).mode & modeCheck).toEqual(dp & ~0o022);
         await efs.unlink(n0);
         await efs.close(fd);
-
         fd = await efs.open(n0, (vfs.constants.O_CREAT | vfs.constants.O_WRONLY), 0o0151);
         expect((await efs.lstat(n0)).mode & modeCheck).toEqual(0o0151 & ~0o022);
         await efs.unlink(n0);
         await efs.close(fd);
-
-        efs.uid = 0o077
-        fd = await efs.open(n0, (vfs.constants.O_CREAT | vfs.constants.O_WRONLY), 0o0151);
-        expect((await efs.lstat(n0)).mode & modeCheck).toEqual(0o0151 & ~0o022);
-        await efs.unlink(n0);
-        await efs.close(fd);
-      })
+      });
       test("Update parent directory ctime/mtime if file didn't exist.", async () => {
         const PUT = path.join(n1, n0);
         await efs.mkdir(n1, dp);
@@ -875,118 +862,223 @@ describe('EncryptedFS Files', () => {
     });
     describe('returns EACCES when the required permissions (for reading and/or writing) are denied for the given flags (06)', () => {
       const oCon = vfs.constants;
-      test.skip('regular file', async () => {
+      test('regular file', async () => {
         await efs.mkdir(n0, dp);
-        // await efs.chown(n0, tuid, tuid);
-        const PUT = path.join(n0, n1);
-        // setId(efs, tuid);
-        await createFile(efs, 'regular', PUT);
-        // await efs.chown(PUT, tuid, tuid);
+        await efs.chown(n0, tuid, tuid);
+        await efs.chdir(n0);
+        setId(efs, tuid);
+        await createFile(efs, 'regular', n1);
 
         let fd;
         let modes = [0o0600, 0o0060, 0o0006];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          fd = await efs.open(PUT, oCon.O_RDONLY);
+          if (mode === 0o0060) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0006) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          fd = await efs.open(n1, oCon.O_RDONLY);
           await efs.close(fd);
-          fd = await efs.open(PUT, oCon.O_WRONLY);
+          fd = await efs.open(n1, oCon.O_WRONLY);
           await efs.close(fd);
-          fd = await efs.open(PUT, oCon.O_RDWR);
+          fd = await efs.open(n1, oCon.O_RDWR);
           await efs.close(fd);
+          setId(efs, tuid);
         }
         modes = [0o0477, 0o0747, 0o0774];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          fd = await efs.open(PUT, oCon.O_RDONLY);
+          if (mode === 0o0747) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0774) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          fd = await efs.open(n1, oCon.O_RDONLY);
           await efs.close(fd);
-          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
-          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_RDWR), errno.EACCES);
+          setId(efs, tuid);
         }
 
         modes = [0o0277, 0o0727, 0o0772];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
-          fd = await efs.open(PUT, oCon.O_WRONLY);
+          if (mode === 0o0727) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0772) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          fd = await efs.open(n1, oCon.O_WRONLY);
           await efs.close(fd);
-          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_RDWR), errno.EACCES);
+          setId(efs, tuid);
         }
 
         modes = [0o0177, 0o0717, 0o0771];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
-          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
-          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+          if (mode === 0o0717) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0771) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_RDWR), errno.EACCES);
+          setId(efs, tuid);
         }
 
         modes = [0o0077, 0o0707, 0o0770];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
-          await expectError(efs.open(PUT, oCon.O_WRONLY), errno.EACCES);
-          await expectError(efs.open(PUT, oCon.O_RDWR), errno.EACCES);
+          if (mode === 0o0707) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0770) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_WRONLY), errno.EACCES);
+          await expectError(efs.open(n1, oCon.O_RDWR), errno.EACCES);
+          setId(efs, tuid);
         }
       });
-      test.skip('directory', async () => {
+      test('directory', async () => {
         await efs.mkdir(n0, dp);
-        // await efs.chown(n0, tuid, tuid);
-        const PUT = path.join(n0, n1);
-        await efs.mkdir(PUT, dp);
+        await efs.chown(n0, tuid, tuid);
+        await efs.chdir(n0);
+        setId(efs, tuid);
+        await efs.mkdir(n1, dp);
 
         let fd;
         let modes = [0o0600, 0o0060, 0o0006];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          fd = await efs.open(PUT, oCon.O_RDONLY);
+          if (mode === 0o0060) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0006) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          fd = await efs.open(n1, oCon.O_RDONLY);
           await efs.close(fd);
+          setId(efs, tuid);
         }
 
         modes = [0o0477, 0o0747, 0o0774];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          fd = await efs.open(PUT, oCon.O_RDONLY);
+          if (mode === 0o0747) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0774) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          fd = await efs.open(n1, oCon.O_RDONLY);
           await efs.close(fd);
+          setId(efs, tuid);
         }
 
         modes = [0o0277, 0o0727, 0o0772];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          if (mode === 0o0727) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0772) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          setId(efs, tuid);
         }
 
         modes = [0o0177, 0o0717, 0o0771];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          if (mode === 0o0717) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0771) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          setId(efs, tuid);
         }
 
         modes = [0o0077, 0o0707, 0o0770];
         for (const mode of modes) {
-          await efs.chmod(PUT, mode);
-          await expectError(efs.open(PUT, oCon.O_RDONLY), errno.EACCES);
+          if (mode === 0o0707) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, tuid);
+          } else if (mode === 0o0770) {
+            await efs.chmod(n1, mode);
+            setId(efs, 1000, 1000);
+          } else {
+            await efs.chmod(n1, mode);
+          }
+          await expectError(efs.open(n1, oCon.O_RDONLY), errno.EACCES);
+          setId(efs, tuid);
         }
       });
     });
-    test.skip('returns EACCES when O_TRUNC is specified and write permission is denied (07)', async () => {
+    test('returns EACCES when O_TRUNC is specified and write permission is denied (07)', async () => {
+      await efs.mkdir(n0, dp);
+      await efs.chown(n0, tuid, tuid);
+      await efs.chdir(n0);
+      setId(efs, tuid);
       const message = 'The Quick Brown Fox Jumped Over The Lazy Dog';
       await efs.writeFile(n1, message, { mode: 0o0644 });
 
       const modes = [
         0o0477,
-        0o0747,
-        0o0774,
         0o0177,
-        0o0717,
-        0o0771,
         0o0077,
+        0o0747,
+        0o0717,
         0o0707,
+        0o0774,
+        0o0771,
         0o0770,
       ];
+      let counter = 0;
+      const flags = vfs.constants.O_RDONLY | vfs.constants.O_TRUNC;
       for (const mode of modes) {
-        await efs.chmod(n1, mode);
-        const flags = vfs.constants.O_RDONLY | vfs.constants.O_TRUNC;
+        if (counter < 3) {
+          await efs.chmod(n1, mode);
+        } else if (counter < 6) {
+          await efs.chmod(n1, mode);
+          setId(efs, 1000, tuid);
+        } else {
+          await efs.chmod(n1, mode);
+          setId(efs, 1000, 1000);
+        }
         await expectError(efs.open(n1, flags), errno.EACCES);
+        counter++;
+        setId(efs, tuid);
       }
     });
     test('returns ELOOP if too many symbolic links were encountered in translating the pathname (12)', async () => {

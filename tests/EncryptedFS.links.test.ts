@@ -461,8 +461,7 @@ describe('EncryptedFS Links', () => {
     });
     test('may return EPERM if the named file is a directory (08)', async () => {
       await efs.mkdir(n0, dp);
-      await expectError(efs.unlink(n0), errno.EISDIR); // was EPERM
-      // await expectError(efs.rmdir(n0), errno.ENOENT); // Succeeds, I think that's intended.
+      await expectError(efs.unlink(n0), errno.EISDIR);
     });
     describe.skip('returns EACCES or EPERM if the directory containing the file is marked sticky, and neither the containing directory nor the file to be removed are owned by the effective user ID (11)', () => {
       beforeEach(async () => {

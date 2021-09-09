@@ -1690,7 +1690,7 @@ class EncryptedFS {
     let access;
     if (flags & vfs.constants.O_RDWR) {
       access = vfs.constants.R_OK | vfs.constants.W_OK;
-    } else if (flags & vfs.constants.O_WRONLY) {
+    } else if (flags & vfs.constants.O_WRONLY | flags & vfs.constants.O_TRUNC) {
       access = vfs.constants.W_OK;
     } else {
       access = vfs.constants.R_OK;
