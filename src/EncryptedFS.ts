@@ -152,6 +152,14 @@ class EncryptedFS {
     this._gid = gid;
   }
 
+  get uid() {
+    return this._uid;
+  }
+
+  get gid() {
+    return this._gid;
+  }
+
   public async start() {
     // start it up again
     // requires decryption keys
@@ -1644,7 +1652,7 @@ class EncryptedFS {
           // cannot be directory if write capabilities are requested
           if (
             targetType === 'Directory' &&
-            flags & (vfs.constants.O_WRONLY | (flags & vfs.constants.O_RDWR))
+            flags & (vfs.constants.O_WRONLY | (flags & (vfs.constants.O_RDWR | (flags & vfs.constants.O_TRUNC))))
           ) {
             throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
           }
