@@ -20,6 +20,7 @@ describe('EncryptedFS Navigation', () => {
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
   const devMgr = new vfs.DeviceManager();
+  let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -36,6 +37,15 @@ describe('EncryptedFS Navigation', () => {
       devMgr,
       logger,
     });
+    efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      db,
+      devMgr,
+      iNodeMgr,
+      umask: 0o022,
+      logger,
+    });
   });
   afterEach(async () => {
     await db.stop();
@@ -46,27 +56,9 @@ describe('EncryptedFS Navigation', () => {
     });
   });
   test('creation of EFS', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     expect(efs).toBeInstanceOf(EncryptedFS);
   });
-  test('EFS using callback style functions', async (done) => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
+  test('EFS using callback style functions', (done) => {
     const str = 'callback';
     const flags = vfs.constants.O_CREAT | vfs.constants.O_RDWR;
     const readBuffer = Buffer.alloc(str.length);
@@ -102,15 +94,6 @@ describe('EncryptedFS Navigation', () => {
     });
   });
   test('should be able to navigate before root', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     const buffer = Buffer.from('Hello World');
     await efs.mkdir(`first`);
     await efs.writeFile(`hello-world.txt`, buffer);
@@ -124,15 +107,6 @@ describe('EncryptedFS Navigation', () => {
     expect(stat.isDirectory()).toStrictEqual(false);
   });
   test('trailing slash refers to the directory instead of a file', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.writeFile(`abc`, '');
     await expectError(efs.access(`abc/`, undefined), errno.ENOTDIR);
     await expectError(efs.access(`abc/.`, undefined), errno.ENOTDIR);
@@ -140,43 +114,16 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.mkdir(`abc/`), errno.EEXIST);
   });
   test('trailing slash works for non-existent directories when intending to create them', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdir(`abc/`);
     const stat = (await efs.stat(`abc/`)) as vfs.Stat;
     expect(stat.isDirectory()).toStrictEqual(true);
   });
   test('trailing `/.` for mkdir should result in errors', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await expectError(efs.mkdir(`abc/.`), errno.ENOENT);
     await efs.mkdir(`abc`);
     await expectError(efs.mkdir(`abc/.`), errno.EEXIST);
   });
   test('navigating invalid paths', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdirp('/test/a/b/c');
     await efs.mkdirp('/test/a/bc');
     await efs.mkdirp('/test/abc');
@@ -194,15 +141,6 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.stat('/test/abcd'), errno.ENOENT);
   });
   test('various failure situations', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdirp('/test/dir');
     await efs.mkdirp('/test/dir');
     await efs.writeFile('/test/file', 'Hello');
@@ -218,15 +156,6 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.readlink('/test/file'), errno.EINVAL);
   });
   test('cwd returns the absolute fully resolved path', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdirp('/a/b');
     await efs.symlink('/a/b', '/c');
     await efs.chdir('/c');
@@ -236,30 +165,12 @@ describe('EncryptedFS Navigation', () => {
   test('cwd still works if the current directory is deleted', async () => {
     // nodejs process.cwd() will actually throw ENOENT
     // but making it work in VFS is harmless
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdir('/removed');
     await efs.chdir('/removed');
     await efs.rmdir('../removed');
     expect(efs.cwd).toBe('/removed');
   });
   test('deleted current directory can still use . and .. for traversal', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdir('/removed');
     const statRoot = (await efs.stat('/')) as vfs.Stat;
     await efs.chdir('/removed');
@@ -277,15 +188,6 @@ describe('EncryptedFS Navigation', () => {
     expect(dentryParent).toEqual([]);
   });
   test('can still chdir when both current and parent directories are deleted', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdirp('/removeda/removedb');
     await efs.chdir('/removeda/removedb');
     await efs.rmdir('../removedb');
@@ -296,15 +198,6 @@ describe('EncryptedFS Navigation', () => {
     expect(path).toBe('/');
   });
   test('cannot chdir into a directory without execute permissions', async () => {
-    const efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      db,
-      devMgr,
-      iNodeMgr,
-      umask: 0o022,
-      logger,
-    });
     await efs.mkdir('/dir');
     await efs.chmod('/dir', 0o666);
     efs.uid = 1000;
