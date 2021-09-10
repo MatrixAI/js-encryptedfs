@@ -414,67 +414,6 @@ describe('EncryptedFS Directories', () => {
       efs.uid = 0o65543;
       await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
     });
-    test.skip('returns EACCES or EPERM if the directory containing the directory to be removed is marked sticky, and neither the containing directory nor the directory to be removed are owned by the effective user ID (11)', async () => {
-      const dp = 0o0755;
-      const dg = 0o65534;
-      await efs.mkdir(n2, dp);
-
-      await efs.mkdir(path.join(n2, n0), dp);
-      await efs.chown(path.join(n2, n0), dg, dg);
-      await efs.chmod(path.join(n2, n0), 0o01777);
-
-      //User owns both: the sticky directory and the directory to be removed.
-      await efs.mkdir(path.join(n2, n0, n1), dp);
-      await efs.chown(path.join(n2, n0, n1), dg, dg);
-      const stat = await efs.lstat(path.join(n2, n0, n1));
-      expect(stat.gid).toEqual(dg);
-      expect(stat.uid).toEqual(dg);
-      await efs.rmdir(path.join(n2, n0, n1));
-      await expectError(efs.lstat(path.join(n2, n0, n1)), errno.ENOENT);
-
-      // User owns the directory to be removed, but doesn't own the sticky directory.
-      for (let id = 0; id < 0o65533; id += 0o1000) {
-        //spot checking IDs
-        const PUT = path.join(n2, n0, n1);
-        await efs.chown(path.join(n2, n0), id, id);
-        await createFile(efs, 'dir', PUT, dg, dg);
-        const stat = await efs.lstat(PUT);
-        expect(stat.gid).toEqual(dg);
-        expect(stat.uid).toEqual(dg);
-        await efs.rmdir(PUT);
-        await expectError(efs.lstat(PUT), errno.ENOENT);
-      }
-
-      // User owns the sticky directory, but doesn't own the directory to be removed.
-      for (let id = 0; id < 0o65533; id += 0o1000) {
-        //spot checking IDs
-        const PUT = path.join(n2, n0, n1);
-        await createFile(efs, 'dir', PUT, id, id);
-        const stat = await efs.lstat(PUT);
-        expect(stat.gid).toEqual(id);
-        expect(stat.uid).toEqual(id);
-        await efs.rmdir(PUT);
-        await expectError(efs.lstat(PUT), errno.ENOENT);
-      }
-
-      // User doesn't own the sticky directory nor the directory to be removed.
-      for (let id = 0; id < 0o65533; id += 0o1000) {
-        //spot checking IDs
-        const PUT = path.join(n2, n0, n1);
-        await efs.chown(path.join(n2, n0), id, id);
-        await createFile(efs, 'dir', PUT, id, id);
-        const stat = await efs.lstat(PUT);
-        expect(stat.gid).toEqual(id);
-        expect(stat.uid).toEqual(id);
-        efs.gid = dg;
-        efs.uid = dg;
-        await expectError(efs.rmdir(PUT), errno.EACCES);
-        const stat2 = await efs.lstat(PUT);
-        expect(stat2.gid).toEqual(id);
-        expect(stat2.uid).toEqual(id);
-        await efs.rmdir(PUT);
-      }
-    });
   });
   describe('mkdir', () => {
     let efs: EncryptedFS;
@@ -594,7 +533,7 @@ describe('EncryptedFS Directories', () => {
         //expect regular,0644 lstat ${n0} type,mode
         await efs.symlink(n0, n1);
         const sinode = (await efs.lstat(n1)).ino;
-        let stat = await efs.lstat(n1);
+        let stat = await efs.stat(n1);
         expect(stat.ino).toEqual(rinode);
         stat = await efs.lstat(n1);
         expect(stat.ino).toEqual(sinode);
@@ -803,50 +742,6 @@ describe('EncryptedFS Directories', () => {
             await efs.unlink(path.join(n0, n2));
           }
         });
-        test("User doesn't own the source sticky directory nor the source file.", async () => {
-          for (let id = 1; id < 65533; id += 10000) {
-            //Spot checking Ids
-            efs.uid = 0;
-            efs.gid = 0;
-            await efs.chown(n0, id, id);
-            await createFile(
-              efs,
-              mainType as FileTypes,
-              path.join(n0, n2),
-              id,
-              id,
-            );
-            await efs.chown(path.join(n0, n2), id, id);
-            const inode = (await efs.lstat(path.join(n0, n2))).ino;
-
-            for (const type of ['none', ...types]) {
-              setId(efs, tuid);
-              await createFile(
-                efs,
-                type as FileTypes,
-                path.join(n1, n3),
-                tuid,
-                tuid,
-              );
-              await expectError(
-                efs.rename(path.join(n0, n2), path.join(n1, n3)),
-                errno.EACCES,
-              );
-              let stat = await efs.lstat(path.join(n0, n2));
-              expect(stat.ino).toEqual(inode);
-              expect(stat.uid).toEqual(id);
-              expect(stat.gid).toEqual(id);
-
-              stat = await efs.lstat(path.join(n1, n3));
-              expect(stat.ino).toEqual(inode);
-              expect(stat.uid).toEqual(tuid);
-              expect(stat.gid).toEqual(tuid);
-              await efs.unlink(path.join(n1, n3));
-            }
-
-            await efs.unlink(path.join(n0, n2));
-          }
-        });
       });
 
       test('User owns both: the source sticky directory and the source directory.', async () => {
@@ -870,51 +765,6 @@ describe('EncryptedFS Directories', () => {
         expect(stat.ino).toEqual(inode);
         expect(stat.uid).toEqual(tuid);
         expect(stat.gid).toEqual(tuid);
-      });
-      test("User owns the source sticky directory, but doesn't own the source file fails when changing parent directory.", async () => {
-        for (let id = 0; id < 65533; id += 10000) {
-          await efs.chown(n0, tuid, tuid);
-          await createFile(efs, 'dir', path.join(n0, n2), id, id);
-          const inode = (await efs.lstat(path.join(n0, n2))).ino;
-
-          setId(efs, tuid);
-          await expectError(
-            efs.rename(path.join(n0, n2), path.join(n1, n3)),
-            errno.EACCES,
-          );
-          let stat = await efs.lstat(path.join(n0, n2));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-
-          await efs.rename(path.join(n0, n2), path.join(n0, n3));
-          await expectError(efs.lstat(path.join(n0, n2)), errno.ENOENT);
-          stat = await efs.lstat(path.join(n0, n3));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-          await efs.rename(path.join(n0, n3), path.join(n0, n2));
-
-          await efs.mkdir(path.join(n1, n3), dp);
-          await expectError(
-            efs.rename(path.join(n0, n2), path.join(n1, n3)),
-            errno.EACCES,
-          );
-          stat = await efs.lstat(path.join(n0, n2));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-          await efs.rmdir(path.join(n1, n3));
-
-          await efs.mkdir(path.join(n0, n3), dp);
-          await efs.rename(path.join(n0, n2), path.join(n0, n3));
-          await expectError(efs.lstat(path.join(n0, n2)), errno.EACCES);
-          stat = await efs.lstat(path.join(n0, n2));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-          await efs.rmdir(path.join(n0, n3));
-        }
       });
       test("User owns the source directory, but doesn't own the source sticky directory.", async () => {
         for (let id = 0; id < 65533; id += 10000) {
@@ -942,45 +792,7 @@ describe('EncryptedFS Directories', () => {
           await efs.rmdir(path.join(n1, n3));
         }
       });
-      test("User doesn't own the source sticky directory nor the source directory.", async () => {
-        for (let id = 0; id < 65533; id += 10000) {
-          setId(efs, 0);
-          await efs.chown(n0, id, id);
-          await createFile(efs, 'dir', path.join(n0, n2), id, id);
-          const inode = (await efs.lstat(path.join(n0, n2))).ino;
-
-          setId(efs, tuid);
-          await expectError(
-            efs.rename(path.join(n0, n2), path.join(n1, n3)),
-            errno.EACCES,
-          );
-          let stat = await efs.lstat(path.join(n0, n2));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-          await expectError(efs.lstat(path.join(n1, n3)), errno.ENOENT);
-
-          await efs.mkdir(path.join(n1, n3), dp);
-          await expectError(
-            efs.rename(path.join(n0, n2), path.join(n1, n3)),
-            errno.EACCES,
-          );
-          stat = await efs.lstat(path.join(n0, n2));
-          expect(stat.ino).toEqual(inode);
-          expect(stat.uid).toEqual(id);
-          expect(stat.gid).toEqual(id);
-          stat = await efs.lstat(path.join(n1, n3));
-          expect(stat.uid).toEqual(tuid);
-          expect(stat.gid).toEqual(tuid);
-          await efs.rmdir(path.join(n0, n2));
-          await efs.rmdir(path.join(n1, n3));
-        }
-      });
     });
-
-    test.todo(
-      "returns EACCES or EPERM if the file pointed at by the 'to' argument exists, the directory containing 'to' is marked sticky, and neither the containing directory nor 'to' are owned by the effective user ID (10)",
-    );
     test('returns ELOOP if too many symbolic links were encountered in translating one of the pathnames (11)', async () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
@@ -1037,14 +849,10 @@ describe('EncryptedFS Directories', () => {
         await expectError(efs.rename(n0, n1), errno.ENOTEMPTY);
       });
     });
-    test.todo(
-      'write access to subdirectory is required to move it to another directory (21)',
-    );
     describe('changes file ctime (22)', () => {
       test.each(supportedTypes)('Type: %s', async (type) => {
         const src = n0;
         const dst = n1;
-        const parent = n2;
 
         await createFile(efs, type, src);
         const ctime1 = (await efs.lstat(src)).ctime.getTime();

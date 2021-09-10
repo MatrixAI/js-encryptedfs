@@ -2050,7 +2050,7 @@ class EncryptedFS {
       newPath = this.getPath(newPath);
       const navigatedSource = await this.navigate(oldPath, false);
       const navigatedTarget = await this.navigate(newPath, false);
-      if (!navigatedSource.target) {
+      if (!navigatedSource.target || navigatedTarget.remaining) {
         throw new EncryptedFSError(
           errno.ENOENT,
           `rename '${oldPath}', ${newPath}'`,
@@ -2201,6 +2201,7 @@ class EncryptedFS {
               navigatedTarget.name,
               index,
             );
+            await this._iNodeMgr.statSetProp(tran, navigatedTarget.target, 'ctime', now);
           } else {
             if (targetDirStat.nlink < 2) {
               throw new EncryptedFSError(

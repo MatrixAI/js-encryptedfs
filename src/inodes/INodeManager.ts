@@ -723,6 +723,14 @@ class INodeManager {
     if (inoOld == null) {
       throw new inodesErrors.ErrorINodesInvalidName();
     }
+    const now = new Date;
+    await this.statSetProp(tran, ino, 'ctime', now);
+    await this.statSetProp(tran, ino, 'mtime', now);
+    await this.statSetProp(tran, inoOld, 'ctime', now);
+    const inoReplace = await this.dirGetEntry(tran, ino, nameNew);
+    if (inoReplace) {
+      await this.statSetProp(tran, inoReplace, 'ctime', now);
+    }
     // the order must be set then unset
     // it cannot work if unset then set, the old inode may get garbage collected
     await this.dirSetEntry(tran, ino, nameNew, inoOld);

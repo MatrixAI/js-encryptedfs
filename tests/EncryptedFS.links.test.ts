@@ -465,6 +465,8 @@ describe('EncryptedFS Links', () => {
     });
     describe.skip('returns EACCES or EPERM if the directory containing the file is marked sticky, and neither the containing directory nor the file to be removed are owned by the effective user ID (11)', () => {
       beforeEach(async () => {
+        await efs.mkdir(n2, dp);
+        await efs.chdir(n2);
         await efs.mkdir(n0, dp);
         await efs.chmod(n0, 0o01777);
         await efs.chown(n0, tuid, tuid);
@@ -521,7 +523,7 @@ describe('EncryptedFS Links', () => {
             expect(stat.uid).toEqual(id);
             expect(stat.gid).toEqual(id);
             setId(efs, tuid);
-            await expectError(efs.unlink(PUT), errno.ENOENT);
+            await expectError(efs.unlink(PUT), errno.EACCES);
           }
         });
       });
