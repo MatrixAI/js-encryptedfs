@@ -447,4 +447,29 @@ describe('EncryptedFS Streams', () => {
       // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
     })
   });
+  test('Read stream and write stream to same file', async () => {
+    await efs.writeFile('file', '');
+    const readStream = await efs.createReadStream('file');
+    const writeStream = await efs.createWriteStream('file', {flags: 'w+'});
+    const contents = 'A'.repeat(4096);
+
+    //Write two blocks.
+    writeStream.write(Buffer.from(contents));
+    // writeStream.end();
+    await sleep(1000);
+    let readString = '';
+    for await (const data of readStream) {
+      readString += data;
+    }
+    expect(readString.length).toEqual(4096);
+    writeStream.end();
+
+    // writeStream.write(Buffer.from(contents));
+    // await sleep(1000);
+    //
+    // for await (const data of readStream) {
+    //   readString += data;
+    // }
+    // expect(readString.length).toEqual(4096);
+  })
 });
