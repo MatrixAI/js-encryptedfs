@@ -17,6 +17,7 @@ import {
   supportedTypes,
 } from './utils';
 import path from 'path';
+import { FdIndex } from "@/fd/types";
 
 describe('EncryptedFS Files', () => {
   const logger = new Logger('EncryptedFS Files', LogLevel.WARN, [
@@ -832,4 +833,100 @@ describe('EncryptedFS Files', () => {
       );
     });
   });
+  describe('Concurrency', () => {
+    //Playing around with concurrency tests.
+    describe('in process concurrency', () => {
+      describe('concurrent file writes', () => {
+        const flags = vfs.constants;
+        test('10 short writes with efs.writeFile.', async () => {
+          const contents = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+          // Here we want to write to a file at the same time and sus out the behaviour.
+          let promises: Array<any> = [];
+          for (const content of contents) {
+            promises.push(efs.writeFile('test', content));
+          }
+          await Promise.all(promises);
+          console.log((await efs.readFile('test')).toString());
+        })
+        test('10 long writes with efs.writeFile.', async () => {
+          const blockSize = 4096;
+          const blocks = 100;
+          const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+          let divisor = 0;
+          const contents = letters.map((letter) => {
+            divisor++;
+            return letter.repeat(blockSize * blocks / divisor);
+          })
+          console.log(contents[0].length);
+          let promises: Array<any> = [];
+          for (const content of contents) {
+            promises.push(efs.writeFile('test', content, {}));
+          }
+          await Promise.all(promises);
+          console.log((await efs.readFile('test')).toString());
+        })
+        test('10 short writes with efs.write.', async () => {
+          const contents = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+          // Here we want to write to a file at the same time and sus out the behaviour.
+          let fds: Array<FdIndex> = []
+          for (let i = 0; i < 10; i++) {
+            fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
+          }
+          let promises: Array<any> = [];
+          for (let i = 0; i < 10; i++) {
+            promises.push(efs.write(fds[i], contents[i]));
+          }
+          await Promise.all(promises);
+          console.log((await efs.readFile('test')).toString());
+        })
+        test('10 long writes with efs.write.', async () => {
+          const blockSize = 4096;
+          const blocks = 100;
+          const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+          let divisor = 0;
+          const contents = letters.map((letter) => {
+            divisor++;
+            return letter.repeat(blockSize * blocks / divisor);
+          })
+          let fds: Array<FdIndex> = []
+          for (let i = 0; i < 10; i++) {
+            fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
+          }
+          let promises: Array<any> = [];
+          for (let i = 0; i < 10; i++) {
+            promises.push(efs.write(fds[i], contents[i]));
+          }
+          await Promise.all(promises);
+          const fileContent = (await efs.readFile('test')).toString();
+
+          for (const letter of letters) {
+            expect(fileContent).toContain(letter);
+          }
+
+
+          //Now reverse order.
+          await efs.unlink('test');
+          for (const fd of fds) {
+            await efs.close(fd);
+          }
+          fds = []
+          for (let i = 9; i >= 0; i--) {
+            fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
+          }
+          promises = [];
+          for (let i = 9; i >= 0; i--) {
+            promises.push(efs.write(fds[i], contents[i]));
+          }
+          await Promise.all(promises);
+          const fileContent2 = (await efs.readFile('test')).toString();
+
+          expect(fileContent2).toContain('A');
+        })
+
+      })
+      test('Read stream and write stream to same file', async () => {
+
+      })
+    })
+  })
 });

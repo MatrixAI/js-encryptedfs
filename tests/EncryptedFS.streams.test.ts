@@ -8,8 +8,9 @@ import EncryptedFS from '@/EncryptedFS';
 import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError } from './utils';
+import { expectError, sleep } from "./utils";
 import { Readable, Writable } from 'readable-stream';
+import { WriteStream } from "@/streams";
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [
@@ -391,5 +392,59 @@ describe('EncryptedFS Streams', () => {
       });
       writable.end();
     });
+    test('Two write streams to the same file', async () => {
+      const contentSize = 4096 * 3;
+      const contents = [
+        'A'.repeat(contentSize),
+        'B'.repeat(contentSize),
+        'C'.repeat(contentSize),
+      ]
+      let streams: Array<WriteStream> = [];
+
+      // Each stream sequentially.
+      for (let i = 0; i < contents.length; i++) {
+        streams.push(await efs.createWriteStream('file'))
+      }
+      for (let i = 0; i < streams.length; i++) {
+        streams[i].write(Buffer.from(contents[i]));
+      }
+      for (const stream of streams) {
+        stream.end();
+      }
+
+      await sleep(1000);
+      const fileContents = (await efs.readFile('file')).toString()
+      expect(fileContents).not.toContain('A');
+      expect(fileContents).not.toContain('B');
+      expect(fileContents).toContain('C');
+
+      await efs.unlink('file');
+
+      // Each stream interlaced.
+      const contents2 = [
+        'A'.repeat(4096),
+        'B'.repeat(4096),
+        'C'.repeat(4096),
+      ]
+      streams = [];
+      for (let i = 0; i < contents2.length; i++) {
+        streams.push(await efs.createWriteStream('file'))
+      }
+      for (let j = 0; j < 3; j++) {
+        for (let i = 0; i < streams.length; i++) {
+          // Order we write to changes.
+          streams[(j + i) % 3].write(Buffer.from(contents2[(j + i) % 3]));
+        }
+      }
+      for (const stream of streams) {
+        stream.end();
+      }
+      await sleep(1000);
+      const fileContents2 = (await efs.readFile('file')).toString()
+      expect(fileContents2).not.toContain('A');
+      expect(fileContents2).not.toContain('B');
+      expect(fileContents2).toContain('C');
+      // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
+    })
   });
 });
