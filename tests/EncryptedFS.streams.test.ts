@@ -447,7 +447,7 @@ describe('EncryptedFS Streams', () => {
       // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
     })
   });
-  test('Read stream and write stream to same file', async () => {
+  test('Read stream and write stream to same file', async (done) => {
     await efs.writeFile('file', '');
     const readStream = await efs.createReadStream('file');
     const writeStream = await efs.createWriteStream('file', {flags: 'w+'});
@@ -462,7 +462,11 @@ describe('EncryptedFS Streams', () => {
       readString += data;
     }
     expect(readString.length).toEqual(4096);
-    writeStream.end();
+    writeStream.end(async () => {
+      await sleep(100);
+      done();
+    });
+
 
     // writeStream.write(Buffer.from(contents));
     // await sleep(1000);

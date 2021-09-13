@@ -846,7 +846,6 @@ describe('EncryptedFS Files', () => {
             promises.push(efs.writeFile('test', content));
           }
           await Promise.all(promises);
-          console.log((await efs.readFile('test')).toString());
         })
         test('10 long writes with efs.writeFile.', async () => {
           const blockSize = 4096;
@@ -857,13 +856,11 @@ describe('EncryptedFS Files', () => {
             divisor++;
             return letter.repeat(blockSize * blocks / divisor);
           })
-          console.log(contents[0].length);
           let promises: Array<any> = [];
           for (const content of contents) {
             promises.push(efs.writeFile('test', content, {}));
           }
           await Promise.all(promises);
-          console.log((await efs.readFile('test')).toString());
         })
         test('10 short writes with efs.write.', async () => {
           const contents = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -877,7 +874,6 @@ describe('EncryptedFS Files', () => {
             promises.push(efs.write(fds[i], contents[i]));
           }
           await Promise.all(promises);
-          console.log((await efs.readFile('test')).toString());
         })
         test('10 long writes with efs.write.', async () => {
           const blockSize = 4096;
@@ -922,10 +918,87 @@ describe('EncryptedFS Files', () => {
 
           expect(fileContent2).toContain('A');
         })
-
       })
-      test('Read stream and write stream to same file', async () => {
+      describe('Allocating/truncating a file while writing (stream or fd)', () => {
+        test('Allocating while writing to fd', async () => {
+          const fd = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
 
+          const content = 'A'.repeat(4096 * 2);
+
+          await Promise.all([
+            efs.write(fd, Buffer.from(content)),
+            efs.fallocate(fd, 0, 4096 * 3),
+          ])
+
+          // Both operations complete, order makes no diference.
+          const fileContents = await efs.readFile('file');
+          expect(fileContents.length).toBeGreaterThan(4096 * 2);
+          expect(fileContents.toString()).toContain('A');
+          expect(fileContents).toContain(0x00);
+        })
+        test('Truncating while writing to fd', async () => {
+            const fd = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
+
+            const content = 'A'.repeat(4096 * 2);
+
+            await Promise.all([
+              efs.write(fd, Buffer.from(content)),
+              efs.ftruncate(fd, 4096),
+            ])
+
+            // Both operations complete, order makes no difference. Truncate doesn't do anything?
+            const fileContents = await efs.readFile('file');
+            expect(fileContents.length).toBeLessThanOrEqual(4096 * 2);
+            expect(fileContents.toString()).toContain('A');
+            expect(fileContents).not.toContain(0x00);
+
+          })
+        test('Allocating while writing to stream', async () => {
+          await efs.writeFile('file', '');
+          const writeStream = await efs.createWriteStream('file');
+          const content = 'A'.repeat(4096);
+          const fd = await efs.open('file', 'w');
+
+          await Promise.all([
+            new Promise((res, err) => {
+              writeStream.write(content, () => {res(null)})
+            }),
+            efs.fallocate(fd, 0, 4096 * 2),
+          ])
+          await new Promise((res, err) => {
+            writeStream.end(() => {res(null)})
+          })
+
+          // Both operations complete, order makes no difference.
+          const fileContents = await efs.readFile('file');
+          expect(fileContents.length).toEqual(4096 * 2);
+          expect(fileContents.toString()).toContain('A');
+          expect(fileContents).toContain(0x00);
+
+        })
+        test('Truncating while writing to stream', async () => {
+          await efs.writeFile('file', '');
+          const writeStream = await efs.createWriteStream('file');
+          const content = 'A'.repeat(4096 * 2);
+          const promise1 = new Promise((res, err) => {
+            writeStream.write(content, () => {res(null)})
+          });
+
+          await Promise.all([
+            promise1,
+            efs.truncate('file', 4096),
+          ])
+          await new Promise((res, err) => {
+            writeStream.end(() => {res(null)})
+          })
+
+          // Both operations complete, order makes no difference. Truncate doesn't do anything?
+          const fileContents = await efs.readFile('file');
+          expect(fileContents.length).toEqual(4096 * 2);
+          expect(fileContents.toString()).toContain('A');
+          expect(fileContents).not.toContain(0x00);
+
+        })
       })
     })
   })

@@ -490,4 +490,22 @@ describe('EncryptedFS Directories', () => {
       expect(ctime1).toBeLessThan(ctime2);
     });
   });
+  test('Renaming a directory at the same time with two different calls', async () => {
+    await efs.mkdir('test');
+    try {
+      await Promise.all([
+        efs.rename('test', 'one'),
+        efs.rename('test', 'two'),
+        efs.rename('test', 'three'),
+        efs.rename('test', 'four'),
+        efs.rename('test', 'five'),
+        efs.rename('test', 'six'),
+      ]);
+    } catch (err) {
+      // Do nothing
+    }
+
+    // Right now only the first rename works. the rest fail. this is expected.
+    expect(await efs.readdir('.')).toContain('one');
+  })
 });
