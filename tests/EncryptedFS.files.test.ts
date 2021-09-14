@@ -936,22 +936,36 @@ describe('EncryptedFS Files', () => {
           expect(fileContents).toContain(0x00);
         })
         test('Truncating while writing to fd', async () => {
-            const fd = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
+            const fd1 = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
 
             const content = 'A'.repeat(4096 * 2);
 
             await Promise.all([
-              efs.write(fd, Buffer.from(content)),
-              efs.ftruncate(fd, 4096),
-            ])
+              efs.write(fd1, Buffer.from(content)),
+              efs.ftruncate(fd1, 4096),
+            ]);
 
             // Both operations complete, order makes no difference. Truncate doesn't do anything?
-            const fileContents = await efs.readFile('file');
-            expect(fileContents.length).toBeLessThanOrEqual(4096 * 2);
-            expect(fileContents.toString()).toContain('A');
-            expect(fileContents).not.toContain(0x00);
+            const fileContents1 = await efs.readFile('file');
+            expect(fileContents1.length).toBe(4096 * 2);
+            expect(fileContents1.toString()).toContain('A');
+            expect(fileContents1).not.toContain(0x00);
 
-          })
+            await efs.unlink('file');
+
+            const fd2 = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
+
+            await Promise.all([
+              efs.ftruncate(fd2, 4096),
+              efs.write(fd2, Buffer.from(content)),
+            ]);
+
+            // Both operations complete, order makes no difference. Truncate doesn't do anything?
+            const fileContents2 = await efs.readFile('file');
+            expect(fileContents2.length).toBe(4096 * 2);
+            expect(fileContents2.toString()).toContain('A');
+            expect(fileContents2).not.toContain(0x00);
+          });
         test('Allocating while writing to stream', async () => {
           await efs.writeFile('file', '');
           const writeStream = await efs.createWriteStream('file');
@@ -1000,182 +1014,218 @@ describe('EncryptedFS Files', () => {
         })
       });
     test('File metadata changes while reading/writing a file.', async () => {
-      await efs.writeFile('file', '');
-      let stat0 = await efs.stat('file');
-      const birthtime0 = stat0.birthtime.getTime();
-      const atime0 = stat0.atime.getTime();
-      const mtime0 = stat0.mtime.getTime();
-      const ctime0 = stat0.ctime.getTime();
+      const fd1 = await efs.promises.open('file', vfs.constants.O_WRONLY | vfs.constants.O_CREAT);
+      const content = 'A'.repeat(2);
+      await Promise.all([
+        efs.promises.writeFile(fd1, Buffer.from(content)),
+        efs.promises.utimes('file', 0, 0),
+      ]);
+      let stat = await efs.promises.stat('file');
+      expect(stat.atime.getMilliseconds()).toBe(0);
+      expect(stat.mtime.getMilliseconds()).toBe(0);
+      await efs.close(fd1);
+      await efs.unlink('file');
 
-      await sleep(50);
-      // nothing updates when opened.
-      const fd = await efs.open('file', flags.O_RDWR)
-      let stat1 = await efs.stat('file');
-      const birthtime1 = stat1.birthtime.getTime();
-      const atime1 = stat1.atime.getTime();
-      const mtime1 = stat1.mtime.getTime();
-      const ctime1 = stat1.ctime.getTime();
-      expect(birthtime1).toEqual(birthtime0);
-      expect(atime1).toEqual(atime0);
-      expect(ctime1).toEqual(ctime0);
-      expect(mtime1).toEqual(mtime0);
+      const fd2 = await efs.promises.open('file', vfs.constants.O_WRONLY | vfs.constants.O_CREAT);
+      await Promise.all([
+        efs.promises.utimes('file', 0, 0),
+        efs.promises.writeFile(fd2, Buffer.from(content)),
+      ]);
+      stat = await efs.promises.stat('file');
+      expect(stat.atime.getMilliseconds()).toBe(0);
+      expect(stat.mtime.getMilliseconds()).toBeGreaterThan(0);
+      await efs.close(fd2);
+      // await efs.writeFile('file', '');
+      // let stat0 = await efs.stat('file');
+      // const birthtime0 = stat0.birthtime.getTime();
+      // const atime0 = stat0.atime.getTime();
+      // const mtime0 = stat0.mtime.getTime();
+      // const ctime0 = stat0.ctime.getTime();
 
-      await sleep(50);
-      //atime updates when read.
-      const buf = Buffer.alloc(20, 0);
-      await efs.read(fd, buf);
-      let stat2 = await efs.stat('file');
-      const birthtime2 = stat2.birthtime.getTime();
-      const atime2 = stat2.atime.getTime();
-      const mtime2 = stat2.mtime.getTime();
-      const ctime2 = stat2.ctime.getTime();
-      expect(birthtime2).toEqual(birthtime1);
-      expect(atime2).toBeGreaterThan(atime1);
-      expect(ctime2).toEqual(ctime1);
-      expect(mtime2).toEqual(mtime1);
+      // await sleep(50);
+      // // nothing updates when opened.
+      // const fd = await efs.open('file', flags.O_RDWR)
+      // let stat1 = await efs.stat('file');
+      // const birthtime1 = stat1.birthtime.getTime();
+      // const atime1 = stat1.atime.getTime();
+      // const mtime1 = stat1.mtime.getTime();
+      // const ctime1 = stat1.ctime.getTime();
+      // expect(birthtime1).toEqual(birthtime0);
+      // expect(atime1).toEqual(atime0);
+      // expect(ctime1).toEqual(ctime0);
+      // expect(mtime1).toEqual(mtime0);
 
-      await sleep(50);
-      //ctime updates when permissions change.
-      await efs.fchown(fd, 10, 10);
-      await efs.fchown(fd, 0, 0);
-      let stat3 = await efs.stat('file');
-      const birthtime3 = stat3.birthtime.getTime();
-      const atime3 = stat3.atime.getTime();
-      const mtime3 = stat3.mtime.getTime();
-      const ctime3 = stat3.ctime.getTime();
-      expect(birthtime3).toEqual(birthtime2);
-      expect(atime3).toEqual(atime2);
-      // expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
-      expect(mtime3).toEqual(mtime2);
+      // await sleep(50);
+      // //atime updates when read.
+      // const buf = Buffer.alloc(20, 0);
+      // await efs.read(fd, buf);
+      // let stat2 = await efs.stat('file');
+      // const birthtime2 = stat2.birthtime.getTime();
+      // const atime2 = stat2.atime.getTime();
+      // const mtime2 = stat2.mtime.getTime();
+      // const ctime2 = stat2.ctime.getTime();
+      // expect(birthtime2).toEqual(birthtime1);
+      // expect(atime2).toBeGreaterThan(atime1);
+      // expect(ctime2).toEqual(ctime1);
+      // expect(mtime2).toEqual(mtime1);
 
-      await sleep(50);
-      //mtime updates when written to.
-      await efs.write(fd, Buffer.from('hello!'));
-      let stat4 = await efs.stat('file');
-      const birthtime4 = stat4.birthtime.getTime();
-      const atime4 = stat4.atime.getTime();
-      const mtime4 = stat4.mtime.getTime();
-      const ctime4 = stat4.ctime.getTime();
-      expect(birthtime4).toEqual(birthtime3);
-      expect(atime4).toEqual(atime3);
-      expect(ctime4).toBeGreaterThan(ctime3);
-      expect(mtime4).toBeGreaterThan(mtime3);
+      // await sleep(50);
+      // //ctime updates when permissions change.
+      // await efs.fchown(fd, 10, 10);
+      // await efs.fchown(fd, 0, 0);
+      // let stat3 = await efs.stat('file');
+      // const birthtime3 = stat3.birthtime.getTime();
+      // const atime3 = stat3.atime.getTime();
+      // const mtime3 = stat3.mtime.getTime();
+      // const ctime3 = stat3.ctime.getTime();
+      // expect(birthtime3).toEqual(birthtime2);
+      // expect(atime3).toEqual(atime2);
+      // // expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
+      // expect(mtime3).toEqual(mtime2);
 
+      // await sleep(50);
+      // //mtime updates when written to.
+      // await efs.write(fd, Buffer.from('hello!'));
+      // let stat4 = await efs.stat('file');
+      // const birthtime4 = stat4.birthtime.getTime();
+      // const atime4 = stat4.atime.getTime();
+      // const mtime4 = stat4.mtime.getTime();
+      // const ctime4 = stat4.ctime.getTime();
+      // expect(birthtime4).toEqual(birthtime3);
+      // expect(atime4).toEqual(atime3);
+      // expect(ctime4).toBeGreaterThan(ctime3);
+      // expect(mtime4).toBeGreaterThan(mtime3);
     });
     test('Dir metadata changes while reading/writing a file.', async () => {
       const dir = 'directory';
       const PUT = path.join(dir, 'file');
       await efs.mkdir(dir);
-      await efs.writeFile(PUT, '');
-      let stat0 = await efs.stat(dir);
-      const birthtime0 = stat0.birthtime.getTime();
-      const atime0 = stat0.atime.getTime();
-      const mtime0 = stat0.mtime.getTime();
-      const ctime0 = stat0.ctime.getTime();
-
-      await sleep(50);
-      // nothing updates when opened.
-      const fd = await efs.open(PUT, flags.O_RDWR)
-      let stat1 = await efs.stat(dir);
-      const birthtime1 = stat1.birthtime.getTime();
-      const atime1 = stat1.atime.getTime();
-      const mtime1 = stat1.mtime.getTime();
-      const ctime1 = stat1.ctime.getTime();
-      expect(birthtime1).toEqual(birthtime0);
-      expect(atime1).toEqual(atime0);
-      expect(ctime1).toEqual(ctime0);
-      expect(mtime1).toEqual(mtime0);
-
-      await sleep(50);
-      //atime updates when read.
-      const buf = Buffer.alloc(20, 0);
-      await efs.read(fd, buf);
-      let stat2 = await efs.stat(dir);
-      const birthtime2 = stat2.birthtime.getTime();
-      const atime2 = stat2.atime.getTime();
-      const mtime2 = stat2.mtime.getTime();
-      const ctime2 = stat2.ctime.getTime();
-      expect(birthtime2).toEqual(birthtime1);
-      expect(atime2).toBeGreaterThan(atime1);
-      expect(ctime2).toEqual(ctime1);
-      expect(mtime2).toEqual(mtime1);
-
-      await sleep(50);
-      //ctime updates when permissions change.
-      await efs.fchown(fd, 10, 10);
-      await efs.fchown(fd, 0, 0);
-      let stat3 = await efs.stat(dir);
-      const birthtime3 = stat3.birthtime.getTime();
-      const atime3 = stat3.atime.getTime();
-      const mtime3 = stat3.mtime.getTime();
-      const ctime3 = stat3.ctime.getTime();
-      expect(birthtime3).toEqual(birthtime2);
-      expect(atime3).toEqual(atime2);
-      expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
-      expect(mtime3).toEqual(mtime2);
-
-      await sleep(50);
-      //mtime updates when written to.
-      await efs.write(fd, Buffer.from('hello!'));
-      let stat4 = await efs.stat(dir);
-      const birthtime4 = stat4.birthtime.getTime();
-      const atime4 = stat4.atime.getTime();
-      const mtime4 = stat4.mtime.getTime();
-      const ctime4 = stat4.ctime.getTime();
-      expect(birthtime4).toEqual(birthtime3);
-      expect(atime4).toEqual(atime3);
-      expect(ctime4).toBeGreaterThan(ctime3);
-      expect(mtime4).toBeGreaterThan(mtime3);
-    });
-    test('Dir metadata changes while adding or removing files.', async () => {
-      const dir = 'directory';
-      const PUT = path.join(dir, 'file');
-      await efs.mkdir(dir);
-      let stat0 = await efs.stat(dir);
-      const birthtime0 = stat0.birthtime.getTime();
-      const atime0 = stat0.atime.getTime();
-      const mtime0 = stat0.mtime.getTime();
-      const ctime0 = stat0.ctime.getTime();
-
-      await sleep(50);
-      // c and mtime update when creating a file.
-      await efs.writeFile(PUT, '');
-      let stat1 = await efs.stat(dir);
-      const birthtime1 = stat1.birthtime.getTime();
-      const atime1 = stat1.atime.getTime();
-      const mtime1 = stat1.mtime.getTime();
-      const ctime1 = stat1.ctime.getTime();
-      expect(birthtime1).toEqual(birthtime0);
-      expect(atime1).toEqual(atime0);
-      expect(ctime1).toBeGreaterThan(ctime0);
-      expect(mtime1).toBeGreaterThan(mtime0);
-
-      await sleep(50);
-      // c and mtime update when deleting a file.
+      const content = 'A'.repeat(2);
+      await Promise.all([
+        efs.promises.writeFile(PUT, Buffer.from(content)),
+        efs.promises.utimes(dir, 0, 0),
+      ]);
+      let stat = await efs.promises.stat(dir);
+      expect(stat.atime.getMilliseconds()).toBe(0);
       await efs.unlink(PUT);
-      let stat2 = await efs.stat(dir);
-      const birthtime2 = stat2.birthtime.getTime();
-      const atime2 = stat2.atime.getTime();
-      const mtime2 = stat2.mtime.getTime();
-      const ctime2 = stat2.ctime.getTime();
-      expect(birthtime2).toEqual(birthtime1);
-      expect(atime2).toEqual(atime1);
-      expect(ctime2).toBeGreaterThan(ctime1);
-      expect(mtime2).toBeGreaterThan(mtime1);
+      await efs.rmdir(dir);
+      await efs.mkdir(dir);
+      await Promise.all([
+        efs.promises.utimes(dir, 0, 0),
+        efs.promises.writeFile(PUT, Buffer.from(content)),
+      ]);
+      stat = await efs.promises.stat(dir);
+      expect(stat.atime.getMilliseconds()).toBe(0);
+    //   await efs.writeFile(PUT, '');
+    //   let stat0 = await efs.stat(dir);
+    //   const birthtime0 = stat0.birthtime.getTime();
+    //   const atime0 = stat0.atime.getTime();
+    //   const mtime0 = stat0.mtime.getTime();
+    //   const ctime0 = stat0.ctime.getTime();
 
-      await sleep(50);
-      //ctime updates when permissions change.
-      await efs.chown(dir, 10, 10);
-      await efs.chown(dir, 0, 0);
-      let stat3 = await efs.stat(dir);
-      const birthtime3 = stat3.birthtime.getTime();
-      const atime3 = stat3.atime.getTime();
-      const mtime3 = stat3.mtime.getTime();
-      const ctime3 = stat3.ctime.getTime();
-      expect(birthtime3).toEqual(birthtime2);
-      expect(atime3).toEqual(atime2);
-      expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
-      expect(mtime3).toEqual(mtime2);
+    //   await sleep(50);
+    //   // nothing updates when opened.
+    //   const fd = await efs.open(PUT, flags.O_RDWR)
+    //   let stat1 = await efs.stat(dir);
+    //   const birthtime1 = stat1.birthtime.getTime();
+    //   const atime1 = stat1.atime.getTime();
+    //   const mtime1 = stat1.mtime.getTime();
+    //   const ctime1 = stat1.ctime.getTime();
+    //   expect(birthtime1).toEqual(birthtime0);
+    //   expect(atime1).toEqual(atime0);
+    //   expect(ctime1).toEqual(ctime0);
+    //   expect(mtime1).toEqual(mtime0);
+
+    //   await sleep(50);
+    //   //atime updates when read.
+    //   const buf = Buffer.alloc(20, 0);
+    //   await efs.read(fd, buf);
+    //   let stat2 = await efs.stat(dir);
+    //   const birthtime2 = stat2.birthtime.getTime();
+    //   const atime2 = stat2.atime.getTime();
+    //   const mtime2 = stat2.mtime.getTime();
+    //   const ctime2 = stat2.ctime.getTime();
+    //   expect(birthtime2).toEqual(birthtime1);
+    //   expect(atime2).toBeGreaterThan(atime1);
+    //   expect(ctime2).toEqual(ctime1);
+    //   expect(mtime2).toEqual(mtime1);
+
+    //   await sleep(50);
+    //   //ctime updates when permissions change.
+    //   await efs.fchown(fd, 10, 10);
+    //   await efs.fchown(fd, 0, 0);
+    //   let stat3 = await efs.stat(dir);
+    //   const birthtime3 = stat3.birthtime.getTime();
+    //   const atime3 = stat3.atime.getTime();
+    //   const mtime3 = stat3.mtime.getTime();
+    //   const ctime3 = stat3.ctime.getTime();
+    //   expect(birthtime3).toEqual(birthtime2);
+    //   expect(atime3).toEqual(atime2);
+    //   expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
+    //   expect(mtime3).toEqual(mtime2);
+
+    //   await sleep(50);
+    //   //mtime updates when written to.
+    //   await efs.write(fd, Buffer.from('hello!'));
+    //   let stat4 = await efs.stat(dir);
+    //   const birthtime4 = stat4.birthtime.getTime();
+    //   const atime4 = stat4.atime.getTime();
+    //   const mtime4 = stat4.mtime.getTime();
+    //   const ctime4 = stat4.ctime.getTime();
+    //   expect(birthtime4).toEqual(birthtime3);
+    //   expect(atime4).toEqual(atime3);
+    //   expect(ctime4).toBeGreaterThan(ctime3);
+    //   expect(mtime4).toBeGreaterThan(mtime3);
+    // });
+    // test('Dir metadata changes while adding or removing files.', async () => {
+    //   const dir = 'directory';
+    //   const PUT = path.join(dir, 'file');
+    //   await efs.mkdir(dir);
+    //   let stat0 = await efs.stat(dir);
+    //   const birthtime0 = stat0.birthtime.getTime();
+    //   const atime0 = stat0.atime.getTime();
+    //   const mtime0 = stat0.mtime.getTime();
+    //   const ctime0 = stat0.ctime.getTime();
+
+    //   await sleep(50);
+    //   // c and mtime update when creating a file.
+    //   await efs.writeFile(PUT, '');
+    //   let stat1 = await efs.stat(dir);
+    //   const birthtime1 = stat1.birthtime.getTime();
+    //   const atime1 = stat1.atime.getTime();
+    //   const mtime1 = stat1.mtime.getTime();
+    //   const ctime1 = stat1.ctime.getTime();
+    //   expect(birthtime1).toEqual(birthtime0);
+    //   expect(atime1).toEqual(atime0);
+    //   expect(ctime1).toBeGreaterThan(ctime0);
+    //   expect(mtime1).toBeGreaterThan(mtime0);
+
+    //   await sleep(50);
+    //   // c and mtime update when deleting a file.
+    //   await efs.unlink(PUT);
+    //   let stat2 = await efs.stat(dir);
+    //   const birthtime2 = stat2.birthtime.getTime();
+    //   const atime2 = stat2.atime.getTime();
+    //   const mtime2 = stat2.mtime.getTime();
+    //   const ctime2 = stat2.ctime.getTime();
+    //   expect(birthtime2).toEqual(birthtime1);
+    //   expect(atime2).toEqual(atime1);
+    //   expect(ctime2).toBeGreaterThan(ctime1);
+    //   expect(mtime2).toBeGreaterThan(mtime1);
+
+    //   await sleep(50);
+    //   //ctime updates when permissions change.
+    //   await efs.chown(dir, 10, 10);
+    //   await efs.chown(dir, 0, 0);
+    //   let stat3 = await efs.stat(dir);
+    //   const birthtime3 = stat3.birthtime.getTime();
+    //   const atime3 = stat3.atime.getTime();
+    //   const mtime3 = stat3.mtime.getTime();
+    //   const ctime3 = stat3.ctime.getTime();
+    //   expect(birthtime3).toEqual(birthtime2);
+    //   expect(atime3).toEqual(atime2);
+    //   expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
+    //   expect(mtime3).toEqual(mtime2);
     });
     describe('Changing fd location in a file (lseek) while writing/reading (and updating) fd pos', () => {
       let fd;
