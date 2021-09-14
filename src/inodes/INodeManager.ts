@@ -883,7 +883,7 @@ class INodeManager {
     offset = 0,
   ): Promise<number> {
     const dataDomain = [...this.dataDomain, ino.toString()];
-    const block = await this.fileGetBlock(tran, ino, idx);
+    let block = await this.fileGetBlock(tran, ino, idx);
     const key = inodesUtils.bufferId(idx);
     let bytesWritten;
     if (!block) {
@@ -900,6 +900,9 @@ class INodeManager {
         await tran.put(dataDomain, key, value);
       } else {
         // In this case we are overwriting
+        if (offset + data.length > block.length) {
+          block = Buffer.concat([block, Buffer.alloc(offset + data.length - block.length)]);
+        }
         bytesWritten = block.write(data.toString(), offset);
         const value = block.toString();
         await tran.put(dataDomain, key, value);

@@ -1682,7 +1682,7 @@ class EncryptedFS {
                   this._blkSize,
                 );
               },
-              [targetIno],
+              [],
             );
           }
           break;
