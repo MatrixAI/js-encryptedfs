@@ -17,6 +17,7 @@ import {
   sleep,
 } from './utils';
 import path from 'path';
+import { readdir } from "fs/promises";
 
 describe('EncryptedFS Directories', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -507,5 +508,67 @@ describe('EncryptedFS Directories', () => {
 
     // Right now only the first rename works. the rest fail. this is expected.
     expect(await efs.readdir('.')).toContain('one');
+  })
+  test('Reading a directory while adding/removing entries in the directory', async () => {
+    await efs.mkdir('dir');
+    const file1 = path.join('dir', 'file1');
+
+    const results1 = await Promise.all([
+      efs.writeFile(file1, 'test1'),
+      efs.readdir('dir'),
+    ])
+    // Readdir seems to return the directory before the changes happen.
+    expect(results1[1]).not.toContain('file1');
+    expect(await efs.readdir('dir')).toContain('file1');
+
+    const results2 = await Promise.all([
+      efs.unlink(file1),
+      efs.readdir('dir'),
+    ])
+    // Readdir seems to return the directory before the changes happen.
+    expect(results2[1]).toContain('file1');
+    expect(await efs.readdir('dir')).not.toContain('file1');
+  })
+  test('Reading a directory while removing the directory', async () => {
+    await efs.mkdir('dir');
+
+    const results1 = await Promise.all([
+      efs.readdir('dir'),
+      efs.rmdir('dir'),
+    ])
+    // Readdir seems to return the directory before the changes happen.
+    expect(results1[0]).toEqual([]);
+    await expectError(efs.readdir('dir'), errno.ENOENT);
+
+    // If after the rmdir readdir just fails.
+    await efs.mkdir('dir');
+    await expectError(
+      Promise.all([
+        efs.rmdir('dir'),
+        efs.readdir('dir'),
+      ]),
+      errno.ENOTDIR
+    );
+
+  })
+  test('Reading a directory while renaming entries', async () => {
+    await efs.mkdir('dir');
+    await efs.writeFile(path.join('dir', 'file1'));
+
+    const results1 = await Promise.all([
+      efs.readdir('dir'),
+      efs.rename(path.join('dir', 'file1'), path.join('dir', 'file2')),
+    ])
+    // Readdir seems to return the directory before the changes happen.
+    expect(results1[0]).toContain('file1');
+    expect(await efs.readdir('dir')).toContain('file2');
+
+    const results2 = await Promise.all([
+      efs.rename(path.join('dir', 'file2'), path.join('dir', 'file1')),
+      efs.readdir('dir'),
+    ])
+    // Readdir seems to return the directory before the changes happen.
+    expect(results2[1]).toContain('file2');
+    expect(await efs.readdir('dir')).toContain('file1');
   })
 });
