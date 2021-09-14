@@ -1249,5 +1249,95 @@ describe('EncryptedFS Files', () => {
         expect(pos2).toEqual(30);
       })
     })
+    describe('checking if nlinks gets clobbered.',() => {
+      test('when creating and removing the file.', async () => {
+        // Need a way to check if only one inode was created in the end.
+        // otherwise do we have dangling inodes that are not going to get collected?
+        await Promise.all([
+          efs.writeFile('file', ''),
+          efs.writeFile('file', ''),
+          efs.writeFile('file', ''),
+          efs.writeFile('file', ''),
+          efs.writeFile('file', ''),
+        ])
+        const stat = await efs.stat('file');
+        expect(stat.nlink).toEqual(1);
+
+        const fd = await efs.open('file', 'r');
+        try {
+          await Promise.all([
+            efs.unlink('file'),
+            efs.unlink('file'),
+            efs.unlink('file'),
+            efs.unlink('file'),
+            efs.unlink('file'),
+          ])
+        } catch (err) {
+          // do nothing
+        }
+        const stat2 = await efs.fstat(fd);
+        expect(stat2.nlink).toEqual(0);
+        await efs.close(fd);
+      })
+      test('when creating and removing links.', async () => {
+        await efs.writeFile('file', '')
+
+        // one link to a file multiple times.
+        try {
+          await Promise.all([
+            efs.link('file', 'link'),
+            efs.link('file', 'link'),
+            efs.link('file', 'link'),
+            efs.link('file', 'link'),
+            efs.link('file', 'link'),
+          ])
+        } catch (e) {
+          // do nothing
+        }
+        const stat = await efs.stat('file');
+        expect(stat.nlink).toEqual(2);
+
+        // removing one link multiple times.
+        try {
+          await Promise.all([
+            efs.unlink('link'),
+            efs.unlink('link'),
+            efs.unlink('link'),
+            efs.unlink('link'),
+            efs.unlink('link'),
+          ])
+        } catch (e) {
+          // do nothing
+        }
+        const stat2 = await efs.stat('file');
+        expect(stat2.nlink).toEqual(1);
+
+        // Multiple links to a file.
+        await Promise.all([
+          efs.link('file', 'link1'),
+          efs.link('file', 'link2'),
+          efs.link('file', 'link3'),
+          efs.link('file', 'link4'),
+          efs.link('file', 'link5'),
+        ])
+        const stat3 = await efs.stat('file');
+        expect(stat3.nlink).toEqual(6);
+
+        // removing one link multiple times.
+        try {
+          await Promise.all([
+            efs.unlink('link1'),
+            efs.unlink('link2'),
+            efs.unlink('link3'),
+            efs.unlink('link4'),
+            efs.unlink('link5'),
+          ])
+        } catch (e) {
+          // do nothing
+        }
+        const stat4 = await efs.stat('file');
+        expect(stat4.nlink).toEqual(1);
+      })
+    })
   })
 });
