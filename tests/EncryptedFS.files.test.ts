@@ -1177,5 +1177,77 @@ describe('EncryptedFS Files', () => {
       expect(ctime3).toBeGreaterThan(ctime2); // This is not updating!
       expect(mtime3).toEqual(mtime2);
     });
+    describe('Changing fd location in a file (lseek) while writing/reading (and updating) fd pos', () => {
+      let fd;
+      beforeEach(async () => {
+        fd = await efs.open("file", flags.O_RDWR | flags.O_CREAT);
+        await efs.fallocate(fd, 0, 200);
+      });
+
+      test('Seeking while writing to file.', async () => {
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking before.
+        await Promise.all([
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+          efs.write(fd, Buffer.from('A'.repeat(10))),
+        ]);
+        let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos).toEqual(20);
+
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking after.
+        await Promise.all([
+          efs.write(fd, Buffer.from('A'.repeat(10))),
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+        ]);
+        pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos).toEqual(10);
+      })
+      test('Seeking while reading a file.', async () => {
+        await efs.write(fd, Buffer.from('AAAAAAAAAABBBBBBBBBBCCCCCCCCCC'));
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking before.
+        const buf = Buffer.alloc(10);
+        const res = await Promise.all([
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+          efs.read(fd, buf, undefined, 10),
+        ]);
+        let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos).toEqual(20);
+        expect(buf.toString()).toContain('B');
+
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking after.
+        const buf2 = Buffer.alloc(10);
+        const res2 = await Promise.all([
+          efs.read(fd, buf2, undefined, 10),
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+        ]);
+        let pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos2).toEqual(20);
+        expect(buf2.toString()).toContain('B');
+      })
+      test('Seeking while updating fd pos.', async () => {
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking before.
+        const buf = Buffer.alloc(10);
+        const res = await Promise.all([
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+          efs.lseek(fd, 20, flags.SEEK_SET),
+        ]);
+        let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos).toEqual(20);
+
+        await efs.lseek(fd, 0, flags.SEEK_SET);
+        // seeking after.
+        const buf2 = Buffer.alloc(10);
+        const res2 = await Promise.all([
+          efs.lseek(fd, 20, flags.SEEK_SET),
+          efs.lseek(fd, 10, flags.SEEK_CUR),
+        ]);
+        let pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
+        expect(pos2).toEqual(30);
+      })
+    })
   })
 });
