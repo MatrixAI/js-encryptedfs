@@ -1,7 +1,7 @@
 import type { AbstractLevelDOWN, AbstractIterator } from 'abstract-leveldown';
 import type { LevelUp } from 'levelup';
 
-type DBDomain = Readonly<Array<string | Buffer>>;
+type DBDomain = Readonly<Array<string>>;
 
 type DBLevel = LevelUp<
   AbstractLevelDOWN<string | Buffer, Buffer>,

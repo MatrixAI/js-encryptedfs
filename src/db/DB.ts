@@ -230,15 +230,15 @@ class DB {
   }
 
   public async level(
-    domain: string | Buffer,
+    domain: string,
     dbLevel?: DBLevel,
   ): Promise<DBLevel>;
   public async level(
-    domain: string | Buffer,
+    domain: string,
     callback: Callback<[DBLevel]>,
   ): Promise<void>;
   public async level(
-    domain: string | Buffer,
+    domain: string,
     dbLevel: DBLevel,
     callback: Callback<[DBLevel]>,
   ): Promise<void>;

@@ -118,25 +118,6 @@ describe('DB', () => {
     expect(keyToTest!).toBe('!200!b');
     await db.stop();
   });
-  test('can use binary db domain levels', async () => {
-    // the default encoding is utf-8
-    // so they can be represented as strings
-    const dbPath = `${dataDir}/db`;
-    const db = await DB.createDB({ dbKey, dbPath, logger });
-    await db.start();
-    const level1 = await db.level(Buffer.from('level1'));
-    await db.put(['level1'], 'a', 'value1');
-    expect(await db.get([Buffer.from('level1')], 'a')).toBe('value1');
-    await db.put([Buffer.from('level1')], 'b', 'value2');
-    expect(await db.get(['level1'], 'b')).toBe('value2');
-    expect(await db.count(level1)).toBe(2);
-    await db.del(['level1'], 'a');
-    await db.del([Buffer.from('level1')], 'b');
-    expect(await db.get([Buffer.from('level1')], 'a')).toBeUndefined();
-    expect(await db.get([Buffer.from('level1')], 'b')).toBeUndefined();
-    expect(await db.count(level1)).toBe(0);
-    await db.stop();
-  });
   test('clearing a db level clears all sublevels', async () => {
     const dbPath = `${dataDir}/db`;
     const db = await DB.createDB({ dbKey, dbPath, logger });
