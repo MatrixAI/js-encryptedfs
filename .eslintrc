@@ -29,6 +29,47 @@
     "@typescript-eslint/explicit-module-boundary-types": 0,
     "@typescript-eslint/no-unused-vars": "warn",
     "@typescript-eslint/no-inferrable-types": 0,
-    "@typescript-eslint/no-non-null-assertion": 0
+    "@typescript-eslint/no-non-null-assertion": 0,
+    "capitalized-comments": [
+      "warn",
+      "always",
+      {
+        "ignoreInlineComments": true,
+        "ignoreConsecutiveComments": true
+      }
+    ],
+    "@typescript-eslint/naming-convention": [
+      "error",
+      {
+        "selector": "default",
+        "format": ["camelCase"],
+        "leadingUnderscore": "allow",
+        "trailingUnderscore": "allowSingleOrDouble"
+      },
+      {
+        "selector": "variable",
+        "format": ["camelCase", "UPPER_CASE"],
+        "leadingUnderscore": "allow",
+        "trailingUnderscore": "allowSingleOrDouble"
+      },
+      {
+        "selector": "parameter",
+        "format": ["camelCase"],
+        "trailingUnderscore": "allowSingleOrDouble"
+      },
+      {
+        "selector": "typeLike",
+        "format": ["PascalCase"],
+        "trailingUnderscore": "allowSingleOrDouble"
+      },
+      {
+        "selector": "objectLiteralProperty",
+        "format": null
+      },
+      {
+        "selector": "typeProperty",
+        "format": null
+      }
+    ]
   }
 }

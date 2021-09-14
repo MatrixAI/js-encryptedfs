@@ -1,5 +1,5 @@
 import os from 'os';
-import fs from 'fs';
+import fs, { createWriteStream } from "fs";
 import pathNode from 'path';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
@@ -476,4 +476,134 @@ describe('EncryptedFS Streams', () => {
     // }
     // expect(readString.length).toEqual(4096);
   })
+  test('One write stream and one fd writing to the same file', async () => {
+    const flags = vfs.constants;
+    await efs.writeFile('file', '');
+    const fd = await efs.open('file', flags.O_RDWR);
+    const writeStream = await efs.createWriteStream('file');
+
+    await Promise.all([
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('A'.repeat(10)),
+          () => {res(null)}
+        )
+      }),
+      efs.write(fd, Buffer.from('B'.repeat(10))),
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('C'.repeat(10)),
+          () => {res(null)}
+        )
+      }),
+      new Promise(async (res, _err) => {
+        await sleep(100);
+        writeStream.end()
+        writeStream.on('finish', () => {res(null)});
+      })
+    ])
+
+    // The writeStream overwrites the file. likely because it finishes last and writes everything at once.
+    const fileContents = (await efs.readFile('file')).toString();
+    expect(fileContents).toContain('A');
+    expect(fileContents).not.toContain('B');
+    expect(fileContents).toContain('C');
+  });
+  test('One read stream and one fd writing to the same file', async () => {
+    const flags = vfs.constants;
+    await efs.writeFile('file', '');
+    const fd = await efs.open('file', flags.O_RDWR);
+    const readStream = await efs.createReadStream('file');
+    let readData = '';
+
+    readStream.on('data', (data) => {
+      readData += data
+    })
+    const streamEnd = new Promise((res, err) => {
+      readStream.on('end', () => {
+        res(null);
+      })
+    })
+
+
+    await Promise.all([
+      efs.write(fd, Buffer.from('A'.repeat(10))),
+      efs.write(fd, Buffer.from('B'.repeat(10))),
+      streamEnd,
+    ])
+
+    await sleep(100);
+
+    // Only the last write data gets read.
+    expect(readData).not.toContain('A');
+    expect(readData).toContain('B');
+    expect(readData).not.toContain('C');
+  });
+  test('One write stream and one fd reading to the same file', async () => {
+    const flags = vfs.constants;
+    await efs.writeFile('file', '');
+    const fd = await efs.open('file', flags.O_RDWR);
+    const writeStream = await efs.createWriteStream('file');
+    const buf1 = Buffer.alloc(20);
+    const buf2 = Buffer.alloc(20);
+    const buf3 = Buffer.alloc(20);
+
+    await Promise.all([
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('A'.repeat(10)),
+          () => {res(null)}
+        )
+      }),
+      efs.read(fd, buf1, 0, 20),
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('B'.repeat(10)),
+          () => {res(null)}
+        )
+
+      }),
+      efs.read(fd, buf2, 0, 20),
+      new Promise(async (res, _err) => {
+        await sleep(100);
+        writeStream.end()
+        writeStream.on('finish', () => {res(null)});
+      }),
+    ])
+    await efs.read(fd, buf3, 0, 20);
+
+    // Efs.read only reads data after the write stream finishes.
+    expect(buf1.toString()).not.toContain('AB');
+    expect(buf2.toString()).not.toContain('AB');
+    expect(buf3.toString()).toContain('AB');
+  });
+  test('One read stream and one fd reading to the same file', async () => {
+    const flags = vfs.constants;
+    await efs.writeFile('file', 'AAAAAAAAAABBBBBBBBBB');
+    const fd = await efs.open('file', flags.O_RDONLY);
+    const readStream = await efs.createReadStream('file');
+    let readData = '';
+
+    readStream.on('data', (data) => {
+      readData += data
+    })
+    const streamEnd = new Promise((res, err) => {
+      readStream.on('end', () => {
+        res(null);
+      })
+    })
+    const buf = Buffer.alloc(20);
+
+    await Promise.all([
+      efs.read(fd, buf, 0, 20),
+      streamEnd,
+    ])
+
+    await sleep(100);
+
+    // Ok, is efs.read() broken?
+    expect(readData).toContain('AB');
+    expect(buf.toString()).toContain('AB');
+  });
+
 });
