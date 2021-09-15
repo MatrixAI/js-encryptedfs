@@ -1,9 +1,9 @@
-// Import type { BufferEncoding } from './types';
+import type { FdIndex } from './fd/types';
 import { Readable, Writable } from 'readable-stream';
+import type { OptionsStream } from './streams/types';
 import EncryptedFS from './EncryptedFS';
 import { promisify } from 'util';
 import { DEFAULT_FILE_PERM } from 'virtualfs';
-import { OptionsStream } from './streams/types';
 
 // Type OptionsStream = {
 //   highWaterMark?: number;
@@ -24,7 +24,7 @@ class ReadStream extends Readable {
   private efs: EncryptedFS;
   bytesRead: number;
   path: string;
-  fd: number | null | undefined;
+  fd: FdIndex | null | undefined;
   flags: string;
   mode: number | undefined;
   autoClose: boolean;
@@ -68,7 +68,7 @@ class ReadStream extends Readable {
    * @private
    */
   _open() {
-    this.efs.open(this.path, this.flags, this.mode, (e, fd) => {
+    const callback = (e, fd) => {
       if (e) {
         if (this.autoClose) {
           this.destroy();
@@ -80,7 +80,12 @@ class ReadStream extends Readable {
         super.emit('open', fd);
         super.read();
       }
-    });
+    };
+    if (this.mode != null) {
+      this.efs.open(this.path, this.flags, this.mode, callback);
+    } else {
+      this.efs.open(this.path, this.flags, callback);
+    }
   }
 
   /**
@@ -178,7 +183,7 @@ class WriteStream extends Writable {
   private efs: EncryptedFS;
   bytesWritten: number;
   path: string;
-  fd: number | null | undefined;
+  fd: FdIndex | null | undefined;
   flags: string;
   mode: number | undefined;
   autoClose: boolean;
@@ -220,7 +225,7 @@ class WriteStream extends Writable {
    * @private
    */
   _open() {
-    this.efs.open(this.path, this.flags, this.mode, (e, fd) => {
+    const callback = (e, fd) => {
       if (e) {
         if (this.autoClose) {
           this.destroy();
@@ -231,7 +236,12 @@ class WriteStream extends Writable {
         this.fd = fd;
         super.emit('open', fd);
       }
-    });
+    };
+    if (this.mode != null) {
+      this.efs.open(this.path, this.flags, this.mode, callback);
+    } else {
+      this.efs.open(this.path, this.flags, callback);
+    }
   }
 
   /**
@@ -309,6 +319,7 @@ class WriteStream extends Writable {
       return new Promise(() => super.emit('close'));
     }
     this.closed = true;
+
     this.efs.close(this.fd, (e) => {
       if (e) {
         this.emit('error', e);

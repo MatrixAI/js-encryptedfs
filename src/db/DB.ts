@@ -473,19 +473,16 @@ class DB {
         : dbUtils.serialize(value);
       if (this.workerManager != null) {
         return this.workerManager.call(async (w) => {
-          const [
-            cipherBuf,
-            cipherOffset,
-            cipherLength,
-          ] = await w.encryptWithKey(
-            Transfer(this.dbKey.buffer),
-            this.dbKey.byteOffset,
-            this.dbKey.byteLength,
-            // @ts-ignore: No easy fix for now.
-            Transfer(plainText.buffer),
-            plainText.byteOffset,
-            plainText.byteLength,
-          );
+          const [cipherBuf, cipherOffset, cipherLength] =
+            await w.encryptWithKey(
+              Transfer(this.dbKey.buffer),
+              this.dbKey.byteOffset,
+              this.dbKey.byteLength,
+              // @ts-ignore: No easy fix for now.
+              Transfer(plainText.buffer),
+              plainText.byteOffset,
+              plainText.byteLength,
+            );
           return Buffer.from(cipherBuf, cipherOffset, cipherLength);
         });
       } else {

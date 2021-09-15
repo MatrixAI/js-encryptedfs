@@ -282,7 +282,7 @@ describe('EncryptedFS Files', () => {
       await efs.close(fd);
     });
     test('does not change fd position according to position parameter', async () => {
-      let buf = Buffer.alloc(3);
+      let buf;
       let fd;
       let bytesRead;
       // Reading from position 0 doesn't move the fd from the end
@@ -748,15 +748,7 @@ describe('EncryptedFS Files', () => {
       const message = 'The Quick Brown Fox Jumped Over The Lazy Dog';
       await efs.writeFile(n1, message, { mode: 0o0644 });
       const modes = [
-        0o0477,
-        0o0177,
-        0o0077,
-        0o0747,
-        0o0717,
-        0o0707,
-        0o0774,
-        0o0771,
-        0o0770,
+        0o0477, 0o0177, 0o0077, 0o0747, 0o0717, 0o0707, 0o0774, 0o0771, 0o0770,
       ];
       let counter = 0;
       const flag = flags.O_RDONLY | flags.O_TRUNC;
