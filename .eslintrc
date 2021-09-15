@@ -80,6 +80,12 @@
         "selector": "typeProperty",
         "format": null
       }
+    ],
+    "@typescript-eslint/ban-ts-comment": [
+      "error",
+      {
+        "ts-ignore": "allow-with-description"
+      }
     ]
   }
 }

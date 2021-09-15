@@ -23,7 +23,7 @@ describe('EFS worker', () => {
         Transfer(key.buffer),
         key.byteOffset,
         key.byteLength,
-        // @ts-ignore
+        // @ts-ignore: No easy fix for now.
         Transfer(plainText.buffer),
         plainText.byteOffset,
         plainText.byteLength,
@@ -37,7 +37,7 @@ describe('EFS worker', () => {
         Transfer(key.buffer),
         key.byteOffset,
         key.byteLength,
-        // @ts-ignore
+        // @ts-ignore: No easy fix for now.
         Transfer(cipherText.buffer),
         cipherText.byteOffset,
         cipherText.byteLength,
@@ -60,7 +60,7 @@ describe('EFS worker', () => {
         Transfer(key.buffer),
         key.byteOffset,
         key.byteLength,
-        // @ts-ignore
+        // @ts-ignore: No easy fix for now.
         Transfer(plainText.buffer),
         plainText.byteOffset,
         plainText.byteLength,
@@ -70,7 +70,7 @@ describe('EFS worker', () => {
         Transfer(key.buffer),
         key.byteOffset,
         key.byteLength,
-        // @ts-ignore
+        // @ts-ignore: No easy fix for now.
         Transfer(cipherText.buffer),
         cipherText.byteOffset,
         cipherText.byteLength,

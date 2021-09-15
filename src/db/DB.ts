@@ -229,10 +229,7 @@ class DB {
     }, locks);
   }
 
-  public async level(
-    domain: string,
-    dbLevel?: DBLevel,
-  ): Promise<DBLevel>;
+  public async level(domain: string, dbLevel?: DBLevel): Promise<DBLevel>;
   public async level(
     domain: string,
     callback: Callback<[DBLevel]>,
@@ -484,7 +481,7 @@ class DB {
             Transfer(this.dbKey.buffer),
             this.dbKey.byteOffset,
             this.dbKey.byteLength,
-            // @ts-ignore
+            // @ts-ignore: No easy fix for now.
             Transfer(plainText.buffer),
             plainText.byteOffset,
             plainText.byteLength,
@@ -528,7 +525,7 @@ class DB {
             Transfer(this.dbKey.buffer),
             this.dbKey.byteOffset,
             this.dbKey.byteLength,
-            // @ts-ignore
+            // @ts-ignore: No easy fix for now.
             Transfer(cipherText.buffer),
             cipherText.byteOffset,
             cipherText.byteLength,

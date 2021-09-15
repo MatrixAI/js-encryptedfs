@@ -33,7 +33,8 @@ describe('WorkerManager', () => {
     expect(
       await workerManager.call(async (w) => {
         mainPid2 = process.pid;
-        const process2 = require('process');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const process2 = require('process'); // This is needed for the test.
         mainPid3 = process2.pid;
         return await w.isRunningInWorker();
       }),
