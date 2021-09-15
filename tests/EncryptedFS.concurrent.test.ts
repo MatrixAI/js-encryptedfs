@@ -602,7 +602,7 @@ describe('EncryptedFS Concurrency', () => {
       let pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos2).toEqual(30);
     })
-  })
+  });
   describe('checking if nlinks gets clobbered.',() => {
     test('when creating and removing the file.', async () => {
       // Need a way to check if only one inode was created in the end.
@@ -692,7 +692,7 @@ describe('EncryptedFS Concurrency', () => {
       const stat4 = await efs.stat('file');
       expect(stat4.nlink).toEqual(1);
     })
-  })
+  });
   test('Read stream and write stream to same file', async (done) => {
     await efs.writeFile('file', '');
     const readStream = await efs.createReadStream('file');
@@ -721,7 +721,7 @@ describe('EncryptedFS Concurrency', () => {
     //   readString += data;
     // }
     // expect(readString.length).toEqual(4096);
-  })
+  });
   test('One write stream and one fd writing to the same file', async () => {
     const flags = vfs.constants;
     await efs.writeFile('file', '');
@@ -904,5 +904,159 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents2).not.toContain('B');
     expect(fileContents2).toContain('C');
     // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
-  })
+  });
+  test('Writing a file and deleting the file at the same time', async () => {
+    await efs.writeFile('file', '');
+
+    // Odd error, needs fixing.
+    await Promise.all([
+      efs.writeFile('file', 'CONTENT!'),
+      efs.unlink('file'),
+    ]);
+  });
+  test('Appending to a file that is being written to for fd ', async () => {
+    await efs.writeFile('file', '');
+    const fd1 = await efs.open('file', flags.O_WRONLY);
+
+    await Promise.all([
+      efs.write(fd1, Buffer.from('AAAAAAAAAA')),
+      efs.appendFile('file', 'BBBBBBBBBB'),
+    ])
+
+    const fileContents = (await efs.readFile('file')).toString();
+    console.log(fileContents);
+    expect(fileContents).toContain('A');
+    expect(fileContents).toContain('B');
+    expect(fileContents).toContain('AB');
+
+    await efs.close(fd1);
+    await efs.writeFile('file', '');
+    const fd2 = await efs.open('file', flags.O_WRONLY);
+    await Promise.all([
+      efs.appendFile('file', 'BBBBBBBBBB'),
+      efs.write(fd2, Buffer.from('AAAAAAAAAA')),
+    ])
+
+    // The append seems to happen after the write.
+    const fileContents2 = (await efs.readFile('file')).toString();
+    console.log(fileContents2);
+    expect(fileContents2).toContain('A');
+    expect(fileContents2).toContain('B');
+    expect(fileContents2).toContain('AB');
+  });
+  test('Appending to a file that is being written for stream', async () => {
+    await efs.writeFile('file', '');
+    const writeStream = await efs.createWriteStream('file');
+    await Promise.all([
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('AAAAAAAAAA'),
+          () => {
+            writeStream.end(() => {
+              res(null);
+            })
+          }
+        )
+      }),
+      efs.appendFile('file', 'BBBBBBBBBB'),
+    ])
+
+    const fileContents = (await efs.readFile('file')).toString();
+    console.log(fileContents);
+    expect(fileContents).toContain('A');
+    expect(fileContents).toContain('B');
+    expect(fileContents).toContain('AB');
+
+    await efs.writeFile('file', '');
+    await Promise.all([
+      efs.appendFile('file', 'BBBBBBBBBB'),
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('AAAAAAAAAA'),
+          () => {
+            writeStream.end(() => {res(null)})
+          }
+        )
+      }),
+    ]);
+
+    // The append seems to overwrite the stream.
+    const fileContents2 = (await efs.readFile('file')).toString();
+    console.log(fileContents2);
+    expect(fileContents2).not.toContain('A');
+    expect(fileContents2).toContain('B');
+  });
+  test('Copying a file that is being written to for fd', async () => {
+    await efs.writeFile('file', 'AAAAAAAAAA');
+    const fd1 = await efs.open('file', flags.O_WRONLY);
+
+    await Promise.all([
+      efs.write(fd1, Buffer.from('BBBBBBBBBB')),
+      efs.copyFile('file', 'fileCopy'),
+    ])
+
+    // Gets overwritten before copy.
+    const fileContents = (await efs.readFile('fileCopy')).toString();
+    expect(fileContents).not.toContain('A');
+    expect(fileContents).toContain('B');
+
+    await efs.close(fd1);
+    await efs.writeFile('file', 'AAAAAAAAAA');
+    const fd2 = await efs.open('file', flags.O_WRONLY);
+    await efs.unlink('fileCopy');
+
+    await Promise.all([
+      efs.copyFile('file', 'fileCopy'),
+      efs.write(fd1, Buffer.from('BBBBBBBBBB')),
+    ])
+
+    // Also gets overwritten before copy.
+    const fileContents2 = (await efs.readFile('fileCopy')).toString();
+    console.log(fileContents2);
+    expect(fileContents2).not.toContain('A');
+    expect(fileContents2).toContain('B');
+  });
+  test('Copying a file that is being written to for stream', async () => {
+    await efs.writeFile('file', 'AAAAAAAAAA');
+    const writeStream = await efs.createWriteStream('file');
+
+    await Promise.all([
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('BBBBBBBBBB'),
+          () => {
+            writeStream.end(() => {res(null)})
+          }
+        )
+      }),
+      efs.copyFile('file', 'fileCopy'),
+    ])
+
+    // Write happens first.
+    const fileContents = (await efs.readFile('fileCopy')).toString();
+    expect(fileContents).not.toContain('A');
+    expect(fileContents).toContain('B');
+
+    await efs.writeFile('file', 'AAAAAAAAAA');
+    await efs.unlink('fileCopy');
+
+    await Promise.all([
+      efs.copyFile('file', 'fileCopy'),
+      new Promise((res, _err) => {
+        writeStream.write(
+          Buffer.from('BBBBBBBBBB'),
+          () => {
+            writeStream.end(() => {res(null)})
+          }
+        )
+      }),
+    ])
+
+    // Copy happens first.
+    const fileContents2 = (await efs.readFile('fileCopy')).toString();
+    console.log(fileContents2);
+    expect(fileContents2).toContain('A');
+    expect(fileContents2).not.toContain('B');
+  });
+
 });
