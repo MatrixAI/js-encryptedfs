@@ -95,7 +95,7 @@ describe('EncryptedFS Permissions', () => {
       stat.mode &
         (vfs.constants.S_IRWXU | vfs.constants.S_IRWXG | vfs.constants.S_IRWXO),
     ).toBe(vfs.DEFAULT_DIRECTORY_PERM & ~umask);
-    // umask is not applied to symlinks
+    // Umask is not applied to symlinks
     stat = await efs.lstat('/symlink');
     expect(
       stat.mode &
@@ -108,10 +108,9 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 1000;
     efs.gid = 1000;
     await efs.chown('file', 1000, 1000);
-    let error;
-    // you cannot give away files
+    // You cannot give away files
     await expectError(efs.chown('file', 2000, 2000), errno.EPERM);
-    // if you don't own the file, you also cannot change (even if your change is noop)
+    // If you don't own the file, you also cannot change (even if your change is noop)
     efs.uid = 3000;
     await expectError(efs.chown('file', 1000, 1000), errno.EPERM);
   });
@@ -359,7 +358,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.writeFile(`r--/b`, 'hello'), errno.EACCES);
     await expectError(efs.chdir(`r--`), errno.EACCES);
     await expect(efs.readdir(`r--`)).resolves.toContain('a');
-    // you can always change metadata even without write permissions
+    // You can always change metadata even without write permissions
     await efs.utimes(`r--`, new Date(), new Date());
     await expectError(efs.stat(`r--/a`), errno.EACCES);
   });
@@ -372,11 +371,11 @@ describe('EncryptedFS Permissions', () => {
     await efs.mkdir(`rw-`);
     await efs.writeFile(`rw-/a`, 'hello');
     await efs.chmod(`rw-`, 0o600);
-    // you cannot write into a file
+    // You cannot write into a file
     await expectError(efs.writeFile(`rw-/a`, 'world'), errno.EACCES);
-    // you cannot create a new file
+    // You cannot create a new file
     await expectError(efs.writeFile(`rw-/b`, 'hello'), errno.EACCES);
-    // you cannot remove files
+    // You cannot remove files
     await expectError(efs.unlink(`rw-/a`), errno.EACCES);
     await expectError(efs.chdir(`rw-`), errno.EACCES);
     await expect(efs.readdir(`rw-`)).resolves.toContain('a');
@@ -412,24 +411,24 @@ describe('EncryptedFS Permissions', () => {
     await efs.writeFile(`r-x/a`, 'hello');
     await efs.chmod(`r-x`, 0o500);
     const str = 'world';
-    // you can write to the file
+    // You can write to the file
     await efs.writeFile(`r-x/a`, str);
-    // you cannot create new files
+    // You cannot create new files
     await expectError(efs.writeFile(`r-x/b`, str), errno.EACCES);
-    // you can read the directory
+    // You can read the directory
     await expect(efs.readdir(`r-x`)).resolves.toContain('a');
     await expect(efs.readdir(`r-x`)).resolves.toContain('dir');
-    // you can read the file
+    // You can read the file
     await expect(efs.readFile(`r-x/a`, { encoding: 'utf8' })).resolves.toEqual(
       str,
     );
-    // you can traverse into the directory
+    // You can traverse into the directory
     await efs.chdir('r-x');
     const stat = (await efs.stat(`dir`)) as vfs.Stat;
     expect(stat.isDirectory()).toStrictEqual(true);
-    // you cannot delete the file
+    // You cannot delete the file
     await expectError(efs.unlink(`./a`), errno.EACCES);
-    // cannot delete the directory
+    // Cannot delete the directory
     await expectError(efs.rmdir(`dir`), errno.EACCES);
   });
   test('directory permissions -w-', async () => {

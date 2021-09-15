@@ -61,7 +61,7 @@ class Transaction implements DBTransaction {
     key: string | Buffer,
     raw?: false,
   ): Promise<T | undefined>;
-  public async get<T>(
+  public async get<_T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: true,
@@ -77,7 +77,7 @@ class Transaction implements DBTransaction {
       value = this._snap.get(path);
     } else {
       value = await this.db.get<T>(domain, key, raw as any);
-      // don't need this atm
+      // Don't need this atm
       // there is no repeatable-read "snapshot"
       // this._snap.set(path, value);
       // dirty reads

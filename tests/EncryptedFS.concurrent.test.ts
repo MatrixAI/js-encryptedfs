@@ -1,19 +1,17 @@
-import path from "path";
-import { expectError, sleep } from "./utils";
-import { errno } from "@";
+import path from 'path';
+import { expectError, sleep } from './utils';
+import { errno } from '@';
 import EncryptedFS from '@/EncryptedFS';
-import Logger, { LogLevel, StreamHandler } from "@matrixai/logger";
-import { DB } from "@/db";
-import * as utils from "@/utils";
-import { INodeManager } from "@/inodes";
-import fs from "fs";
-import pathNode from "path";
-import os from "os";
+import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
+import { DB } from '@/db';
+import * as utils from '@/utils';
+import { INodeManager } from '@/inodes';
+import fs from 'fs';
+import pathNode from 'path';
+import os from 'os';
 import * as vfs from 'virtualfs';
-import { FdIndex } from "@/fd/types";
-import { WriteStream } from "@/streams";
-
-
+import { FdIndex } from '@/fd/types';
+import { WriteStream } from '@/streams';
 
 describe('EncryptedFS Concurrency', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -86,15 +84,12 @@ describe('EncryptedFS Concurrency', () => {
     const results1 = await Promise.all([
       efs.writeFile(file1, 'test1'),
       efs.readdir('dir'),
-    ])
+    ]);
     // Readdir seems to return the directory before the changes happen.
     expect(results1[1]).not.toContain('file1');
     expect(await efs.readdir('dir')).toContain('file1');
 
-    const results2 = await Promise.all([
-      efs.unlink(file1),
-      efs.readdir('dir'),
-    ])
+    const results2 = await Promise.all([efs.unlink(file1), efs.readdir('dir')]);
     // Readdir seems to return the directory before the changes happen.
     expect(results2[1]).toContain('file1');
     expect(await efs.readdir('dir')).not.toContain('file1');
@@ -102,10 +97,7 @@ describe('EncryptedFS Concurrency', () => {
   test('Reading a directory while removing the directory', async () => {
     await efs.mkdir('dir');
 
-    const results1 = await Promise.all([
-      efs.readdir('dir'),
-      efs.rmdir('dir'),
-    ])
+    const results1 = await Promise.all([efs.readdir('dir'), efs.rmdir('dir')]);
     // Readdir seems to return the directory before the changes happen.
     expect(results1[0]).toEqual([]);
     await expectError(efs.readdir('dir'), errno.ENOENT);
@@ -113,13 +105,9 @@ describe('EncryptedFS Concurrency', () => {
     // If after the rmdir readdir just fails.
     await efs.mkdir('dir');
     await expectError(
-      Promise.all([
-        efs.rmdir('dir'),
-        efs.readdir('dir'),
-      ]),
-      errno.ENOTDIR
+      Promise.all([efs.rmdir('dir'), efs.readdir('dir')]),
+      errno.ENOTDIR,
     );
-
   });
   test('Reading a directory while renaming entries', async () => {
     await efs.mkdir('dir');
@@ -128,7 +116,7 @@ describe('EncryptedFS Concurrency', () => {
     const results1 = await Promise.all([
       efs.readdir('dir'),
       efs.rename(path.join('dir', 'file1'), path.join('dir', 'file2')),
-    ])
+    ]);
     // Readdir seems to return the directory before the changes happen.
     expect(results1[0]).toContain('file1');
     expect(await efs.readdir('dir')).toContain('file2');
@@ -136,7 +124,7 @@ describe('EncryptedFS Concurrency', () => {
     const results2 = await Promise.all([
       efs.rename(path.join('dir', 'file2'), path.join('dir', 'file1')),
       efs.readdir('dir'),
-    ])
+    ]);
     // Readdir seems to return the directory before the changes happen.
     expect(results2[1]).toContain('file2');
     expect(await efs.readdir('dir')).toContain('file1');
@@ -144,14 +132,25 @@ describe('EncryptedFS Concurrency', () => {
   describe('concurrent file writes', () => {
     const flags = vfs.constants;
     test('10 short writes with efs.writeFile.', async () => {
-      const contents = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+      const contents = [
+        'one',
+        'two',
+        'three',
+        'four',
+        'five',
+        'six',
+        'seven',
+        'eight',
+        'nine',
+        'ten',
+      ];
       // Here we want to write to a file at the same time and sus out the behaviour.
-      let promises: Array<any> = [];
+      const promises: Array<any> = [];
       for (const content of contents) {
         promises.push(efs.writeFile('test', content));
       }
       await Promise.all(promises);
-    })
+    });
     test('10 long writes with efs.writeFile.', async () => {
       const blockSize = 4096;
       const blocks = 100;
@@ -159,27 +158,38 @@ describe('EncryptedFS Concurrency', () => {
       let divisor = 0;
       const contents = letters.map((letter) => {
         divisor++;
-        return letter.repeat(blockSize * blocks / divisor);
-      })
-      let promises: Array<any> = [];
+        return letter.repeat((blockSize * blocks) / divisor);
+      });
+      const promises: Array<any> = [];
       for (const content of contents) {
         promises.push(efs.writeFile('test', content, {}));
       }
       await Promise.all(promises);
-    })
+    });
     test('10 short writes with efs.write.', async () => {
-      const contents = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+      const contents = [
+        'one',
+        'two',
+        'three',
+        'four',
+        'five',
+        'six',
+        'seven',
+        'eight',
+        'nine',
+        'ten',
+      ];
       // Here we want to write to a file at the same time and sus out the behaviour.
-      let fds: Array<FdIndex> = []
+      const fds: Array<FdIndex> = [];
       for (let i = 0; i < 10; i++) {
         fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
       }
-      let promises: Array<any> = [];
+      const promises: Array<any> = [];
       for (let i = 0; i < 10; i++) {
         promises.push(efs.write(fds[i], contents[i]));
       }
       await Promise.all(promises);
-    })
+    });
     test('10 long writes with efs.write.', async () => {
       const blockSize = 4096;
       const blocks = 100;
@@ -187,9 +197,9 @@ describe('EncryptedFS Concurrency', () => {
       let divisor = 0;
       const contents = letters.map((letter) => {
         divisor++;
-        return letter.repeat(blockSize * blocks / divisor);
-      })
-      let fds: Array<FdIndex> = []
+        return letter.repeat((blockSize * blocks) / divisor);
+      });
+      let fds: Array<FdIndex> = [];
       for (let i = 0; i < 10; i++) {
         fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
       }
@@ -204,13 +214,12 @@ describe('EncryptedFS Concurrency', () => {
         expect(fileContent).toContain(letter);
       }
 
-
       //Now reverse order.
       await efs.unlink('test');
       for (const fd of fds) {
         await efs.close(fd);
       }
-      fds = []
+      fds = [];
       for (let i = 9; i >= 0; i--) {
         fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
       }
@@ -222,7 +231,7 @@ describe('EncryptedFS Concurrency', () => {
       const fileContent2 = (await efs.readFile('test')).toString();
 
       expect(fileContent2).toContain('A');
-    })
+    });
   });
   describe('Allocating/truncating a file while writing (stream or fd)', () => {
     test('Allocating while writing to fd', async () => {
@@ -233,14 +242,14 @@ describe('EncryptedFS Concurrency', () => {
       await Promise.all([
         efs.write(fd, Buffer.from(content)),
         efs.fallocate(fd, 0, 4096 * 3),
-      ])
+      ]);
 
       // Both operations complete, order makes no diference.
       const fileContents = await efs.readFile('file');
       expect(fileContents.length).toBeGreaterThan(4096 * 2);
       expect(fileContents.toString()).toContain('A');
       expect(fileContents).toContain(0x00);
-    })
+    });
     test('Truncating while writing to fd', async () => {
       const fd1 = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
 
@@ -279,48 +288,54 @@ describe('EncryptedFS Concurrency', () => {
       const fd = await efs.open('file', 'w');
 
       await Promise.all([
-        new Promise((res, _err) => {
-          writeStream.write(content, () => {res(null)})
+        new Promise((res) => {
+          writeStream.write(content, () => {
+            res(null);
+          });
         }),
         efs.fallocate(fd, 0, 4096 * 2),
-      ])
-      await new Promise((res, _err) => {
-        writeStream.end(() => {res(null)})
-      })
+      ]);
+      await new Promise((res) => {
+        writeStream.end(() => {
+          res(null);
+        });
+      });
 
       // Both operations complete, order makes no difference.
       const fileContents = await efs.readFile('file');
       expect(fileContents.length).toEqual(4096 * 2);
       expect(fileContents.toString()).toContain('A');
       expect(fileContents).toContain(0x00);
-
-    })
+    });
     test('Truncating while writing to stream', async () => {
       await efs.writeFile('file', '');
       const writeStream = await efs.createWriteStream('file');
       const content = 'A'.repeat(4096 * 2);
-      const promise1 = new Promise((res, _err) => {
-        writeStream.write(content, () => {res(null)})
+      const promise1 = new Promise((res) => {
+        writeStream.write(content, () => {
+          res(null);
+        });
       });
 
-      await Promise.all([
-        promise1,
-        efs.truncate('file', 4096),
-      ])
-      await new Promise((res, _err) => {
-        writeStream.end(() => {res(null)})
-      })
+      await Promise.all([promise1, efs.truncate('file', 4096)]);
+      await new Promise((res) => {
+        writeStream.end(() => {
+          res(null);
+        });
+      });
 
       // Both operations complete, order makes no difference. Truncate doesn't do anything?
       const fileContents = await efs.readFile('file');
       expect(fileContents.length).toEqual(4096 * 2);
       expect(fileContents.toString()).toContain('A');
       expect(fileContents).not.toContain(0x00);
-
-    })
+    });
   });
   test('File metadata changes while reading/writing a file.', async () => {
-    const fd1 = await efs.promises.open('file', vfs.constants.O_WRONLY | vfs.constants.O_CREAT);
+    const fd1 = await efs.promises.open(
+      'file',
+      vfs.constants.O_WRONLY | vfs.constants.O_CREAT,
+    );
     const content = 'A'.repeat(2);
     await Promise.all([
       efs.promises.writeFile(fd1, Buffer.from(content)),
@@ -332,7 +347,10 @@ describe('EncryptedFS Concurrency', () => {
     await efs.close(fd1);
     await efs.unlink('file');
 
-    const fd2 = await efs.promises.open('file', vfs.constants.O_WRONLY | vfs.constants.O_CREAT);
+    const fd2 = await efs.promises.open(
+      'file',
+      vfs.constants.O_WRONLY | vfs.constants.O_CREAT,
+    );
     await Promise.all([
       efs.promises.utimes('file', 0, 0),
       efs.promises.writeFile(fd2, Buffer.from(content)),
@@ -341,7 +359,7 @@ describe('EncryptedFS Concurrency', () => {
     expect(stat.atime.getMilliseconds()).toBe(0);
     expect(stat.mtime.getMilliseconds()).toBeGreaterThan(0);
     await efs.close(fd2);
-    // await efs.writeFile('file', '');
+    // Await efs.writeFile('file', '');
     // let stat0 = await efs.stat('file');
     // const birthtime0 = stat0.birthtime.getTime();
     // const atime0 = stat0.atime.getTime();
@@ -422,7 +440,7 @@ describe('EncryptedFS Concurrency', () => {
     ]);
     stat = await efs.promises.stat(dir);
     expect(stat.atime.getMilliseconds()).toBe(0);
-    //   await efs.writeFile(PUT, '');
+    //   Await efs.writeFile(PUT, '');
     //   let stat0 = await efs.stat(dir);
     //   const birthtime0 = stat0.birthtime.getTime();
     //   const atime0 = stat0.atime.getTime();
@@ -536,13 +554,13 @@ describe('EncryptedFS Concurrency', () => {
   describe('Changing fd location in a file (lseek) while writing/reading (and updating) fd pos', () => {
     let fd;
     beforeEach(async () => {
-      fd = await efs.open("file", flags.O_RDWR | flags.O_CREAT);
+      fd = await efs.open('file', flags.O_RDWR | flags.O_CREAT);
       await efs.fallocate(fd, 0, 200);
     });
 
     test('Seeking while writing to file.', async () => {
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking before.
+      // Seeking before.
       await Promise.all([
         efs.lseek(fd, 10, flags.SEEK_CUR),
         efs.write(fd, Buffer.from('A'.repeat(10))),
@@ -551,59 +569,59 @@ describe('EncryptedFS Concurrency', () => {
       expect(pos).toEqual(20);
 
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking after.
+      // Seeking after.
       await Promise.all([
         efs.write(fd, Buffer.from('A'.repeat(10))),
         efs.lseek(fd, 10, flags.SEEK_CUR),
       ]);
       pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos).toEqual(10);
-    })
+    });
     test('Seeking while reading a file.', async () => {
       await efs.write(fd, Buffer.from('AAAAAAAAAABBBBBBBBBBCCCCCCCCCC'));
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking before.
+      // Seeking before.
       const buf = Buffer.alloc(10);
       await Promise.all([
         efs.lseek(fd, 10, flags.SEEK_CUR),
         efs.read(fd, buf, undefined, 10),
       ]);
-      let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+      const pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos).toEqual(20);
       expect(buf.toString()).toContain('B');
 
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking after.
+      // Seeking after.
       const buf2 = Buffer.alloc(10);
       await Promise.all([
         efs.read(fd, buf2, undefined, 10),
         efs.lseek(fd, 10, flags.SEEK_CUR),
       ]);
-      let pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
+      const pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos2).toEqual(20);
       expect(buf2.toString()).toContain('B');
-    })
+    });
     test('Seeking while updating fd pos.', async () => {
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking before.
+      // Seeking before.
       await Promise.all([
         efs.lseek(fd, 10, flags.SEEK_CUR),
         efs.lseek(fd, 20, flags.SEEK_SET),
       ]);
-      let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
+      const pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos).toEqual(20);
 
       await efs.lseek(fd, 0, flags.SEEK_SET);
-      // seeking after.
+      // Seeking after.
       await Promise.all([
         efs.lseek(fd, 20, flags.SEEK_SET),
         efs.lseek(fd, 10, flags.SEEK_CUR),
       ]);
-      let pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
+      const pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
       expect(pos2).toEqual(30);
-    })
+    });
   });
-  describe('checking if nlinks gets clobbered.',() => {
+  describe('checking if nlinks gets clobbered.', () => {
     test('when creating and removing the file.', async () => {
       // Need a way to check if only one inode was created in the end.
       // otherwise do we have dangling inodes that are not going to get collected?
@@ -613,7 +631,7 @@ describe('EncryptedFS Concurrency', () => {
         efs.writeFile('file', ''),
         efs.writeFile('file', ''),
         efs.writeFile('file', ''),
-      ])
+      ]);
       const stat = await efs.stat('file');
       expect(stat.nlink).toEqual(1);
 
@@ -625,18 +643,18 @@ describe('EncryptedFS Concurrency', () => {
           efs.unlink('file'),
           efs.unlink('file'),
           efs.unlink('file'),
-        ])
+        ]);
       } catch (err) {
-        // do nothing
+        // Do nothing
       }
       const stat2 = await efs.fstat(fd);
       expect(stat2.nlink).toEqual(0);
       await efs.close(fd);
-    })
+    });
     test('when creating and removing links.', async () => {
-      await efs.writeFile('file', '')
+      await efs.writeFile('file', '');
 
-      // one link to a file multiple times.
+      // One link to a file multiple times.
       try {
         await Promise.all([
           efs.link('file', 'link'),
@@ -644,14 +662,14 @@ describe('EncryptedFS Concurrency', () => {
           efs.link('file', 'link'),
           efs.link('file', 'link'),
           efs.link('file', 'link'),
-        ])
+        ]);
       } catch (e) {
-        // do nothing
+        // Do nothing
       }
       const stat = await efs.stat('file');
       expect(stat.nlink).toEqual(2);
 
-      // removing one link multiple times.
+      // Removing one link multiple times.
       try {
         await Promise.all([
           efs.unlink('link'),
@@ -659,9 +677,9 @@ describe('EncryptedFS Concurrency', () => {
           efs.unlink('link'),
           efs.unlink('link'),
           efs.unlink('link'),
-        ])
+        ]);
       } catch (e) {
-        // do nothing
+        // Do nothing
       }
       const stat2 = await efs.stat('file');
       expect(stat2.nlink).toEqual(1);
@@ -673,11 +691,11 @@ describe('EncryptedFS Concurrency', () => {
         efs.link('file', 'link3'),
         efs.link('file', 'link4'),
         efs.link('file', 'link5'),
-      ])
+      ]);
       const stat3 = await efs.stat('file');
       expect(stat3.nlink).toEqual(6);
 
-      // removing one link multiple times.
+      // Removing one link multiple times.
       try {
         await Promise.all([
           efs.unlink('link1'),
@@ -685,23 +703,23 @@ describe('EncryptedFS Concurrency', () => {
           efs.unlink('link3'),
           efs.unlink('link4'),
           efs.unlink('link5'),
-        ])
+        ]);
       } catch (e) {
-        // do nothing
+        // Do nothing
       }
       const stat4 = await efs.stat('file');
       expect(stat4.nlink).toEqual(1);
-    })
+    });
   });
   test('Read stream and write stream to same file', async (done) => {
     await efs.writeFile('file', '');
     const readStream = await efs.createReadStream('file');
-    const writeStream = await efs.createWriteStream('file', {flags: 'w+'});
+    const writeStream = await efs.createWriteStream('file', { flags: 'w+' });
     const contents = 'A'.repeat(4096);
 
     //Write two blocks.
     writeStream.write(Buffer.from(contents));
-    // writeStream.end();
+    // WriteStream.end();
     await sleep(1000);
     let readString = '';
     for await (const data of readStream) {
@@ -713,8 +731,7 @@ describe('EncryptedFS Concurrency', () => {
       done();
     });
 
-
-    // writeStream.write(Buffer.from(contents));
+    // WriteStream.write(Buffer.from(contents));
     // await sleep(1000);
     //
     // for await (const data of readStream) {
@@ -729,25 +746,24 @@ describe('EncryptedFS Concurrency', () => {
     const writeStream = await efs.createWriteStream('file');
 
     await Promise.all([
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('A'.repeat(10)),
-          () => {res(null)}
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('A'.repeat(10)), () => {
+          res(null);
+        });
       }),
       efs.write(fd, Buffer.from('B'.repeat(10))),
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('C'.repeat(10)),
-          () => {res(null)}
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('C'.repeat(10)), () => {
+          res(null);
+        });
       }),
-      new Promise(async (res, _err) => {
-        await sleep(100);
-        writeStream.end()
-        writeStream.on('finish', () => {res(null)});
-      })
-    ])
+      new Promise((res) => {
+        writeStream.end();
+        writeStream.on('finish', () => {
+          res(null);
+        });
+      }),
+    ]);
 
     // The writeStream overwrites the file. likely because it finishes last and writes everything at once.
     const fileContents = (await efs.readFile('file')).toString();
@@ -763,20 +779,19 @@ describe('EncryptedFS Concurrency', () => {
     let readData = '';
 
     readStream.on('data', (data) => {
-      readData += data
-    })
-    const streamEnd = new Promise((res, _err) => {
+      readData += data;
+    });
+    const streamEnd = new Promise((res) => {
       readStream.on('end', () => {
         res(null);
-      })
-    })
-
+      });
+    });
 
     await Promise.all([
       efs.write(fd, Buffer.from('A'.repeat(10))),
       efs.write(fd, Buffer.from('B'.repeat(10))),
       streamEnd,
-    ])
+    ]);
 
     await sleep(100);
 
@@ -795,27 +810,25 @@ describe('EncryptedFS Concurrency', () => {
     const buf3 = Buffer.alloc(20);
 
     await Promise.all([
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('A'.repeat(10)),
-          () => {res(null)}
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('A'.repeat(10)), () => {
+          res(null);
+        });
       }),
       efs.read(fd, buf1, 0, 20),
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('B'.repeat(10)),
-          () => {res(null)}
-        )
-
+      new Promise((res) => {
+        writeStream.write(Buffer.from('B'.repeat(10)), () => {
+          res(null);
+        });
       }),
       efs.read(fd, buf2, 0, 20),
-      new Promise(async (res, _err) => {
-        await sleep(100);
-        writeStream.end()
-        writeStream.on('finish', () => {res(null)});
+      new Promise((res) => {
+        writeStream.end();
+        writeStream.on('finish', () => {
+          res(null);
+        });
       }),
-    ])
+    ]);
     await efs.read(fd, buf3, 0, 20);
 
     // Efs.read only reads data after the write stream finishes.
@@ -831,19 +844,16 @@ describe('EncryptedFS Concurrency', () => {
     let readData = '';
 
     readStream.on('data', (data) => {
-      readData += data
-    })
-    const streamEnd = new Promise((res, _err) => {
+      readData += data;
+    });
+    const streamEnd = new Promise((res) => {
       readStream.on('end', () => {
         res(null);
-      })
-    })
+      });
+    });
     const buf = Buffer.alloc(20);
 
-    await Promise.all([
-      efs.read(fd, buf, 0, 20),
-      streamEnd,
-    ])
+    await Promise.all([efs.read(fd, buf, 0, 20), streamEnd]);
 
     await sleep(100);
 
@@ -857,12 +867,12 @@ describe('EncryptedFS Concurrency', () => {
       'A'.repeat(contentSize),
       'B'.repeat(contentSize),
       'C'.repeat(contentSize),
-    ]
+    ];
     let streams: Array<WriteStream> = [];
 
     // Each stream sequentially.
     for (let i = 0; i < contents.length; i++) {
-      streams.push(await efs.createWriteStream('file'))
+      streams.push(await efs.createWriteStream('file'));
     }
     for (let i = 0; i < streams.length; i++) {
       streams[i].write(Buffer.from(contents[i]));
@@ -872,7 +882,7 @@ describe('EncryptedFS Concurrency', () => {
     }
 
     await sleep(1000);
-    const fileContents = (await efs.readFile('file')).toString()
+    const fileContents = (await efs.readFile('file')).toString();
     expect(fileContents).not.toContain('A');
     expect(fileContents).not.toContain('B');
     expect(fileContents).toContain('C');
@@ -880,14 +890,10 @@ describe('EncryptedFS Concurrency', () => {
     await efs.unlink('file');
 
     // Each stream interlaced.
-    const contents2 = [
-      'A'.repeat(4096),
-      'B'.repeat(4096),
-      'C'.repeat(4096),
-    ]
+    const contents2 = ['A'.repeat(4096), 'B'.repeat(4096), 'C'.repeat(4096)];
     streams = [];
     for (let i = 0; i < contents2.length; i++) {
-      streams.push(await efs.createWriteStream('file'))
+      streams.push(await efs.createWriteStream('file'));
     }
     for (let j = 0; j < 3; j++) {
       for (let i = 0; i < streams.length; i++) {
@@ -899,7 +905,7 @@ describe('EncryptedFS Concurrency', () => {
       stream.end();
     }
     await sleep(1000);
-    const fileContents2 = (await efs.readFile('file')).toString()
+    const fileContents2 = (await efs.readFile('file')).toString();
     expect(fileContents2).not.toContain('A');
     expect(fileContents2).not.toContain('B');
     expect(fileContents2).toContain('C');
@@ -909,10 +915,7 @@ describe('EncryptedFS Concurrency', () => {
     await efs.writeFile('file', '');
 
     // Odd error, needs fixing.
-    await Promise.all([
-      efs.writeFile('file', 'CONTENT!'),
-      efs.unlink('file'),
-    ]);
+    await Promise.all([efs.writeFile('file', 'CONTENT!'), efs.unlink('file')]);
   });
   test('Appending to a file that is being written to for fd ', async () => {
     await efs.writeFile('file', '');
@@ -921,7 +924,7 @@ describe('EncryptedFS Concurrency', () => {
     await Promise.all([
       efs.write(fd1, Buffer.from('AAAAAAAAAA')),
       efs.appendFile('file', 'BBBBBBBBBB'),
-    ])
+    ]);
 
     const fileContents = (await efs.readFile('file')).toString();
     console.log(fileContents);
@@ -935,7 +938,7 @@ describe('EncryptedFS Concurrency', () => {
     await Promise.all([
       efs.appendFile('file', 'BBBBBBBBBB'),
       efs.write(fd2, Buffer.from('AAAAAAAAAA')),
-    ])
+    ]);
 
     // The append seems to happen after the write.
     const fileContents2 = (await efs.readFile('file')).toString();
@@ -948,18 +951,15 @@ describe('EncryptedFS Concurrency', () => {
     await efs.writeFile('file', '');
     const writeStream = await efs.createWriteStream('file');
     await Promise.all([
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('AAAAAAAAAA'),
-          () => {
-            writeStream.end(() => {
-              res(null);
-            })
-          }
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('AAAAAAAAAA'), () => {
+          writeStream.end(() => {
+            res(null);
+          });
+        });
       }),
       efs.appendFile('file', 'BBBBBBBBBB'),
-    ])
+    ]);
 
     const fileContents = (await efs.readFile('file')).toString();
     console.log(fileContents);
@@ -970,13 +970,12 @@ describe('EncryptedFS Concurrency', () => {
     await efs.writeFile('file', '');
     await Promise.all([
       efs.appendFile('file', 'BBBBBBBBBB'),
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('AAAAAAAAAA'),
-          () => {
-            writeStream.end(() => {res(null)})
-          }
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('AAAAAAAAAA'), () => {
+          writeStream.end(() => {
+            res(null);
+          });
+        });
       }),
     ]);
 
@@ -993,7 +992,7 @@ describe('EncryptedFS Concurrency', () => {
     await Promise.all([
       efs.write(fd1, Buffer.from('BBBBBBBBBB')),
       efs.copyFile('file', 'fileCopy'),
-    ])
+    ]);
 
     // Gets overwritten before copy.
     const fileContents = (await efs.readFile('fileCopy')).toString();
@@ -1007,8 +1006,8 @@ describe('EncryptedFS Concurrency', () => {
 
     await Promise.all([
       efs.copyFile('file', 'fileCopy'),
-      efs.write(fd1, Buffer.from('BBBBBBBBBB')),
-    ])
+      efs.write(fd2, Buffer.from('BBBBBBBBBB')),
+    ]);
 
     // Also gets overwritten before copy.
     const fileContents2 = (await efs.readFile('fileCopy')).toString();
@@ -1021,16 +1020,15 @@ describe('EncryptedFS Concurrency', () => {
     const writeStream = await efs.createWriteStream('file');
 
     await Promise.all([
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('BBBBBBBBBB'),
-          () => {
-            writeStream.end(() => {res(null)})
-          }
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('BBBBBBBBBB'), () => {
+          writeStream.end(() => {
+            res(null);
+          });
+        });
       }),
       efs.copyFile('file', 'fileCopy'),
-    ])
+    ]);
 
     // Write happens first.
     const fileContents = (await efs.readFile('fileCopy')).toString();
@@ -1042,15 +1040,14 @@ describe('EncryptedFS Concurrency', () => {
 
     await Promise.all([
       efs.copyFile('file', 'fileCopy'),
-      new Promise((res, _err) => {
-        writeStream.write(
-          Buffer.from('BBBBBBBBBB'),
-          () => {
-            writeStream.end(() => {res(null)})
-          }
-        )
+      new Promise((res) => {
+        writeStream.write(Buffer.from('BBBBBBBBBB'), () => {
+          writeStream.end(() => {
+            res(null);
+          });
+        });
       }),
-    ])
+    ]);
 
     // Copy happens first.
     const fileContents2 = (await efs.readFile('fileCopy')).toString();
@@ -1058,5 +1055,4 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents2).toContain('A');
     expect(fileContents2).not.toContain('B');
   });
-
 });

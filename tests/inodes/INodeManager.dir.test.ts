@@ -58,9 +58,9 @@ describe('INodeManager Directory', () => {
         expect(stat.isDirectory()).toBe(true);
         expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
         expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
-        // root directories should have nlink of 2
+        // Root directories should have nlink of 2
         expect(stat['nlink']).toBe(2);
-        // all timestamps should be the same at creation
+        // All timestamps should be the same at creation
         expect(stat['atime']).toEqual(stat['mtime']);
         expect(stat['mtime']).toEqual(stat['ctime']);
         expect(stat['birthtime']).toEqual(stat['birthtime']);
@@ -173,7 +173,7 @@ describe('INodeManager Directory', () => {
     ]);
     await iNodeMgr.transact(async (tran) => {
       const stat = await iNodeMgr.statGet(tran, rootIno);
-      // if the rootIno locking wasn't done
+      // If the rootIno locking wasn't done
       // this nlink would be clobbered by a race condition
       expect(stat['nlink']).toBe(4);
     });
@@ -240,7 +240,7 @@ describe('INodeManager Directory', () => {
       },
       [rootIno],
     );
-    // we are going to rename over an existing inode
+    // We are going to rename over an existing inode
     const childIno1 = iNodeMgr.inoAllocate();
     const childIno2 = iNodeMgr.inoAllocate();
     await iNodeMgr.transact(
@@ -257,13 +257,13 @@ describe('INodeManager Directory', () => {
       [rootIno, childIno1, childIno2],
     );
     await iNodeMgr.transact(async (tran) => {
-      // parent has 4 nlinks now
+      // Parent has 4 nlinks now
       const statParent = await iNodeMgr.statGet(tran, rootIno);
       expect(statParent['nlink']).toBe(4);
     });
     await iNodeMgr.transact(
       async (tran) => {
-        // perform the renaming!
+        // Perform the renaming!
         await iNodeMgr.dirResetEntry(tran, rootIno, 'child1', 'child2');
       },
       [rootIno, childIno1, childIno2],

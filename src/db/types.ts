@@ -44,7 +44,7 @@ interface DBTransaction {
     key: string | Buffer,
     raw?: false,
   ): Promise<T | undefined>;
-  get<T>(
+  get<_T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: true,

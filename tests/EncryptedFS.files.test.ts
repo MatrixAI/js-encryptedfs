@@ -17,7 +17,6 @@ import {
   supportedTypes,
 } from './utils';
 import path from 'path';
-import { FdIndex } from "@/fd/types";
 
 describe('EncryptedFS Files', () => {
   const logger = new Logger('EncryptedFS Files', LogLevel.WARN, [
@@ -181,7 +180,9 @@ describe('EncryptedFS Files', () => {
       const stat = (await efs.stat(`test`)) as vfs.Stat;
       await efs.truncate(`test`, str.length);
       const stat2 = (await efs.stat(`test`)) as vfs.Stat;
-      expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(true);
+      expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(
+        true,
+      );
       const fd = await efs.open(`test`, 'r+');
       await efs.ftruncate(fd, str.length);
       const stat3 = (await efs.stat(`test`)) as vfs.Stat;
@@ -255,7 +256,9 @@ describe('EncryptedFS Files', () => {
       let fd;
       fd = await efs.open('/fdtest', 'w+');
       await efs.write(fd, 'starting');
-      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual('');
+      await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual(
+        '',
+      );
       await efs.close(fd);
       fd = await efs.open('/fdtest', 'r+');
       await expect(efs.readFile(fd, { encoding: 'utf-8' })).resolves.toEqual(
@@ -282,7 +285,7 @@ describe('EncryptedFS Files', () => {
       let buf = Buffer.alloc(3);
       let fd;
       let bytesRead;
-      // reading from position 0 doesn't move the fd from the end
+      // Reading from position 0 doesn't move the fd from the end
       fd = await efs.open('/fdtest', 'w+');
       await efs.write(fd, 'abcdef');
       buf = Buffer.alloc(3);
@@ -296,7 +299,7 @@ describe('EncryptedFS Files', () => {
         efs.readFile('/fdtest', { encoding: 'utf8' }),
       ).resolves.toEqual('abcdefghi');
       await efs.close(fd);
-      // reading with position null does move the fd
+      // Reading with position null does move the fd
       await efs.writeFile('/fdtest', 'abcdef');
       fd = await efs.open('/fdtest', 'r+');
       bytesRead = await efs.read(fd, buf, 0, buf.length);
@@ -306,7 +309,7 @@ describe('EncryptedFS Files', () => {
         'abcghi',
       );
       await efs.close(fd);
-      // reading with position 0 doesn't move the fd from the start
+      // Reading with position 0 doesn't move the fd from the start
       await efs.writeFile('/fdtest', 'abcdef');
       fd = await efs.open('/fdtest', 'r+');
       buf = Buffer.alloc(3);
@@ -317,7 +320,7 @@ describe('EncryptedFS Files', () => {
         efs.readFile('/fdtest', { encoding: 'utf8' }),
       ).resolves.toEqual('ghidef');
       await efs.close(fd);
-      // reading with position 3 doesn't move the fd from the start
+      // Reading with position 3 doesn't move the fd from the start
       await efs.writeFile('/fdtest', 'abcdef');
       fd = await efs.open('/fdtest', 'r+');
       buf = Buffer.alloc(3);
@@ -404,10 +407,10 @@ describe('EncryptedFS Files', () => {
       await efs.close(fd);
     });
     test('respects the mode', async () => {
-      // allow others to read only
+      // Allow others to read only
       await efs.writeFile('/test1', '', { mode: 0o004 });
       await efs.appendFile('/test2', '', { mode: 0o004 });
-      // become the other
+      // Become the other
       efs.uid = 1000;
       efs.gid = 1000;
       await efs.access('/test1', flags.R_OK);
@@ -430,7 +433,7 @@ describe('EncryptedFS Files', () => {
       await efs.writeFile('/fdtest', 'abc');
       let buf, fd, bytesRead;
       buf = Buffer.alloc(3);
-      // there's only 1 fd position both writes and reads
+      // There's only 1 fd position both writes and reads
       fd = await efs.open('/fdtest', 'a+');
       await efs.write(fd, 'def');
       bytesRead = await efs.read(fd, buf, 0, buf.length);
@@ -440,7 +443,7 @@ describe('EncryptedFS Files', () => {
         efs.readFile('/fdtest', { encoding: 'utf8' }),
       ).resolves.toEqual('abcdefghi');
       await efs.close(fd);
-      // even if read moves to to position 3, write will jump the position to the end
+      // Even if read moves to to position 3, write will jump the position to the end
       await efs.writeFile('/fdtest', 'abcdef');
       fd = await efs.open('/fdtest', 'a+');
       buf = Buffer.alloc(3);
@@ -474,33 +477,24 @@ describe('EncryptedFS Files', () => {
     });
   });
   describe('open', () => {
-    test('opens a file if O_CREAT is specified and the file doesn\'t exist', async () => {
-      const modeCheck =
-        flags.S_IRWXU | flags.S_IRWXG | flags.S_IRWXO;
+    test("opens a file if O_CREAT is specified and the file doesn't exist", async () => {
+      const modeCheck = flags.S_IRWXU | flags.S_IRWXG | flags.S_IRWXO;
       let fd;
-      fd = await efs.open(
-        n0,
-        flags.O_CREAT | flags.O_WRONLY,
-        dp,
-      );
+      fd = await efs.open(n0, flags.O_CREAT | flags.O_WRONLY, dp);
       expect((await efs.lstat(n0)).mode & modeCheck).toEqual(dp & ~0o022);
       await efs.unlink(n0);
       await efs.close(fd);
-      fd = await efs.open(
-        n0,
-        flags.O_CREAT | flags.O_WRONLY,
-        0o0151,
-      );
+      fd = await efs.open(n0, flags.O_CREAT | flags.O_WRONLY, 0o0151);
       expect((await efs.lstat(n0)).mode & modeCheck).toEqual(0o0151 & ~0o022);
       await efs.unlink(n0);
       await efs.close(fd);
     });
-    test('updates parent directory ctime/mtime if file didn\'t exist', async () => {
+    test("updates parent directory ctime/mtime if file didn't exist", async () => {
       const PUT = path.join(n1, n0);
       await efs.mkdir(n1, dp);
       const time = (await efs.stat(n1)).ctime.getTime();
       await sleep(10);
-      const fd = await efs.open(PUT, 'w', 0o0644);
+      await efs.open(PUT, 'w', 0o0644);
       const atime = (await efs.stat(PUT)).atime.getTime();
       expect(time).toBeLessThan(atime);
       const mtime = (await efs.stat(PUT)).mtime.getTime();
@@ -512,7 +506,7 @@ describe('EncryptedFS Files', () => {
       const ctime2 = (await efs.stat(n1)).ctime.getTime();
       expect(time).toBeLessThan(ctime2);
     });
-    test('doesn\'t update parent directory ctime/mtime if file existed', async () => {
+    test("doesn't update parent directory ctime/mtime if file existed", async () => {
       const PUT = path.join(n1, n0);
       await efs.mkdir(n1, dp);
 
@@ -520,11 +514,7 @@ describe('EncryptedFS Files', () => {
       const dmtime = (await efs.stat(n1)).mtime.getTime();
       const dctime = (await efs.stat(n1)).ctime.getTime();
       await sleep(10);
-      const fd = await efs.open(
-        PUT,
-        flags.O_CREAT | flags.O_RDONLY,
-        0o0644,
-      );
+      const fd = await efs.open(PUT, flags.O_CREAT | flags.O_RDONLY, 0o0644);
       const mtime = (await efs.stat(n1)).mtime.getTime();
       expect(dmtime).toEqual(mtime);
       const ctime = (await efs.stat(n1)).ctime.getTime();
@@ -532,12 +522,15 @@ describe('EncryptedFS Files', () => {
       await efs.unlink(PUT);
       await efs.close(fd);
     });
-    test.each(['regular', 'block', 'char'])('returns ENOTDIR if a component of the path prefix is a %s', async (type) => {
-      const PUT = path.join(n1, 'test');
-      await createFile(efs, type as FileTypes, n1);
-      await expectError(efs.open(PUT, 'r'), errno.ENOTDIR);
-      await expectError(efs.open(PUT, 'w', 0o0644), errno.ENOTDIR);
-    });
+    test.each(['regular', 'block', 'char'])(
+      'returns ENOTDIR if a component of the path prefix is a %s',
+      async (type) => {
+        const PUT = path.join(n1, 'test');
+        await createFile(efs, type as FileTypes, n1);
+        await expectError(efs.open(PUT, 'r'), errno.ENOTDIR);
+        await expectError(efs.open(PUT, 'w', 0o0644), errno.ENOTDIR);
+      },
+    );
     test('returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist', async () => {
       await efs.mkdir(n0, dp);
       await expectError(
@@ -824,13 +817,16 @@ describe('EncryptedFS Files', () => {
       await expectError(efs.open(n1, flags.O_WRONLY | nf), errno.ELOOP);
       await expectError(efs.open(n1, flags.O_RDWR | nf), errno.ELOOP);
     });
-    test.each(supportedTypes)('returns EEXIST when O_CREAT and O_EXCL were specified and the %s exists', async (type) => {
-      await efs.mkdir('test');
-      await createFile(efs, type, n0);
-      await expectError(
-        efs.open(n0, flags.O_CREAT | flags.O_EXCL, 0o0644),
-        errno.EEXIST,
-      );
-    });
+    test.each(supportedTypes)(
+      'returns EEXIST when O_CREAT and O_EXCL were specified and the %s exists',
+      async (type) => {
+        await efs.mkdir('test');
+        await createFile(efs, type, n0);
+        await expectError(
+          efs.open(n0, flags.O_CREAT | flags.O_EXCL, 0o0644),
+          errno.EEXIST,
+        );
+      },
+    );
   });
 });

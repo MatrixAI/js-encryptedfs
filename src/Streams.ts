@@ -1,19 +1,20 @@
-import type { BufferEncoding } from './types';
+// Import type { BufferEncoding } from './types';
 import { Readable, Writable } from 'readable-stream';
 import EncryptedFS from './EncryptedFS';
-import { DEFAULT_FILE_PERM } from './constants';
 import { promisify } from 'util';
+import { DEFAULT_FILE_PERM } from 'virtualfs';
+import { OptionsStream } from './streams/types';
 
-type optionsStream = {
-  highWaterMark?: number;
-  flags?: string;
-  encoding?: BufferEncoding;
-  fd?: number | null;
-  mode?: number;
-  autoClose?: boolean;
-  start?: number;
-  end?: number;
-};
+// Type OptionsStream = {
+//   highWaterMark?: number;
+//   flags?: string;
+//   encoding?: BufferEncoding;
+//   fd?: number | null;
+//   mode?: number;
+//   autoClose?: boolean;
+//   start?: number;
+//   end?: number;
+// };
 
 /**
  * Class representing a ReadStream.
@@ -37,7 +38,7 @@ class ReadStream extends Readable {
    * It will asynchronously open the file descriptor if a file path was passed in.
    * It will automatically close the opened file descriptor by default.
    */
-  constructor(path: string, options: optionsStream, fileSystem: EncryptedFS) {
+  constructor(path: string, options: OptionsStream, fileSystem: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
       encoding: options.encoding,
@@ -99,7 +100,7 @@ class ReadStream extends Readable {
     if (this.destroyed) {
       return;
     }
-    // this.pos is only ever used if this.start is specified
+    // This.pos is only ever used if this.start is specified
     if (this.pos != null && this.end !== Infinity) {
       size = Math.min(this.end - this.pos + 1, size);
     }
@@ -188,7 +189,7 @@ class WriteStream extends Writable {
   /**
    * Creates WriteStream.
    */
-  constructor(path: string, options: optionsStream, fs: EncryptedFS) {
+  constructor(path: string, options: OptionsStream, fs: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
     });
@@ -328,4 +329,4 @@ class WriteStream extends Writable {
   }
 }
 
-export { optionsStream, ReadStream, WriteStream };
+export { OptionsStream, ReadStream, WriteStream };

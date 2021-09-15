@@ -1,6 +1,6 @@
 import type { Callback } from './types';
 
-import pathNode, { resolve } from 'path';
+import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import { constants } from 'virtualfs';
 import callbackify from 'util-callbackify';
@@ -174,24 +174,24 @@ function blockRanges(
   let blockRangeEnd: number | null = null;
   for (const blockIndex of range(blockIndexStart, blockIndexEnd + 1)) {
     if (!blockLoaded.has(blockIndex) && blockRangeStart == null) {
-      // if the range isn't started, start the range
+      // If the range isn't started, start the range
       blockRangeStart = blockIndex;
       blockRangeEnd = blockIndex;
     } else if (!blockLoaded.has(blockIndex) && blockRangeStart != null) {
-      // if the range is started, update the end
+      // If the range is started, update the end
       blockRangeEnd = blockIndex;
     } else if (
       blockLoaded.has(blockIndex) &&
       blockRangeStart != null &&
       blockRangeEnd != null
     ) {
-      // push a completed segment and reset the start and end
+      // Push a completed segment and reset the start and end
       blockRanges.push([blockRangeStart, blockRangeEnd]);
       blockRangeStart = null;
       blockRangeEnd = null;
     }
   }
-  // push in the last segment if it is set
+  // Push in the last segment if it is set
   if (blockRangeStart != null && blockRangeEnd != null) {
     blockRanges.push([blockRangeStart, blockRangeEnd]);
   }
@@ -265,7 +265,7 @@ function parseOpenFlags(flags: string): number {
   return flags_;
 }
 
-// these 2 functions should go into the
+// These 2 functions should go into the
 // workers as well, as this means multiple blocks are being decrypted at once
 // function plainToCipherSegment(
 //   key: Buffer,
@@ -454,11 +454,11 @@ export {
   range,
   segmentBuffer,
   parseOpenFlags,
-  // plainToCipherSegment,
+  // PlainToCipherSegment,
   // cipherToPlainSegment,
   callbackAll,
   maybeCallback,
-  // resolvePath,
+  // ResolvePath,
   // getDirsRecursive,
   // getPathToMeta,
   // getBlocksToWrite,

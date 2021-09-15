@@ -17,7 +17,6 @@ import {
   setId,
 } from './utils';
 import path from 'path';
-import * as buffer from 'buffer';
 
 describe('EncryptedFS Links', () => {
   const logger = new Logger('EncryptedFS Links', LogLevel.WARN, [
@@ -90,8 +89,8 @@ describe('EncryptedFS Links', () => {
   describe('symlink', () => {
     test('creates symbolic links', async () => {
       await createFile(efs, 'regular', n0);
-      const stat = await efs.lstat(n0);
-      // expect(stat.mode).toEqual(0o0644);
+      // Const stat = await efs.lstat(n0);
+      // Expect(stat.mode).toEqual(0o0644);
       await efs.symlink(n0, n1);
       // Should check that it is a link here.
       await efs.unlink(n0);
@@ -209,18 +208,21 @@ describe('EncryptedFS Links', () => {
       await efs.unlink(n0);
       await efs.unlink(n1);
     });
-    test.each(supportedTypes)('returns EEXIST if the 2nd name argument already exists as a %s', async (type) => {
-      await createFile(efs, type, n0);
-      await expectError(efs.symlink('test', n0), errno.EEXIST);
-    });
+    test.each(supportedTypes)(
+      'returns EEXIST if the 2nd name argument already exists as a %s',
+      async (type) => {
+        await createFile(efs, type, n0);
+        await expectError(efs.symlink('test', n0), errno.EEXIST);
+      },
+    );
   });
   describe('unlink', () => {
     types = supportedTypes.filter((item) => {
       return item != 'dir' && item != 'symlink';
     });
     test.each(types)('can remove a link to a %s', async (type) => {
-        await createFile(efs, type, n0);
-        await efs.unlink(n0);
+      await createFile(efs, type, n0);
+      await efs.unlink(n0);
     });
     test.each(types)('successful updates ctime of a %s', async (type) => {
       await createFile(efs, type, n0);
@@ -231,16 +233,19 @@ describe('EncryptedFS Links', () => {
       const ctime2 = (await efs.stat(n0)).ctime.getTime();
       expect(ctime1).toBeLessThan(ctime2);
     });
-    test.each(types)('unsuccessful does not update ctime of a %s', async (type) => {
-      await createFile(efs, type, n0);
-      await efs.link(n0, n1);
-      const ctime1 = (await efs.stat(n0)).ctime.getTime();
-      await sleep(10);
-      setId(efs, tuid);
-      await expectError(efs.unlink(n1), errno.EACCES);
-      const ctime2 = (await efs.stat(n0)).ctime.getTime();
-      expect(ctime1).toEqual(ctime2);
-    });
+    test.each(types)(
+      'unsuccessful does not update ctime of a %s',
+      async (type) => {
+        await createFile(efs, type, n0);
+        await efs.link(n0, n1);
+        const ctime1 = (await efs.stat(n0)).ctime.getTime();
+        await sleep(10);
+        setId(efs, tuid);
+        await expectError(efs.unlink(n1), errno.EACCES);
+        const ctime2 = (await efs.stat(n0)).ctime.getTime();
+        expect(ctime1).toEqual(ctime2);
+      },
+    );
     test('does not traverse symlinks', async () => {
       await efs.mkdir(`test`);
       const buffer = Buffer.from('Hello World');
@@ -329,17 +334,17 @@ describe('EncryptedFS Links', () => {
       await efs.chown(n1, 0o65533, 0o65533);
 
       let stat = await efs.lstat(n0);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(3);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
       stat = await efs.lstat(n1);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(3);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
       stat = await efs.lstat(n2);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(3);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
@@ -347,12 +352,12 @@ describe('EncryptedFS Links', () => {
       await efs.unlink(n0);
       await expectError(efs.lstat(n0), errno.ENOENT);
       stat = await efs.lstat(n1);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(2);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
       stat = await efs.lstat(n2);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(2);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
@@ -360,7 +365,7 @@ describe('EncryptedFS Links', () => {
       await efs.unlink(n2);
       await expectError(efs.lstat(n0), errno.ENOENT);
       stat = await efs.lstat(n1);
-      // expect(stat.mode).toEqual(0o0201);
+      // Expect(stat.mode).toEqual(0o0201);
       expect(stat.nlink).toEqual(1);
       expect(stat.uid).toEqual(0o65533);
       expect(stat.gid).toEqual(0o65533);
@@ -384,22 +389,25 @@ describe('EncryptedFS Links', () => {
       const dmtime2 = (await efs.stat('.')).mtime.getTime();
       expect(dctime1).toBeLessThan(dmtime2);
     });
-    test.each(types)('unsuccessful does not update ctime of %s', async (type) => {
-      await createFile(efs, type as FileTypes, n0);
-      await efs.chown(n0, 0o65534, -1);
-      const ctime1 = (await efs.stat(n0)).ctime.getTime();
-      const dctime1 = (await efs.stat(n0)).ctime.getTime();
-      const dmtime1 = (await efs.stat(n0)).mtime.getTime();
-      await sleep(10);
-      setId(efs, 0o65534);
-      await expectError(efs.link(n0, n1), errno.EACCES);
-      const ctime2 = (await efs.stat(n0)).ctime.getTime();
-      expect(ctime1).toEqual(ctime2);
-      const dctime2 = (await efs.stat(n0)).ctime.getTime();
-      expect(dctime1).toEqual(dctime2);
-      const dmtime2 = (await efs.stat(n0)).mtime.getTime();
-      expect(dctime1).toEqual(dmtime2);
-    });
+    test.each(types)(
+      'unsuccessful does not update ctime of %s',
+      async (type) => {
+        await createFile(efs, type as FileTypes, n0);
+        await efs.chown(n0, 0o65534, -1);
+        const ctime1 = (await efs.stat(n0)).ctime.getTime();
+        const dctime1 = (await efs.stat(n0)).ctime.getTime();
+        const dmtime1 = (await efs.stat(n0)).mtime.getTime();
+        await sleep(10);
+        setId(efs, 0o65534);
+        await expectError(efs.link(n0, n1), errno.EACCES);
+        const ctime2 = (await efs.stat(n0)).ctime.getTime();
+        expect(ctime1).toEqual(ctime2);
+        const dctime2 = (await efs.stat(n0)).ctime.getTime();
+        expect(dctime1).toEqual(dctime2);
+        const dmtime2 = (await efs.stat(n0)).mtime.getTime();
+        expect(dmtime1).toEqual(dmtime2);
+      },
+    );
     test('should not create hardlinks to directories', async () => {
       await efs.mkdir(`test`);
       await expectError(efs.link(`test`, `hardlinkttotest`), errno.EPERM);
@@ -414,21 +422,24 @@ describe('EncryptedFS Links', () => {
       const readB = await efs.readFile(`test/b`);
       await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
     });
-    test.each(supportedTypes)('returns ENOTDIR if a component of either path prefix is a %s', async (type) => {
-      if (type !== 'dir' && type !== 'symlink') {
-        await efs.mkdir(n0, dp);
-        await createFile(efs, type as FileTypes, path.join(n0, n1));
-        await expectError(
-          efs.link(path.join(n0, n1, 'test'), path.join(n0, n2)),
-          errno.ENOTDIR,
-        );
-        await createFile(efs, type as FileTypes, path.join(n0, n2));
-        await expectError(
-          efs.link(path.join(n0, n2), path.join(n0, n1, 'test')),
-          errno.ENOTDIR,
-        );
-      }
-    });
+    test.each(supportedTypes)(
+      'returns ENOTDIR if a component of either path prefix is a %s',
+      async (type) => {
+        if (type !== 'dir' && type !== 'symlink') {
+          await efs.mkdir(n0, dp);
+          await createFile(efs, type as FileTypes, path.join(n0, n1));
+          await expectError(
+            efs.link(path.join(n0, n1, 'test'), path.join(n0, n2)),
+            errno.ENOTDIR,
+          );
+          await createFile(efs, type as FileTypes, path.join(n0, n2));
+          await expectError(
+            efs.link(path.join(n0, n2), path.join(n0, n1, 'test')),
+            errno.ENOTDIR,
+          );
+        }
+      },
+    );
     test('returns EACCES when a component of either path prefix denies search permission', async () => {
       await efs.mkdir(n1, dp);
       await efs.chown(n1, tuid, tuid);
@@ -492,11 +503,14 @@ describe('EncryptedFS Links', () => {
       await efs.unlink(n1);
       await expectError(efs.link(n0, n1), errno.ENOENT);
     });
-    test.each(supportedTypes)('returns EEXIST if the destination %s does exist', async (type) => {
-      await efs.writeFile(n0, '');
-      await createFile(efs, type, n1);
-      await expectError(efs.link(n0, n1), errno.EEXIST);
-    });
+    test.each(supportedTypes)(
+      'returns EEXIST if the destination %s does exist',
+      async (type) => {
+        await efs.writeFile(n0, '');
+        await createFile(efs, type, n1);
+        await expectError(efs.link(n0, n1), errno.EEXIST);
+      },
+    );
     test('returns EPERM if the source file is a directory', async () => {
       await efs.mkdir(n0);
       await expectError(efs.link(n0, n1), errno.EPERM);

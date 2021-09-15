@@ -2,14 +2,14 @@ import type {
   Navigated,
   ParsedPath,
   Callback,
-  path,
-  options,
-  data,
-  file,
+  Path,
+  Options,
+  Data,
+  File,
 } from './types';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
-import type { optionsStream } from './streams/types';
+import type { OptionsStream } from './streams/types';
 
 import pathNode from 'path';
 import Logger from '@matrixai/logger';
@@ -105,7 +105,7 @@ class EncryptedFS {
     return efs;
   }
 
-  // synchronous constructor for the instance
+  // Synchronous constructor for the instance
   protected constructor({
     db,
     devMgr,
@@ -148,12 +148,12 @@ class EncryptedFS {
     this._uid = uid;
   }
 
-  set gid(gid: number) {
-    this._gid = gid;
-  }
-
   get uid() {
     return this._uid;
+  }
+
+  set gid(gid: number) {
+    this._gid = gid;
   }
 
   get gid() {
@@ -161,7 +161,7 @@ class EncryptedFS {
   }
 
   public async start() {
-    // start it up again
+    // Start it up again
     // requires decryption keys
     // only after you stop it
     // create the initial root inode
@@ -171,12 +171,12 @@ class EncryptedFS {
   }
 
   public async stop() {
-    // shutdown the EFS instance
+    // Shutdown the EFS instance
     await this.db.stop();
   }
 
   public async destroy() {
-    // wipe out the entire FS
+    // Wipe out the entire FS
     await this.db.destroy();
   }
 
@@ -203,15 +203,15 @@ class EncryptedFS {
     );
   }
 
-  public async access(path: path, mode?: number): Promise<void>;
-  public async access(path: path, callback: Callback): Promise<void>;
+  public async access(path: Path, mode?: number): Promise<void>;
+  public async access(path: Path, callback: Callback): Promise<void>;
   public async access(
-    path: path,
+    path: Path,
     mode: number,
     callback: Callback,
   ): Promise<void>;
   public async access(
-    path: path,
+    path: Path,
     modeOrCallback: number | Callback = vfs.constants.F_OK,
     callback?: Callback,
   ): Promise<void> {
@@ -246,25 +246,25 @@ class EncryptedFS {
   }
 
   public async appendFile(
-    file: path | FdIndex,
-    data: data,
-    options?: options,
+    file: Path | FdIndex,
+    data: Data,
+    options?: Options,
   ): Promise<void>;
   public async appendFile(
-    file: path | FdIndex,
-    data: data,
+    file: Path | FdIndex,
+    data: Data,
     callback: Callback,
   ): Promise<void>;
   public async appendFile(
-    file: path | FdIndex,
-    data: data,
-    options: options,
+    file: Path | FdIndex,
+    data: Data,
+    options: Options,
     callback: Callback,
   ): Promise<void>;
   public async appendFile(
-    file: path | FdIndex,
-    data: data = 'undefined',
-    optionsOrCallback: options | Callback = {
+    file: Path | FdIndex,
+    data: Data = 'undefined',
+    optionsOrCallback: Options | Callback = {
       encoding: 'utf8',
       mode: vfs.DEFAULT_FILE_PERM,
       flag: 'a',
@@ -277,7 +277,7 @@ class EncryptedFS {
             { encoding: 'utf8' as BufferEncoding, mode: vfs.DEFAULT_FILE_PERM },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as options);
+        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -301,7 +301,7 @@ class EncryptedFS {
           }
         } else {
           [fd, fdIndex] = await this._open(
-            file as path,
+            file as Path,
             options.flag,
             options.mode,
           );
@@ -322,7 +322,7 @@ class EncryptedFS {
   }
 
   public async chmod(
-    path: path,
+    path: Path,
     mode: number,
     callback?: Callback,
   ): Promise<void> {
@@ -357,7 +357,7 @@ class EncryptedFS {
   }
 
   public async chown(
-    path: path,
+    path: Path,
     uid: number,
     gid: number,
     callback?: Callback,
@@ -372,15 +372,15 @@ class EncryptedFS {
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
           if (this._uid !== vfs.DEFAULT_ROOT_UID) {
-            // you don't own the file
+            // You don't own the file
             if (targetStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `chown '${path}'`);
             }
-            // you cannot give files to others
+            // You cannot give files to others
             if (this._uid !== uid) {
               throw new EncryptedFSError(errno.EPERM, `chown '${path}'`);
             }
-            // because we don't have user group hierarchies, we allow chowning to any group
+            // Because we don't have user group hierarchies, we allow chowning to any group
           }
           await this._iNodeMgr.statSetProp(tran, target, 'uid', uid);
           await this._iNodeMgr.statSetProp(tran, target, 'gid', gid);
@@ -391,7 +391,7 @@ class EncryptedFS {
   }
 
   public async chownr(
-    path: path,
+    path: Path,
     uid: number,
     gid: number,
     callback?: Callback,
@@ -408,7 +408,7 @@ class EncryptedFS {
       }
       for (const child of children) {
         const pathChild = pathJoin(path as string, child);
-        // don't traverse symlinks
+        // Don't traverse symlinks
         if (!((await this.lstat(pathChild)) as vfs.Stat).isSymbolicLink()) {
           await this.chownr(pathChild, uid, gid);
         }
@@ -426,24 +426,24 @@ class EncryptedFS {
   }
 
   public async copyFile(
-    srcPath: path,
-    dstPath: path,
+    srcPath: Path,
+    dstPath: Path,
     flags?: number,
   ): Promise<void>;
   public async copyFile(
-    srcPath: path,
-    dstPath: path,
+    srcPath: Path,
+    dstPath: Path,
     callback: Callback,
   ): Promise<void>;
   public async copyFile(
-    srcPath: path,
-    dstPath: path,
+    srcPath: Path,
+    dstPath: Path,
     flags: number,
     callback: Callback,
   ): Promise<void>;
   public async copyFile(
-    srcPath: path,
-    dstPath: path,
+    srcPath: Path,
+    dstPath: Path,
     flagsOrCallback: number | Callback = 0,
     callback?: Callback,
   ): Promise<void> {
@@ -455,7 +455,7 @@ class EncryptedFS {
       dstPath = this.getPath(dstPath);
       let srcFd, srcFdIndex, dstFd, dstFdIndex;
       try {
-        // the only things that are copied is the data and the mode
+        // The only things that are copied is the data and the mode
         [srcFd, srcFdIndex] = await this._open(srcPath, vfs.constants.O_RDONLY);
         const srcINode = srcFd.ino;
         await this._iNodeMgr.transact(async (tran) => {
@@ -512,24 +512,24 @@ class EncryptedFS {
   }
 
   public async createReadStream(
-    path: path,
-    options?: optionsStream,
+    path: Path,
+    options?: OptionsStream,
   ): Promise<ReadStream>;
   public async createReadStream(
-    path: path,
+    path: Path,
     callback: Callback<[ReadStream]>,
   ): Promise<void>;
   public async createReadStream(
-    path: path,
-    options: optionsStream,
+    path: Path,
+    options: OptionsStream,
     callback: Callback<[ReadStream]>,
   ): Promise<void>;
   public async createReadStream(
-    path: path,
-    optionsOrCallback: optionsStream | Callback<[ReadStream]> = {},
+    path: Path,
+    optionsOrCallback: OptionsStream | Callback<[ReadStream]> = {},
     callback?: Callback<[ReadStream]>,
   ): Promise<ReadStream | void> {
-    const defaultOps: optionsStream = {
+    const defaultOps: OptionsStream = {
       flags: 'r',
       encoding: undefined,
       fd: undefined,
@@ -539,7 +539,7 @@ class EncryptedFS {
     };
     const options =
       typeof optionsOrCallback !== 'function'
-        ? (this.getOptions(defaultOps, optionsOrCallback) as optionsStream)
+        ? (this.getOptions(defaultOps, optionsOrCallback) as OptionsStream)
         : defaultOps;
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
@@ -555,24 +555,24 @@ class EncryptedFS {
   }
 
   public async createWriteStream(
-    path: path,
-    options?: optionsStream,
+    path: Path,
+    options?: OptionsStream,
   ): Promise<WriteStream>;
   public async createWriteStream(
-    path: path,
+    path: Path,
     callback: Callback<[WriteStream]>,
   ): Promise<void>;
   public async createWriteStream(
-    path: path,
-    options: optionsStream,
+    path: Path,
+    options: OptionsStream,
     callback: Callback<[WriteStream]>,
   ): Promise<void>;
   public async createWriteStream(
-    path: path,
-    optionsOrCallback: optionsStream | Callback<[WriteStream]> = {},
+    path: Path,
+    optionsOrCallback: OptionsStream | Callback<[WriteStream]> = {},
     callback?: Callback<[WriteStream]>,
   ): Promise<WriteStream | void> {
-    const defaultOps: optionsStream = {
+    const defaultOps: OptionsStream = {
       flags: 'w',
       encoding: 'utf8',
       fd: undefined,
@@ -581,7 +581,7 @@ class EncryptedFS {
     };
     const options =
       typeof optionsOrCallback !== 'function'
-        ? (this.getOptions(defaultOps, optionsOrCallback) as optionsStream)
+        ? (this.getOptions(defaultOps, optionsOrCallback) as OptionsStream)
         : defaultOps;
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
@@ -597,7 +597,7 @@ class EncryptedFS {
   }
 
   public async exists(
-    path: path,
+    path: Path,
     callback?: Callback<[boolean]>,
   ): Promise<boolean | void> {
     return maybeCallback(async () => {
@@ -722,15 +722,15 @@ class EncryptedFS {
         async (tran) => {
           const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
           if (this._uid !== vfs.DEFAULT_ROOT_UID) {
-            // you don't own the file
+            // You don't own the file
             if (fdStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
             }
-            // you cannot give files to others
+            // You cannot give files to others
             if (this._uid !== uid) {
               throw new EncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
             }
-            // because we don't have user group hierarchies, we allow chowning to any group
+            // Because we don't have user group hierarchies, we allow chowning to any group
           }
           await this._iNodeMgr.statSetProp(tran, fd.ino, 'uid', uid);
           await this._iNodeMgr.statSetProp(tran, fd.ino, 'gid', gid);
@@ -902,7 +902,7 @@ class EncryptedFS {
   }
 
   public async lchmod(
-    path: path,
+    path: Path,
     mode: number,
     callback?: Callback,
   ): Promise<void> {
@@ -937,7 +937,7 @@ class EncryptedFS {
   }
 
   public async lchown(
-    path: path,
+    path: Path,
     uid: number,
     gid: number,
     callback?: Callback,
@@ -952,15 +952,15 @@ class EncryptedFS {
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
           if (this._uid !== vfs.DEFAULT_ROOT_UID) {
-            // you don't own the file
+            // You don't own the file
             if (targetStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `lchown '${path}'`);
             }
-            // you cannot give files to others
+            // You cannot give files to others
             if (this._uid !== uid) {
               throw new EncryptedFSError(errno.EPERM, `lchown '${path}'`);
             }
-            // because we don't have user group hierarchies, we allow chowning to any group
+            // Because we don't have user group hierarchies, we allow chowning to any group
           }
           await this._iNodeMgr.statSetProp(tran, target, 'uid', uid);
           await this._iNodeMgr.statSetProp(tran, target, 'gid', gid);
@@ -971,8 +971,8 @@ class EncryptedFS {
   }
 
   public async link(
-    existingPath: path,
-    newPath: path,
+    existingPath: Path,
+    newPath: Path,
     callback?: Callback,
   ): Promise<void> {
     return maybeCallback(async () => {
@@ -1093,10 +1093,10 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async lstat(path: path): Promise<vfs.Stat>;
-  public async lstat(path: path, callback: Callback<[vfs.Stat]>): Promise<void>;
+  public async lstat(path: Path): Promise<vfs.Stat>;
+  public async lstat(path: Path, callback: Callback<[vfs.Stat]>): Promise<void>;
   public async lstat(
-    path: path,
+    path: Path,
     callback?: Callback<[vfs.Stat]>,
   ): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
@@ -1117,15 +1117,15 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async mkdir(path: path, mode?: number): Promise<void>;
-  public async mkdir(path: path, callback: Callback): Promise<void>;
+  public async mkdir(path: Path, mode?: number): Promise<void>;
+  public async mkdir(path: Path, callback: Callback): Promise<void>;
   public async mkdir(
-    path: path,
+    path: Path,
     mode: number,
     callback: Callback,
   ): Promise<void>;
   public async mkdir(
-    path: path,
+    path: Path,
     modeOrCallback: number | Callback = vfs.DEFAULT_DIRECTORY_PERM,
     callback?: Callback,
   ): Promise<void> {
@@ -1136,7 +1136,7 @@ class EncryptedFS {
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
-      // we expect a non-existent directory
+      // We expect a non-existent directory
       path = path.replace(/(.+?)\/+$/, '$1');
       const navigated = await this.navigate(path, true);
       if (navigated.target) {
@@ -1196,15 +1196,15 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async mkdirp(path: path, mode?: number): Promise<void>;
-  public async mkdirp(path: path, callback: Callback): Promise<void>;
+  public async mkdirp(path: Path, mode?: number): Promise<void>;
+  public async mkdirp(path: Path, callback: Callback): Promise<void>;
   public async mkdirp(
-    path: path,
+    path: Path,
     mode: number,
     callback: Callback,
   ): Promise<void>;
   public async mkdirp(
-    path: path,
+    path: Path,
     modeOrCallback: number | Callback = vfs.DEFAULT_DIRECTORY_PERM,
     callback?: Callback,
   ): Promise<void> {
@@ -1215,11 +1215,11 @@ class EncryptedFS {
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
-      // we expect a directory
+      // We expect a directory
       path = path.replace(/(.+?)\/+$/, '$1');
       let currentDir, navigatedTargetType;
       let navigated = await this.navigate(path, true);
-      while (true) {
+      for (;;) {
         if (!navigated.target) {
           let navigatedDirStat;
           const dirINode = this._iNodeMgr.inoAllocate();
@@ -1299,7 +1299,7 @@ class EncryptedFS {
 
   public async mkdtemp(
     pathSPrefix: string,
-    options?: options,
+    options?: Options,
   ): Promise<string | Buffer>;
   public async mkdtemp(
     pathSPrefix: string,
@@ -1307,12 +1307,12 @@ class EncryptedFS {
   ): Promise<void>;
   public async mkdtemp(
     pathSPrefix: string,
-    options: options,
+    options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async mkdtemp(
-    pathSPrefix: path,
-    optionsOrCallback: options | Callback<[string | Buffer]> = {
+    pathSPrefix: Path,
+    optionsOrCallback: Options | Callback<[string | Buffer]> = {
       encoding: 'utf8',
     },
     callback?: Callback<[string | Buffer]>,
@@ -1320,7 +1320,7 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback)
-        : ({ encoding: 'utf8' } as options);
+        : ({ encoding: 'utf8' } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -1333,7 +1333,7 @@ class EncryptedFS {
         return possibleChars[Math.floor(Math.random() * possibleChars.length)];
       };
       let pathS;
-      while (true) {
+      for (;;) {
         pathS = pathSPrefix.concat(
           Array.from({ length: 6 }, () => getChar)
             .map((f) => f())
@@ -1356,21 +1356,21 @@ class EncryptedFS {
   }
 
   public async mknod(
-    path: path,
+    path: Path,
     type: number,
     major: number,
     minor: number,
     mode?: number,
   ): Promise<void>;
   public async mknod(
-    path: path,
+    path: Path,
     type: number,
     major: number,
     minor: number,
     callback: Callback,
   ): Promise<void>;
   public async mknod(
-    path: path,
+    path: Path,
     type: number,
     major: number,
     minor: number,
@@ -1378,7 +1378,7 @@ class EncryptedFS {
     callback: Callback,
   ): Promise<void>;
   public async mknod(
-    path: path,
+    path: Path,
     type: number,
     major: number,
     minor: number,
@@ -1462,23 +1462,23 @@ class EncryptedFS {
   }
 
   public async open(
-    path: path,
+    path: Path,
     flags: string | number,
     mode?: number,
   ): Promise<FdIndex>;
   public async open(
-    path: path,
+    path: Path,
     flags: string | number,
     callback: Callback<[FdIndex]>,
   ): Promise<void>;
   public async open(
-    path: path,
+    path: Path,
     flags: string | number,
     mode: number,
     callback: Callback<[FdIndex]>,
   ): Promise<void>;
   public async open(
-    path: path,
+    path: Path,
     flags: string | number,
     modeOrCallback: number | Callback<[FdIndex]> = vfs.DEFAULT_FILE_PERM,
     callback?: Callback<[FdIndex]>,
@@ -1494,7 +1494,7 @@ class EncryptedFS {
   }
 
   protected async _open(
-    path: path,
+    path: Path,
     flags: string | number,
     mode: number = vfs.DEFAULT_FILE_PERM,
   ): Promise<[FileDescriptor, FdIndex]> {
@@ -1573,7 +1573,7 @@ class EncryptedFS {
     // This is needed for the purpose of symlinks, if the navigated target exists
     // and is a symlink we need to go inside and check the target again. So a while
     // loop suits us best. In VFS this was easier as the type checking wasn't as strict
-    while (true) {
+    for (;;) {
       if (!target) {
         // O_CREAT only applies if there's a left over name without any remaining path
         if (!navigated.remaining && flags & vfs.constants.O_CREAT) {
@@ -1588,7 +1588,7 @@ class EncryptedFS {
                 tran,
                 navigated.dir,
               );
-              // cannot create if the current directory has been unlinked from its parent directory
+              // Cannot create if the current directory has been unlinked from its parent directory
               if (navigatedDirStat.nlink < 2) {
                 throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
               }
@@ -1631,7 +1631,7 @@ class EncryptedFS {
           [targetIno],
         );
         if (targetType === 'Symlink') {
-          // cannot be symlink if O_NOFOLLOW
+          // Cannot be symlink if O_NOFOLLOW
           if (flags & vfs.constants.O_NOFOLLOW) {
             throw new EncryptedFSError(errno.ELOOP, `open '${path}'`);
           }
@@ -1645,11 +1645,11 @@ class EncryptedFS {
           );
           target = navigated.target;
         } else {
-          // target already exists cannot be created exclusively
+          // Target already exists cannot be created exclusively
           if (flags & vfs.constants.O_CREAT && flags & vfs.constants.O_EXCL) {
             throw new EncryptedFSError(errno.EEXIST, `open '${path}'`);
           }
-          // cannot be directory if write capabilities are requested
+          // Cannot be directory if write capabilities are requested
           if (
             targetType === 'Directory' &&
             flags &
@@ -1659,37 +1659,34 @@ class EncryptedFS {
           ) {
             throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
           }
-          // must be directory if O_DIRECTORY
+          // Must be directory if O_DIRECTORY
           if (
             flags & vfs.constants.O_DIRECTORY &&
             !(targetType === 'Directory')
           ) {
             throw new EncryptedFSError(errno.ENOTDIR, `open '${path}'`);
           }
-          // must truncate a file if O_TRUNC
+          // Must truncate a file if O_TRUNC
           if (
             flags & vfs.constants.O_TRUNC &&
             targetType === 'File' &&
             flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)
           ) {
-            await this._iNodeMgr.transact(
-              async (tran) => {
-                await this._iNodeMgr.fileClearData(tran, targetIno);
-                await this._iNodeMgr.fileSetBlocks(
-                  tran,
-                  targetIno,
-                  Buffer.alloc(0),
-                  this._blkSize,
-                );
-              },
-              [],
-            );
+            await this._iNodeMgr.transact(async (tran) => {
+              await this._iNodeMgr.fileClearData(tran, targetIno);
+              await this._iNodeMgr.fileSetBlocks(
+                tran,
+                targetIno,
+                Buffer.alloc(0),
+                this._blkSize,
+              );
+            }, []);
           }
           break;
         }
       }
     }
-    // convert file descriptor access flags into bitwise permission flags
+    // Convert file descriptor access flags into bitwise permission flags
     let access;
     if (flags & vfs.constants.O_RDWR) {
       access = vfs.constants.R_OK | vfs.constants.W_OK;
@@ -1724,32 +1721,32 @@ class EncryptedFS {
 
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     offset?: number,
     length?: number,
     position?: number,
   ): Promise<number>;
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     offset: number,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     offset: number,
     length: number,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     offset: number,
     length: number,
     position: number,
@@ -1757,7 +1754,7 @@ class EncryptedFS {
   ): Promise<void>;
   public async read(
     fdIndex: FdIndex,
-    buffer: data,
+    buffer: Data,
     offsetOrCallback: number | Callback<[number]> = 0,
     lengthOrCallback: number | Callback<[number]> = 0,
     positionOrCallback: number | undefined | Callback<[number]> = undefined,
@@ -1820,21 +1817,21 @@ class EncryptedFS {
   }
 
   public async readdir(
-    path: path,
-    options?: options,
+    path: Path,
+    options?: Options,
   ): Promise<Array<string | Buffer>>;
   public async readdir(
-    path: path,
+    path: Path,
     callback: Callback<[Array<string | Buffer>]>,
   ): Promise<void>;
   public async readdir(
-    path: path,
-    options: options,
+    path: Path,
+    options: Options,
     callback: Callback<[Array<string | Buffer>]>,
   ): Promise<void>;
   public async readdir(
-    path: path,
-    optionsOrCallback?: options | Callback<[Array<string | Buffer>]>,
+    path: Path,
+    optionsOrCallback?: Options | Callback<[Array<string | Buffer>]>,
     callback?: Callback<[Array<string | Buffer>]>,
   ): Promise<Array<string | Buffer> | void> {
     const options =
@@ -1878,8 +1875,8 @@ class EncryptedFS {
         [navigated.target],
       );
       return navigatedTargetEntries
-        .filter(([name, _]) => name !== '.' && name !== '..')
-        .map(([name, _]) => {
+        .filter(([name]) => name !== '.' && name !== '..')
+        .map(([name]) => {
           if (options.encoding === 'binary') {
             return Buffer.from(name);
           } else {
@@ -1890,27 +1887,27 @@ class EncryptedFS {
   }
 
   public async readFile(
-    file: file,
-    options?: options,
+    file: File,
+    options?: Options,
   ): Promise<string | Buffer>;
   public async readFile(
-    file: file,
+    file: File,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async readFile(
-    file: file,
-    options: options,
+    file: File,
+    options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async readFile(
-    file: file,
-    optionsOrCallback?: options | Callback<[string | Buffer]>,
+    file: File,
+    optionsOrCallback?: Options | Callback<[string | Buffer]>,
     callback?: Callback<[string | Buffer]>,
   ): Promise<string | Buffer | void> {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions({}, optionsOrCallback)
-        : ({} as options);
+        : ({} as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -1929,7 +1926,7 @@ class EncryptedFS {
             ]);
           }
         } else {
-          fdIndex = await this.open(file as path, options.flag);
+          fdIndex = await this.open(file as Path, options.flag);
           while (bytesRead !== 0) {
             bytesRead = await this.read(fdIndex, buffer, 0, buffer.length);
             totalBuffer = Buffer.concat([
@@ -1948,21 +1945,21 @@ class EncryptedFS {
   }
 
   public async readlink(
-    path: path,
-    options?: options,
+    path: Path,
+    options?: Options,
   ): Promise<string | Buffer>;
   public async readlink(
-    path: path,
+    path: Path,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async readlink(
-    path: path,
-    options: options,
+    path: Path,
+    options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async readlink(
-    path: path,
-    optionsOrCallback: options | Callback<[string | Buffer]> = {
+    path: Path,
+    optionsOrCallback: Options | Callback<[string | Buffer]> = {
       encoding: 'utf8',
     },
     callback?: Callback<[string | Buffer]>,
@@ -1970,7 +1967,7 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback)
-        : ({ encoding: 'utf8' } as options);
+        : ({ encoding: 'utf8' } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -1999,21 +1996,21 @@ class EncryptedFS {
   }
 
   public async realpath(
-    path: path,
-    options?: options,
+    path: Path,
+    options?: Options,
   ): Promise<string | Buffer>;
   public async realpath(
-    path: path,
+    path: Path,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async realpath(
-    path: path,
-    options: options,
+    path: Path,
+    options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
   public async realpath(
-    path: path,
-    optionsOrCallback: options | Callback<[string | Buffer]> = {
+    path: Path,
+    optionsOrCallback: Options | Callback<[string | Buffer]> = {
       encoding: 'utf8',
     },
     callback?: Callback<[string | Buffer]>,
@@ -2021,7 +2018,7 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions({ encoding: 'utf8' }, optionsOrCallback)
-        : ({ encoding: 'utf8' } as options);
+        : ({ encoding: 'utf8' } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -2041,8 +2038,8 @@ class EncryptedFS {
   }
 
   public async rename(
-    oldPath: path,
-    newPath: path,
+    oldPath: Path,
+    newPath: Path,
     callback?: Callback,
   ): Promise<void> {
     return maybeCallback(async () => {
@@ -2063,7 +2060,7 @@ class EncryptedFS {
             await this._iNodeMgr.get(tran, sourceTarget)
           )?.type;
           if (sourceTargetType === 'Directory') {
-            // if oldPath is a directory, target must be a directory (if it exists)
+            // If oldPath is a directory, target must be a directory (if it exists)
             if (navigatedTarget.target) {
               const targetTargetType = (
                 await this._iNodeMgr.get(tran, navigatedTarget.target)
@@ -2075,7 +2072,7 @@ class EncryptedFS {
                 );
               }
             }
-            // neither oldPath nor newPath can point to root
+            // Neither oldPath nor newPath can point to root
             if (
               navigatedSource.target === this._root ||
               navigatedTarget.target === this._root
@@ -2085,7 +2082,7 @@ class EncryptedFS {
                 `rename '${oldPath}', ${newPath}'`,
               );
             }
-            // if the target directory contains elements this cannot be done
+            // If the target directory contains elements this cannot be done
             // this can be done without read permissions
             if (navigatedTarget.target) {
               const targetEntries: Array<[string, INodeIndex]> = [];
@@ -2102,7 +2099,7 @@ class EncryptedFS {
                 );
               }
             }
-            // if any of the paths used .. or ., then `dir` is not the parent directory
+            // If any of the paths used .. or ., then `dir` is not the parent directory
             if (
               navigatedSource.name === '.' ||
               navigatedSource.name === '..' ||
@@ -2114,7 +2111,7 @@ class EncryptedFS {
                 `rename '${oldPath}', ${newPath}'`,
               );
             }
-            // cannot rename a source prefix of target
+            // Cannot rename a source prefix of target
             if (
               navigatedSource.pathStack.length <
               navigatedTarget.pathStack.length
@@ -2136,7 +2133,7 @@ class EncryptedFS {
               }
             }
           } else {
-            // if oldPath is not a directory, then newPath cannot be an existing directory
+            // If oldPath is not a directory, then newPath cannot be an existing directory
             if (navigatedTarget.target) {
               const targetTargetType = (
                 await this._iNodeMgr.get(tran, navigatedTarget.target)
@@ -2157,7 +2154,7 @@ class EncryptedFS {
             tran,
             navigatedTarget.dir,
           );
-          // both the navigatedSource.dir and navigatedTarget.dir must support write permissions
+          // Both the navigatedSource.dir and navigatedTarget.dir must support write permissions
           if (
             !this.checkPermissions(vfs.constants.W_OK, sourceDirStat) ||
             !this.checkPermissions(vfs.constants.W_OK, targetDirStat)
@@ -2167,7 +2164,7 @@ class EncryptedFS {
               `rename '${oldPath}', ${newPath}'`,
             );
           }
-          // if they are in the same directory, it is simple rename
+          // If they are in the same directory, it is simple rename
           if (navigatedSource.dir === navigatedTarget.dir) {
             await this._iNodeMgr.dirResetEntry(
               tran,
@@ -2201,7 +2198,12 @@ class EncryptedFS {
               navigatedTarget.name,
               index,
             );
-            await this._iNodeMgr.statSetProp(tran, navigatedTarget.target, 'ctime', now);
+            await this._iNodeMgr.statSetProp(
+              tran,
+              navigatedTarget.target,
+              'ctime',
+              now,
+            );
           } else {
             if (targetDirStat.nlink < 2) {
               throw new EncryptedFSError(
@@ -2230,18 +2232,18 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async rmdir(path: path, callback?: Callback): Promise<void> {
+  public async rmdir(path: Path, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
-      // if the path has trailing slashes, navigation would traverse into it
+      // If the path has trailing slashes, navigation would traverse into it
       // we must trim off these trailing slashes to allow these directories to be removed
       path = path.replace(/(.+?)\/+$/, '$1');
       const navigated = await this.navigate(path, false);
-      // this is for if the path resolved to root
+      // This is for if the path resolved to root
       if (!navigated.name) {
         throw new EncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
       }
-      // on linux, when .. is used, the parent directory becomes unknown
+      // On linux, when .. is used, the parent directory becomes unknown
       // in that case, they return with ENOTEMPTY
       // but the directory may in fact be empty
       // for this edge case, we instead use EINVAL
@@ -2278,10 +2280,10 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async stat(path: path): Promise<vfs.Stat>;
-  public async stat(path: path, callback: Callback<[vfs.Stat]>): Promise<void>;
+  public async stat(path: Path): Promise<vfs.Stat>;
+  public async stat(path: Path, callback: Callback<[vfs.Stat]>): Promise<void>;
   public async stat(
-    path: path,
+    path: Path,
     callback?: Callback<[vfs.Stat]>,
   ): Promise<vfs.Stat | void> {
     return maybeCallback(async () => {
@@ -2303,28 +2305,28 @@ class EncryptedFS {
   }
 
   public async symlink(
-    dstPath: path,
-    srcPath: path,
+    dstPath: Path,
+    srcPath: Path,
     type?: string,
   ): Promise<void>;
   public async symlink(
-    dstPath: path,
-    srcPath: path,
+    dstPath: Path,
+    srcPath: Path,
     callback: Callback,
   ): Promise<void>;
   public async symlink(
-    dstPath: path,
-    srcPath: path,
+    dstPath: Path,
+    srcPath: Path,
     type: string,
     callback: Callback,
   ): Promise<void>;
   public async symlink(
-    dstPath: path,
-    srcPath: path,
+    dstPath: Path,
+    srcPath: Path,
     typeOrCallback: string | Callback = 'file',
     callback?: Callback,
   ): Promise<void> {
-    const type = typeof typeOrCallback !== 'function' ? typeOrCallback : 'file';
+    // Const type = typeof typeOrCallback !== 'function' ? typeOrCallback : 'file'; // FIXME: remove or not?
     callback = typeof typeOrCallback === 'function' ? typeOrCallback : callback;
     return maybeCallback(async () => {
       dstPath = this.getPath(dstPath);
@@ -2381,15 +2383,15 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async truncate(file: file, len?: number): Promise<void>;
-  public async truncate(file: file, callback: Callback): Promise<void>;
+  public async truncate(file: File, len?: number): Promise<void>;
+  public async truncate(file: File, callback: Callback): Promise<void>;
   public async truncate(
-    file: file,
+    file: File,
     len: number,
     callback: Callback,
   ): Promise<void>;
   public async truncate(
-    file: file,
+    file: File,
     lenOrCallback: number | Callback = 0,
     callback?: Callback,
   ): Promise<void> {
@@ -2402,7 +2404,7 @@ class EncryptedFS {
       if (typeof file === 'number') {
         await this.ftruncate(file, len);
       } else {
-        file = this.getPath(file as path);
+        file = this.getPath(file as Path);
         let fdIndex;
         try {
           fdIndex = await this.open(file, vfs.constants.O_WRONLY);
@@ -2414,7 +2416,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async unlink(path: path, callback?: Callback): Promise<void> {
+  public async unlink(path: Path, callback?: Callback): Promise<void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
@@ -2448,7 +2450,7 @@ class EncryptedFS {
   }
 
   public async utimes(
-    path: path,
+    path: Path,
     atime: number | string | Date,
     mtime: number | string | Date,
     callback?: Callback,
@@ -2492,32 +2494,32 @@ class EncryptedFS {
 
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     offsetOrPos?: number,
     lengthOrEncoding?: number | string,
     position?: number,
   ): Promise<number>;
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     offsetOrPos: number,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     offsetOrPos: number,
     lengthOrEncoding: number | string,
     callback: Callback<[number]>,
   ): Promise<void>;
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     offsetOrPos: number,
     lengthOrEncoding: number | string,
     position: number,
@@ -2525,7 +2527,7 @@ class EncryptedFS {
   ): Promise<void>;
   public async write(
     fdIndex: FdIndex,
-    data: data,
+    data: Data,
     offsetOrPosOrCallback?: number | Callback<[number]>,
     lengthOrEncodingOrCallback?: number | string | Callback<[number]>,
     positionOrCallback: number | undefined | Callback<[number]> = undefined,
@@ -2597,25 +2599,25 @@ class EncryptedFS {
   }
 
   public async writeFile(
-    file: file,
-    data?: data,
-    options?: options,
+    file: File,
+    data?: Data,
+    options?: Options,
   ): Promise<void>;
   public async writeFile(
-    file: file,
-    data: data,
+    file: File,
+    data: Data,
     callback: Callback,
   ): Promise<void>;
   public async writeFile(
-    file: file,
-    data: data,
-    options: options,
+    file: File,
+    data: Data,
+    options: Options,
     callback: Callback,
   ): Promise<void>;
   public async writeFile(
-    file: file,
-    data: data = 'undefined',
-    optionsOrCallback: options | Callback = {
+    file: File,
+    data: Data = 'undefined',
+    optionsOrCallback: Options | Callback = {
       encoding: 'utf8',
       mode: vfs.DEFAULT_FILE_PERM,
       flag: 'w',
@@ -2628,7 +2630,7 @@ class EncryptedFS {
             { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as options);
+        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -2637,7 +2639,7 @@ class EncryptedFS {
       const buffer = this.getBuffer(data, options.encoding);
       let fdCheck = false;
       if (typeof file !== 'number') {
-        fdIndex = await this.open(file as path, options.flag, options.mode);
+        fdIndex = await this.open(file as Path, options.flag, options.mode);
         fdCheck = true;
       } else {
         fdIndex = file;
@@ -2667,9 +2669,9 @@ class EncryptedFS {
     if (!pathS) {
       throw new EncryptedFSError(errno.ENOENT, origPathS);
     }
-    // multiple consecutive slashes are considered to be 1 slash
+    // Multiple consecutive slashes are considered to be 1 slash
     pathS = pathS.replace(/\/+/, '/');
-    // a trailing slash is considered to refer to a directory, thus it is converted to /.
+    // A trailing slash is considered to refer to a directory, thus it is converted to /.
     // functions that expect and specially handle missing directories should trim it away
     pathS = pathS.replace(/\/$/, '/.');
     if (pathS[0] === '/') {
@@ -2678,7 +2680,7 @@ class EncryptedFS {
         return {
           dir: this._root,
           target: this._root,
-          // root is the only situation where the name is empty
+          // Root is the only situation where the name is empty
           name: '',
           remaining: '',
           pathStack: [],
@@ -2737,7 +2739,7 @@ class EncryptedFS {
     const parse = this.parsePath(pathS);
     if (parse.segment !== '.') {
       if (parse.segment === '..') {
-        // this is a noop if the pathStack is empty
+        // This is a noop if the pathStack is empty
         pathStack.pop();
       } else {
         pathStack.push(parse.segment);
@@ -2760,7 +2762,7 @@ class EncryptedFS {
       );
       switch (targetType) {
         case 'File':
-        case 'CharacterDev':
+        case 'CharacterDev': {
           if (!parse.rest) {
             return {
               dir: curdir,
@@ -2774,58 +2776,63 @@ class EncryptedFS {
             errno.ENOTDIR,
             `navigateFrom '${origPathS}' not a directory`,
           );
+        }
         case 'Directory':
-          if (!parse.rest) {
-            // if parse.segment is ., dir is not the same directory as target
-            // if parse.segment is .., dir is the child directory
-            return {
-              dir: curdir,
-              target: target,
-              name: parse.segment,
-              remaining: '',
-              pathStack: pathStack,
-            };
+          {
+            if (!parse.rest) {
+              // If parse.segment is ., dir is not the same directory as target
+              // if parse.segment is .., dir is the child directory
+              return {
+                dir: curdir,
+                target: target,
+                name: parse.segment,
+                remaining: '',
+                pathStack: pathStack,
+              };
+            }
+            nextDir = target;
+            nextPath = parse.rest;
           }
-          nextDir = target;
-          nextPath = parse.rest;
           break;
         case 'Symlink':
-          if (!resolveLastLink && !parse.rest) {
-            return {
-              dir: curdir,
-              target: target,
-              name: parse.segment,
-              remaining: '',
-              pathStack: pathStack,
-            };
-          }
-          if (activeSymlinks.has(target)) {
-            throw new EncryptedFSError(
-              errno.ELOOP,
-              `navigateFrom '${origPathS}' linked to itself`,
+          {
+            if (!resolveLastLink && !parse.rest) {
+              return {
+                dir: curdir,
+                target: target,
+                name: parse.segment,
+                remaining: '',
+                pathStack: pathStack,
+              };
+            }
+            if (activeSymlinks.has(target)) {
+              throw new EncryptedFSError(
+                errno.ELOOP,
+                `navigateFrom '${origPathS}' linked to itself`,
+              );
+            } else {
+              activeSymlinks.add(target);
+            }
+            // Although symlinks should not have an empty links, it's still handled correctly here
+            let targetLinks;
+            await this._iNodeMgr.transact(
+              async (tran) => {
+                targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
+              },
+              [target],
             );
-          } else {
-            activeSymlinks.add(target);
-          }
-          // although symlinks should not have an empty links, it's still handled correctly here
-          let targetLinks;
-          await this._iNodeMgr.transact(
-            async (tran) => {
-              targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
-            },
-            [target],
-          );
-          nextPath = pathJoin(targetLinks, parse.rest);
-          if (nextPath[0] === '/') {
-            return this.navigate(
-              nextPath,
-              resolveLastLink,
-              activeSymlinks,
-              origPathS,
-            );
-          } else {
-            pathStack.pop();
-            nextDir = curdir;
+            nextPath = pathJoin(targetLinks, parse.rest);
+            if (nextPath[0] === '/') {
+              return this.navigate(
+                nextPath,
+                resolveLastLink,
+                activeSymlinks,
+                origPathS,
+              );
+            } else {
+              pathStack.pop();
+              nextDir = curdir;
+            }
           }
           break;
         default:
@@ -2869,7 +2876,7 @@ class EncryptedFS {
         rest: rest,
       };
     } else {
-      // this should not happen
+      // This should not happen
       throw new EncryptedFSError(undefined, `Could not parse pathS '${pathS}`);
     }
   }
@@ -2890,7 +2897,7 @@ class EncryptedFS {
    * Processes path types and collapses it to a string.
    * The path types can be string or Buffer or URL.
    */
-  protected getPath(path: path): string {
+  protected getPath(path: Path): string {
     if (typeof path === 'string') {
       return path;
     }
@@ -2912,7 +2919,7 @@ class EncryptedFS {
     }
     const pathname = url.pathname;
     if (pathname.match(/%2[fF]/)) {
-      // must not allow encoded slashes
+      // Must not allow encoded slashes
       throw new TypeError('ERR_INVALID_FILE_URL_PATH');
     }
     return decodeURIComponent(pathname);
@@ -2928,8 +2935,8 @@ class EncryptedFS {
       mode?: number;
       flag?: string;
     },
-    options?: options | BufferEncoding,
-  ): options {
+    options?: Options | BufferEncoding,
+  ): Options {
     if (typeof options === 'string') {
       return { ...defaultOptions, encoding: options };
     } else {
@@ -2942,14 +2949,14 @@ class EncryptedFS {
    * The data types can be Buffer or Uint8Array or string.
    */
   protected getBuffer(
-    data: data,
+    data: Data,
     encoding: BufferEncoding | undefined = undefined,
   ): Buffer {
     if (data instanceof Buffer) {
       return data;
     }
     if (data instanceof Uint8Array) {
-      // zero copy implementation
+      // Zero copy implementation
       // also sliced to the view's constraint
       return Buffer.from(data.buffer).slice(
         data.byteOffset,

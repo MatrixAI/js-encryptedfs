@@ -186,14 +186,14 @@ describe('utils', () => {
     expect(bufferSegments[0]).toStrictEqual(Buffer.from('Testing Buffer'));
   });
   test('block mapping', async () => {
-    // abc
+    // Abc
     const buf = Buffer.from('abc', 'utf-8');
     console.log(buf);
 
-    // this should be the it
+    // This should be the it
     console.log(buf.slice(2, 3));
 
-    // based on the blocks
+    // Based on the blocks
     // we can calculate how to deal with the first one
     // the input buffer is sliced into segments
     // the segments are mapped into the blocks
@@ -244,7 +244,6 @@ describe('utils', () => {
         return arg;
       }, callback);
     }
-    const callasdgf: Callback<[string]> = (err, res) => {};
     describe('as a promise', () => {
       test('Should function', async () => {
         const message = 'Hello world!';
@@ -260,10 +259,10 @@ describe('utils', () => {
       test('Should function', async () => {
         const message = 'Hello world!';
         let resolvePromise;
-        const prom = new Promise((resolve, _reject) => {
+        const prom = new Promise((resolve) => {
           resolvePromise = resolve;
         });
-        await passthrough(message, false, (_err, response) => {
+        await passthrough(message, false, (err, response) => {
           expect(response).toEqual(message);
           resolvePromise(response);
         });
@@ -272,7 +271,7 @@ describe('utils', () => {
       test('Should throw error', async () => {
         const message = 'Hello world!';
         let resolvePromise;
-        const prom = new Promise((resolve, _reject) => {
+        const prom = new Promise((resolve) => {
           resolvePromise = resolve;
         });
         await passthrough(message, true, (err, response) => {

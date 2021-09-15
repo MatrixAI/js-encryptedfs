@@ -1,7 +1,7 @@
 import type fs from 'fs';
 import type { PathLike } from 'fs';
 import type { FileDescriptor, File, INode } from 'virtualfs';
-import type { BlockMeta, POJO, EncryptedMetadata } from './types';
+import type { BlockMeta, POJO, EncryptedMetadata } from '../src/types';
 
 import pathNode from 'path';
 import process from 'process';
@@ -20,9 +20,9 @@ import {
 } from 'virtualfs';
 
 import { Transfer } from 'threads';
-import { EncryptedFSError, errno } from './EncryptedFSError';
-import { WorkerManager } from './workers';
-import * as utils from './utils';
+import { EncryptedFSError, errno } from '../src/EncryptedFSError';
+import { WorkerManager } from '../src/workers';
+import * as utils from '../src/utils';
 import EncryptedStat from './EncryptedStat';
 
 public async mmap(

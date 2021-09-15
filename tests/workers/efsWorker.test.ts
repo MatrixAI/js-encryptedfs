@@ -30,7 +30,7 @@ describe('EFS worker', () => {
       );
       return Buffer.from(cipherBuf, cipherOffset, cipherLength);
     });
-    // sanity check with main thread decryption
+    // Sanity check with main thread decryption
     expect(plainText.equals(utils.decryptWithKey(key, cipherText)!)).toBe(true);
     const plainText_ = await workerManager.call(async (w) => {
       const decrypted = await w.decryptWithKey(
@@ -53,7 +53,7 @@ describe('EFS worker', () => {
     expect(plainText_?.toString()).toBe('hello world');
   });
   test('encryption and decryption within 1 call', async () => {
-    // use random bytes this time
+    // Use random bytes this time
     const plainText = await utils.getRandomBytes(4096);
     const plainText_ = await workerManager.call(async (w) => {
       const [cipherBuf, cipherOffset, cipherLength] = await w.encryptWithKey(

@@ -8,14 +8,7 @@ import EncryptedFS from '@/EncryptedFS';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import {
-  expectError,
-  createFile,
-  FileTypes,
-  setId,
-  supportedTypes,
-  sleep,
-} from './utils';
+import { expectError, createFile, FileTypes, setId, sleep } from './utils';
 import path from 'path';
 
 describe('EncryptedFS Directories', () => {
@@ -36,7 +29,13 @@ describe('EncryptedFS Directories', () => {
   const n4 = 'four';
   const dp = 0o0755;
   const tuid = 0o65534;
-  const supportedTypes: FileTypes[] = ['regular', 'dir', 'block', 'char', 'symlink'];
+  const supportedTypes: FileTypes[] = [
+    'regular',
+    'dir',
+    'block',
+    'char',
+    'symlink',
+  ];
   let types: FileTypes[];
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -109,7 +108,7 @@ describe('EncryptedFS Directories', () => {
     test('cannot perform read or write operations', async () => {
       const dirName = `dir`;
       await efs.mkdir(dirName);
-      // opening it without O_RDONLY would result in EISDIR
+      // Opening it without O_RDONLY would result in EISDIR
       const dirfd = await efs.open(
         dirName,
         vfs.constants.O_RDONLY | vfs.constants.O_DIRECTORY,
@@ -184,11 +183,14 @@ describe('EncryptedFS Directories', () => {
       await efs.unlink(n0);
       await efs.unlink(n1);
     });
-    test.each(supportedTypes)('returns ENOTEMPTY if the named directory contains files other than \'.\' and \'..\' in itfor %s', async (type) => {
-      await efs.mkdir(n0, 0o0755);
-      await createFile(efs, type as FileTypes, path.join(n0, n1));
-      await expectError(efs.rmdir(n0), errno.ENOTEMPTY);
-    });
+    test.each(supportedTypes)(
+      "returns ENOTEMPTY if the named directory contains files other than '.' and '..' in itfor %s",
+      async (type) => {
+        await efs.mkdir(n0, 0o0755);
+        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await expectError(efs.rmdir(n0), errno.ENOTEMPTY);
+      },
+    );
     test('returns EACCES when search permission is denied for a component of the path prefix', async () => {
       await efs.mkdir(n0, 0o0755);
       await efs.mkdir(path.join(n0, n1), 0o0755);
@@ -244,7 +246,7 @@ describe('EncryptedFS Directories', () => {
     test('should not make the root directory', async () => {
       await expectError(efs.mkdir('/'), errno.EEXIST);
     });
-    test('trailing \'/.\' should not result in any errors', async () => {
+    test("trailing '/.' should not result in any errors", async () => {
       await expect(efs.mkdirp('one/two')).resolves.not.toThrow();
       await expect(efs.mkdirp('three/four')).resolves.not.toThrow();
       await expect(efs.mkdirp('five/six/.')).resolves.not.toThrow();
@@ -260,11 +262,14 @@ describe('EncryptedFS Directories', () => {
       await efs.chmod(n1, dp);
       await efs.mkdir(path.join(n1, n2), dp);
     });
-    test.each(supportedTypes)('returns EEXIST if the named %s exists', async (type) => {
-      await efs.mkdir('test');
-      await createFile(efs, type, n0);
-      await expectError(efs.mkdir(n0, dp), errno.EEXIST);
-    });
+    test.each(supportedTypes)(
+      'returns EEXIST if the named %s exists',
+      async (type) => {
+        await efs.mkdir('test');
+        await createFile(efs, type, n0);
+        await expectError(efs.mkdir(n0, dp), errno.EEXIST);
+      },
+    );
   });
   describe('rename', () => {
     test('can rename a directory', async () => {
@@ -289,49 +294,52 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rename('./cwd3', './cwd3/cwd4'), errno.EINVAL);
     });
     types = ['regular', 'block', 'char'];
-    test.each(types)('changes name but inode remains the same for %s', async (type) => {
-      await createFile(efs, type as FileTypes, n0, 0o0644);
-      const inode = (await efs.lstat(n0)).ino;
-      await efs.rename(n0, n1);
-      await expectError(efs.lstat(n0), errno.ENOENT);
-      let stat = await efs.lstat(n1);
-      expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0644);
-      expect(stat.nlink).toEqual(1);
-      await efs.link(n1, n0);
-      stat = await efs.lstat(n0);
-      expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0644);
-      expect(stat.nlink).toEqual(2);
-      stat = await efs.lstat(n1);
-      expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0644);
-      expect(stat.nlink).toEqual(2);
-      await efs.rename(n1, n2);
-      stat = await efs.lstat(n0);
-      expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0644);
-      expect(stat.nlink).toEqual(2);
-      await expectError(efs.lstat(n1), errno.ENOENT);
-      stat = await efs.lstat(n2);
-      expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0644);
-      expect(stat.nlink).toEqual(2);
-    });
+    test.each(types)(
+      'changes name but inode remains the same for %s',
+      async (type) => {
+        await createFile(efs, type as FileTypes, n0, 0o0644);
+        const inode = (await efs.lstat(n0)).ino;
+        await efs.rename(n0, n1);
+        await expectError(efs.lstat(n0), errno.ENOENT);
+        let stat = await efs.lstat(n1);
+        expect(stat.ino).toEqual(inode);
+        // Expect(stat.mode).toEqual(0o0644);
+        expect(stat.nlink).toEqual(1);
+        await efs.link(n1, n0);
+        stat = await efs.lstat(n0);
+        expect(stat.ino).toEqual(inode);
+        // Expect(stat.mode).toEqual(0o0644);
+        expect(stat.nlink).toEqual(2);
+        stat = await efs.lstat(n1);
+        expect(stat.ino).toEqual(inode);
+        // Expect(stat.mode).toEqual(0o0644);
+        expect(stat.nlink).toEqual(2);
+        await efs.rename(n1, n2);
+        stat = await efs.lstat(n0);
+        expect(stat.ino).toEqual(inode);
+        // Expect(stat.mode).toEqual(0o0644);
+        expect(stat.nlink).toEqual(2);
+        await expectError(efs.lstat(n1), errno.ENOENT);
+        stat = await efs.lstat(n2);
+        expect(stat.ino).toEqual(inode);
+        // Expect(stat.mode).toEqual(0o0644);
+        expect(stat.nlink).toEqual(2);
+      },
+    );
     test('changes name for dir', async () => {
       await efs.mkdir(n0, dp);
-      //expect dir,0755 lstat ${n0} type,mode
+      //Expect dir,0755 lstat ${n0} type,mode
       const inode = (await efs.lstat(n0)).ino;
       await efs.rename(n0, n1);
       await expectError(efs.lstat(n0), errno.ENOENT);
       const stat = await efs.lstat(n1);
       expect(stat.ino).toEqual(inode);
-      // expect(stat.mode).toEqual(0o0755);
+      // Expect(stat.mode).toEqual(0o0755);
     });
     test('changes name for regular file', async () => {
       await createFile(efs, 'regular', n0);
       const rinode = (await efs.lstat(n0)).ino;
-      //expect regular,0644 lstat ${n0} type,mode
+      //Expect regular,0644 lstat ${n0} type,mode
       await efs.symlink(n0, n1);
       const sinode = (await efs.lstat(n1)).ino;
       let stat = await efs.stat(n1);
@@ -345,15 +353,18 @@ describe('EncryptedFS Directories', () => {
       stat = await efs.lstat(n2);
       expect(stat.ino).toEqual(sinode);
     });
-    test.each(supportedTypes)('unsuccessful of %s does not update ctime', async (type) => {
-      await createFile(efs, type, n0);
-      const ctime1 = (await efs.lstat(n0)).ctime;
-      await sleep(10);
-      setId(efs, tuid);
-      await expectError(efs.rename(n0, n1), errno.EACCES);
-      const ctime2 = (await efs.lstat(n0)).ctime;
-      expect(ctime1).toEqual(ctime2);
-    });
+    test.each(supportedTypes)(
+      'unsuccessful of %s does not update ctime',
+      async (type) => {
+        await createFile(efs, type, n0);
+        const ctime1 = (await efs.lstat(n0)).ctime;
+        await sleep(10);
+        setId(efs, tuid);
+        await expectError(efs.rename(n0, n1), errno.EACCES);
+        const ctime2 = (await efs.lstat(n0)).ctime;
+        expect(ctime1).toEqual(ctime2);
+      },
+    );
     test("returns ENOENT if a component of the 'from' path does not exist, or a path prefix of 'to' does not exist", async () => {
       await efs.mkdir(n0, dp);
       await expectError(
@@ -426,30 +437,39 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rename(n2, path.join(n1, 'test')), errno.ELOOP);
     });
     types = ['regular', 'block', 'char'];
-    test.each(types)('returns ENOTDIR if a component of either path prefix is a %s', async (type) => {
-      await efs.mkdir(n0, dp);
-      await createFile(efs, type as FileTypes, path.join(n0, n1));
-      await expectError(
-        efs.rename(path.join(n0, n1, 'test'), path.join(n0, n2)),
-        errno.ENOTDIR,
-      );
-      await createFile(efs, type as FileTypes, path.join(n0, n2));
-      await expectError(
-        efs.rename(path.join(n0, n2), path.join(n0, n1, 'test')),
-        errno.ENOTDIR,
-      );
-    });
+    test.each(types)(
+      'returns ENOTDIR if a component of either path prefix is a %s',
+      async (type) => {
+        await efs.mkdir(n0, dp);
+        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await expectError(
+          efs.rename(path.join(n0, n1, 'test'), path.join(n0, n2)),
+          errno.ENOTDIR,
+        );
+        await createFile(efs, type as FileTypes, path.join(n0, n2));
+        await expectError(
+          efs.rename(path.join(n0, n2), path.join(n0, n1, 'test')),
+          errno.ENOTDIR,
+        );
+      },
+    );
     types = ['regular', 'block', 'char', 'symlink'];
-    test.each(types)('returns ENOTDIR when the \'from\' argument is a directory, but \'to\' is a %s', async (type) => {
-      await efs.mkdir(n0, dp);
-      await createFile(efs, type as FileTypes, n1);
-      await expectError(efs.rename(n0, n1), errno.ENOTDIR);
-    });
-    test.each(types)('returns EISDIR when the \'to\' argument is a directory, but \'from\' is a %s', async (type) => {
-      await efs.mkdir(n0, dp);
-      await createFile(efs, type as FileTypes, n1);
-      await expectError(efs.rename(n1, n0), errno.EISDIR);
-    });
+    test.each(types)(
+      "returns ENOTDIR when the 'from' argument is a directory, but 'to' is a %s",
+      async (type) => {
+        await efs.mkdir(n0, dp);
+        await createFile(efs, type as FileTypes, n1);
+        await expectError(efs.rename(n0, n1), errno.ENOTDIR);
+      },
+    );
+    test.each(types)(
+      "returns EISDIR when the 'to' argument is a directory, but 'from' is a %s",
+      async (type) => {
+        await efs.mkdir(n0, dp);
+        await createFile(efs, type as FileTypes, n1);
+        await expectError(efs.rename(n1, n0), errno.EISDIR);
+      },
+    );
     test("returns EINVAL when the 'from' argument is a parent directory of 'to'", async () => {
       await efs.mkdir(n0, dp);
       await efs.mkdir(path.join(n0, n1), dp);
@@ -457,12 +477,15 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rename(n0, path.join(n0, n1)), errno.EINVAL);
       await expectError(efs.rename(n0, path.join(n0, n1, n2)), errno.EINVAL);
     });
-    test.each(supportedTypes)('returns ENOTEMPTY if the \'to\' argument is a directory and contains %s', async (type) => {
-      await efs.mkdir(n0, dp);
-      await efs.mkdir(n1, dp);
-      await createFile(efs, type, path.join(n1, n2));
-      await expectError(efs.rename(n0, n1), errno.ENOTEMPTY);
-    });
+    test.each(supportedTypes)(
+      "returns ENOTEMPTY if the 'to' argument is a directory and contains %s",
+      async (type) => {
+        await efs.mkdir(n0, dp);
+        await efs.mkdir(n1, dp);
+        await createFile(efs, type, path.join(n1, n2));
+        await expectError(efs.rename(n0, n1), errno.ENOTEMPTY);
+      },
+    );
     test.each(supportedTypes)('changes file ctime for %s', async (type) => {
       const src = n0;
       const dst = n1;
@@ -474,20 +497,23 @@ describe('EncryptedFS Directories', () => {
       expect(ctime1).toBeLessThan(ctime2);
     });
     types = ['regular', 'block', 'char'];
-    test.each(types)('succeeds when destination %s is multiply linked', async (type) => {
-      const src = n0;
-      const dst = n1;
-      const dstlnk = n2;
-      await createFile(efs, type as FileTypes, src);
-      await createFile(efs, type as FileTypes, dst);
-      await efs.link(dst, dstlnk);
-      const ctime1 = (await efs.lstat(dstlnk)).ctime.getTime();
-      await sleep(10);
-      await efs.rename(src, dst);
-      // destination inode should have reduced nlink and updated ctime
-      expect((await efs.lstat(dstlnk)).nlink).toEqual(1);
-      const ctime2 = (await efs.lstat(dstlnk)).ctime.getTime();
-      expect(ctime1).toBeLessThan(ctime2);
-    });
+    test.each(types)(
+      'succeeds when destination %s is multiply linked',
+      async (type) => {
+        const src = n0;
+        const dst = n1;
+        const dstlnk = n2;
+        await createFile(efs, type as FileTypes, src);
+        await createFile(efs, type as FileTypes, dst);
+        await efs.link(dst, dstlnk);
+        const ctime1 = (await efs.lstat(dstlnk)).ctime.getTime();
+        await sleep(10);
+        await efs.rename(src, dst);
+        // Destination inode should have reduced nlink and updated ctime
+        expect((await efs.lstat(dstlnk)).nlink).toEqual(1);
+        const ctime2 = (await efs.lstat(dstlnk)).ctime.getTime();
+        expect(ctime1).toBeLessThan(ctime2);
+      },
+    );
   });
 });

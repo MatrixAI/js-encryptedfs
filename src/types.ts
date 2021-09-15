@@ -1,6 +1,4 @@
 import type fs from 'fs';
-import type * as vfs from 'virtualfs';
-import type { Mutex } from 'async-mutex';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
 
@@ -31,7 +29,7 @@ type Callback<P extends Array<any> = [], R = any, E extends Error = Error> = {
 };
 
 type FunctionPropertyNames<T> = {
-  [K in keyof T]: T[K] extends Function ? K : never;
+  [K in keyof T]: T[K] extends (...args: any[]) => any ? K : never;
 }[keyof T];
 
 /**
@@ -40,7 +38,7 @@ type FunctionPropertyNames<T> = {
 type FunctionProperties<T> = Pick<T, FunctionPropertyNames<T>>;
 
 type NonFunctionPropertyNames<T> = {
-  [K in keyof T]: T[K] extends Function ? never : K;
+  [K in keyof T]: T[K] extends (...args: any[]) => any ? never : K;
 }[keyof T];
 
 /**
@@ -61,19 +59,19 @@ type ParsedPath = {
   rest: string;
 };
 
-type path = string | Buffer | URL;
+type Path = string | Buffer | URL;
 
-type options = {
+type Options = {
   encoding?: BufferEncoding | undefined;
   mode?: number;
   flag?: string;
 };
 
-type data = string | Buffer | Uint8Array;
+type Data = string | Buffer | Uint8Array;
 
-type file = FdIndex | path;
+type File = FdIndex | Path;
 
-// we want to take in types from the relevant db types
+// We want to take in types from the relevant db types
 // queue
 // that's the common types
 // you know
@@ -127,7 +125,7 @@ interface FileSystem {
   };
 }
 
-// we may not need this anymore
+// We may not need this anymore
 // since reading any blocks require taking it from the underlying fs
 // and so it's no longer in-memory anymore
 
@@ -149,8 +147,8 @@ export type {
   BlockMeta,
   Navigated,
   ParsedPath,
-  path,
-  options,
-  data,
-  file,
+  Path,
+  Options,
+  Data,
+  File,
 };

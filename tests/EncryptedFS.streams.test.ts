@@ -1,16 +1,13 @@
 import os from 'os';
-import fs, { createWriteStream } from "fs";
+import fs from 'fs';
 import pathNode from 'path';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
-import { EncryptedFSError, errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { expectError, sleep } from "./utils";
 import { Readable, Writable } from 'readable-stream';
-import { WriteStream } from "@/streams";
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [
@@ -58,7 +55,7 @@ describe('EncryptedFS Streams', () => {
     });
   });
   describe('readstream', () => {
-    test('using \'for await\'', async () => {
+    test("using 'for await'", async () => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
       const readable = await efs.createReadStream(`/test`, {
@@ -72,7 +69,7 @@ describe('EncryptedFS Streams', () => {
       }
       expect(readString).toBe(str);
     });
-    test('using \'event readable\'', async (done) => {
+    test("using 'event readable'", async (done) => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
       const readable = await efs.createReadStream(`/test`, {
@@ -92,7 +89,7 @@ describe('EncryptedFS Streams', () => {
         done();
       });
     });
-    test('using \'event data\'', async (done) => {
+    test("using 'event data'", async (done) => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
       const readable = await efs.createReadStream(`/test`, {
@@ -293,7 +290,7 @@ describe('EncryptedFS Streams', () => {
         constructor() {
           super();
         }
-        _read(size) {
+        _read() {
           if (!this.written) {
             this.push(message);
             this.written = true;
@@ -383,7 +380,7 @@ describe('EncryptedFS Streams', () => {
     test('can handle errors asynchronously', async (done) => {
       const fileName = `file/unknown`;
       const writable = await efs.createWriteStream(fileName);
-      // note that it is possible to have the finish event occur before the error event
+      // Note that it is possible to have the finish event occur before the error event
       writable.once('error', (err) => {
         expect(err instanceof Error).toBe(true);
         const error = err as any;

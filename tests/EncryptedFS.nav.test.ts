@@ -163,7 +163,7 @@ describe('EncryptedFS Navigation', () => {
     expect(cwd).toBe('/a/b');
   });
   test('cwd still works if the current directory is deleted', async () => {
-    // nodejs process.cwd() will actually throw ENOENT
+    // Nodejs process.cwd() will actually throw ENOENT
     // but making it work in VFS is harmless
     await efs.mkdir('/removed');
     await efs.chdir('/removed');

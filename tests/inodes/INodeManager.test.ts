@@ -78,7 +78,7 @@ describe('INodeManager', () => {
       devMgr,
       logger,
     });
-    // demonstrate a counter increment race condition
+    // Demonstrate a counter increment race condition
     await iNodeMgr.transact(async (tran) => {
       await tran.put(iNodeMgr.mgrDomain, 'test', 0);
     });
@@ -94,10 +94,10 @@ describe('INodeManager', () => {
     ]);
     await iNodeMgr.transact(async (tran) => {
       const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-      // race condition clobbers the counter
+      // Race condition clobbers the counter
       expect(num).toBe(1);
     });
-    // now with proper locking, the race condition doesn't happen
+    // Now with proper locking, the race condition doesn't happen
     await iNodeMgr.transact(async (tran) => {
       await tran.put(iNodeMgr.mgrDomain, 'test', 0);
     });
@@ -120,7 +120,7 @@ describe('INodeManager', () => {
     ]);
     await iNodeMgr.transact(async (tran) => {
       const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-      // race condition is solved by the locking the ino
+      // Race condition is solved by the locking the ino
       expect(num).toBe(2);
     });
   });

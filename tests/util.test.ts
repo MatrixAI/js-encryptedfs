@@ -1,9 +1,9 @@
 import * as util from '@/util';
 
 describe('main', () => {
-  // ported over
+  // Ported over
   describe('key generation', () => {
-    // test('key 16 bytes', () => {
+    // Test('key 16 bytes', () => {
     //   const key = util.generateMasterKey('password');
     //   expect(key.length).toBe(16);
     // });
@@ -14,7 +14,7 @@ describe('main', () => {
     // });
   });
   describe('random bytes generation', () => {
-    // test('buffer is specified length', () => {
+    // Test('buffer is specified length', () => {
     //   const buf1 = util.getRandomBytesSync(1);
     //   expect(buf1.length).toBe(1);
     //   const buf2 = util.getRandomBytesSync(100);
@@ -32,7 +32,7 @@ describe('main', () => {
   // TODO....
 
   describe('block array functions', () => {
-    // we shouldn't need to use this function
+    // We shouldn't need to use this function
     // a range operator is better
 
     // test('various get block cases', () => {

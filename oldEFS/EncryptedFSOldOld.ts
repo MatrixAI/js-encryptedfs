@@ -1,4 +1,4 @@
-import type { UpperDirectoryMetadata, BufferEncoding } from './types';
+import type { UpperDirectoryMetadata, BufferEncoding } from '../src/types';
 import fs from 'fs';
 import pathNode from 'path';
 import { nextTick } from 'process';
@@ -12,11 +12,11 @@ import {
 import * as utils from './util';
 import FileDescriptor from './FileDescriptor';
 import { constants, DEFAULT_FILE_PERM } from './constants';
-import { EncryptedFSError, errno } from './EncryptedFSError';
+import { EncryptedFSError, errno } from '../src/EncryptedFSError';
 import { EncryptedFSLayers, cryptoConstants } from './util';
-import { optionsStream, ReadStream, WriteStream } from './Streams';
+import { OptionsStream, ReadStream, WriteStream } from '../src/Streams';
 import * as cryptoUtils from './crypto';
-import { WorkerManager } from './workers';
+import { WorkerManager } from '../src/workers';
 
 const callbackUp = (err) => {
   if (err) throw err;
@@ -618,7 +618,7 @@ class EncryptedFS {
    */
   createReadStream(
     path: fs.PathLike,
-    options: optionsStream | undefined,
+    options: OptionsStream | undefined,
   ): ReadStream {
     path = this.getPath(path);
     options = this.getStreamOptions(
@@ -646,7 +646,7 @@ class EncryptedFS {
    */
   createWriteStream(
     path: fs.PathLike,
-    options: optionsStream | undefined,
+    options: OptionsStream | undefined,
   ): WriteStream {
     path = this.getPath(path);
     options = this.getStreamOptions(
@@ -1575,11 +1575,11 @@ class EncryptedFS {
     // upper fd index
     const upperFd = fd;
 
-    // lower fd index
+    // Lower fd index
     // this goes through the intermediate FD wrapper to getthe lower fd index
     const lowerFd = this.getLowerFd(fd);
 
-    // so the idea is that we have 2 fd indices we are managing here
+    // So the idea is that we have 2 fd indices we are managing here
     // and remember streams are complicated as well
     // one upper and one lower
     // we aren't extending the upperfd to keep track of the lower fd
@@ -1587,7 +1587,7 @@ class EncryptedFS {
     // at least i dont think it can be because the APIs may be different
 
     // Get block boundary conditions
-    const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
+    const boundaryOffset = this.getBoundaryOffset(position); // How far from a block boundary our write is
 
     // the boundaryOffset may return -1
     // this doesn't make sense
@@ -1599,13 +1599,13 @@ class EncryptedFS {
       (boundaryOffset + length) / this.blockSize,
     );
 
-    // block index to start from
+    // Block index to start from
     const startBlockNum = this.offsetToBlockNum(position);
 
-    // a one to one mapping of block to chunk
+    // A one to one mapping of block to chunk
     const startChunkNum = startBlockNum;
 
-    // the finish line
+    // The finish line
     const endBlockNum = startBlockNum + numBlocksToWrite - 1;
 
     let bufferBytesWritten: number = 0;
@@ -1622,7 +1622,7 @@ class EncryptedFS {
 
     const firstBlockOverlay = buffer.slice(firstBlockStart, firstBlockEnd);
 
-    // what is this?
+    // What is this?
 
     const firstBlock = await this.overlaySegment(
       upperFd,
@@ -1818,7 +1818,7 @@ class EncryptedFS {
       const lowerFd = this.getLowerFd(fd);
 
       // Get block boundary conditions
-      const boundaryOffset = this.getBoundaryOffset(position); // how far from a block boundary our write is
+      const boundaryOffset = this.getBoundaryOffset(position); // How far from a block boundary our write is
       const numBlocksToWrite = Math.ceil(
         (boundaryOffset + length) / this.blockSize,
       );
@@ -2180,7 +2180,7 @@ class EncryptedFS {
       }
       let length = data.byteLength;
 
-      // let position = /a/.test(flag) ? null : 0
+      // Let position = /a/.test(flag) ? null : 0
       let position = 0;
 
       while (length > 0) {
@@ -2271,7 +2271,7 @@ class EncryptedFS {
             0o777,
           );
         } else {
-          // const lowerFlags = flags[0];
+          // Const lowerFlags = flags[0];
           const lowerFlags = flags[0] === 'w' ? 'w+' : 'r';
           lowerFd = this.lowerDir.openSync(
             `${this.lowerBasePath}/${_path}`,
@@ -2284,9 +2284,9 @@ class EncryptedFS {
       // Need to make path if it doesn't exist already
       if (!this.upperDir.existsSync(upperFilePath)) {
         const upperFilePathDir = pathNode.dirname(upperFilePath);
-        // mkdirp
+        // Mkdirp
         this.upperDir.mkdirpSync(upperFilePathDir);
-        // create file if needed
+        // Create file if needed
         this.upperDir.closeSync(
           this.upperDir.openSync(upperFilePath, 'w', mode),
         );
@@ -2502,10 +2502,10 @@ class EncryptedFS {
   }
 
   private getStreamOptions(
-    defaultOptions: optionsStream,
-    options?: optionsStream,
-  ): optionsStream {
-    let optionsFinal: optionsStream = defaultOptions;
+    defaultOptions: OptionsStream,
+    options?: OptionsStream,
+  ): OptionsStream {
+    let optionsFinal: OptionsStream = defaultOptions;
     if (typeof options === 'string') {
       if (!this.isCharacterEncoding(options)) {
         throw Error('Invalid encoding string');
@@ -2626,14 +2626,14 @@ class EncryptedFS {
     newData: Buffer,
     position: number,
   ): Promise<Buffer> {
-    // 	case 1:  segment is aligned to start of block and ends at end of block      |<------->|
+    // 	Case 1:  segment is aligned to start of block and ends at end of block      |<------->|
     // 	case 2:  segment is aligned to start-of-block but end before end-of-block   |<----->--|
     // 	case 3:  segment is not aligned to start and ends before end-of-block       |--<--->--|
     // 	case 4:  segment is not aligned to start-of-block and ends at end-of-block  |--<----->|
     //
     // 	Cases 3 and 4 are not possible when overlaying the last segment
 
-    const writeOffset = this.getBoundaryOffset(position); // byte offset from where to start writing new data in the block
+    const writeOffset = this.getBoundaryOffset(position); // Byte offset from where to start writing new data in the block
 
     // Optimization: skip read if newData is block size and position is writeOffset is 0
     if (writeOffset === 0 && newData.length === this.blockSize) {
@@ -2675,7 +2675,7 @@ class EncryptedFS {
     newData: Buffer,
     position: number,
   ): Buffer {
-    const writeOffset = this.getBoundaryOffset(position); // byte offset from where to start writing new data in the block
+    const writeOffset = this.getBoundaryOffset(position); // Byte offset from where to start writing new data in the block
 
     // Optimization: skip read if newData is block aligned and length is blockSize
     if (writeOffset === 0 && newData.length === this.blockSize) {
@@ -2797,7 +2797,7 @@ class EncryptedFS {
    * @param position
    */
   private offsetToBlockNum(position: number): number {
-    // we use blockSize as opposed to chunkSize because chunk contains metadata
+    // We use blockSize as opposed to chunkSize because chunk contains metadata
     // transparent to user. When user specifies position it is as if it were plaintext
     return Math.floor(position / this.blockSize);
   }
@@ -3176,7 +3176,7 @@ class EncryptedFS {
     }
     const pathname = url.pathname;
     if (pathname.match(/%2[fF]/)) {
-      // must not allow encoded slashes
+      // Must not allow encoded slashes
       throw new TypeError('ERR_INVALID_FILE_URL_PATH');
     }
     return decodeURIComponent(pathname);

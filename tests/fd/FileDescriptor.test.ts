@@ -113,7 +113,7 @@ describe('File Descriptor', () => {
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
-    let atime;
+    // Let atime;
     await iNodeMgr.transact(
       async (tran) => {
         tran.queueFailure(() => {
@@ -130,13 +130,13 @@ describe('File Descriptor', () => {
           blockSize,
           origBuffer,
         );
-        atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+        // Atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
       },
       [fileIno],
     );
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     bytesRead = await fd.read(readBuffer);
-    // expect(fd.pos).toBe(origBuffer.length);
+    // Expect(fd.pos).toBe(origBuffer.length);
     // expect(readBuffer).toStrictEqual(origBuffer);
     // expect(bytesRead).toBe(readBuffer.length);
     // await iNodeMgr.transact(async (tran) => {

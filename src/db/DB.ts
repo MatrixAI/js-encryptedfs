@@ -190,7 +190,7 @@ class DB {
     try {
       return await f();
     } finally {
-      // release them in the opposite order
+      // Release them in the opposite order
       releases.reverse();
       for (const r of releases) {
         r();
@@ -223,7 +223,7 @@ class DB {
         await tran.rollback();
         throw e;
       }
-      // only finalize if commit succeeded
+      // Only finalize if commit succeeded
       await tran.finalize();
       return value;
     }, locks);
@@ -268,7 +268,7 @@ class DB {
         });
       } catch (e) {
         if (e instanceof RangeError) {
-          // some domain prefixes will conflict with the separator
+          // Some domain prefixes will conflict with the separator
           throw new dbErrors.ErrorDBLevelPrefix();
         }
         throw e;
@@ -295,7 +295,7 @@ class DB {
         throw new dbErrors.ErrorDBNotStarted();
       }
       let count = 0;
-      for await (const k of dbLevel.createKeyStream()) {
+      for await (const _k of dbLevel.createKeyStream()) {
         count++;
       }
       return count;
@@ -307,7 +307,7 @@ class DB {
     key: string | Buffer,
     raw?: false,
   ): Promise<T | undefined>;
-  public async get<T>(
+  public async get<_T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: true,
@@ -323,7 +323,7 @@ class DB {
     raw: false,
     callback: Callback<[T | undefined]>,
   ): Promise<void>;
-  public async get<T>(
+  public async get<_T>(
     domain: DBDomain,
     key: string | Buffer,
     raw: true,
@@ -501,7 +501,7 @@ class DB {
     cipherText: Buffer,
     raw: false,
   ): Promise<T>;
-  public async deserializeDecrypt<T>(
+  public async deserializeDecrypt<_T>(
     cipherText: Buffer,
     raw: true,
   ): Promise<Buffer>;
@@ -510,7 +510,7 @@ class DB {
     raw: false,
     callback: Callback<[T]>,
   ): Promise<void>;
-  public async deserializeDecrypt<T>(
+  public async deserializeDecrypt<_T>(
     cipherText: Buffer,
     raw: true,
     callback: Callback<[Buffer]>,

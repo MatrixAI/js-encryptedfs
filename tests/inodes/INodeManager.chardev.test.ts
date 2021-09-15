@@ -12,7 +12,7 @@ describe('INodeManager CharacterDev', () => {
     new StreamHandler(),
   ]);
   const devMgr = new vfs.DeviceManager();
-  // register the devices
+  // Register the devices
   devMgr.registerChr(vfs.nullDev, 1, 3);
   let dataDir: string;
   let db: DB;

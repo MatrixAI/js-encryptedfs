@@ -1,4 +1,4 @@
-import type { optionsStream } from './types';
+import type { OptionsStream } from './types';
 import type { Callback } from '../types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
@@ -23,7 +23,7 @@ class ReadStream extends Readable {
    * It will asynchronously open the file descriptor if a file path was passed in
    * It will automatically close the opened file descriptor by default
    */
-  constructor(path: string, options: optionsStream, fs: EncryptedFS) {
+  constructor(path: string, options: OptionsStream, fs: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
       encoding: options.encoding,

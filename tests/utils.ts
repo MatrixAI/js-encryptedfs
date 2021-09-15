@@ -29,7 +29,7 @@ async function createFile(
 ) {
   switch (type) {
     default:
-      fail('invalidType: ' + type);
+      throw Error('invalidType: ' + type);
     case 'none':
       return;
     case 'regular':

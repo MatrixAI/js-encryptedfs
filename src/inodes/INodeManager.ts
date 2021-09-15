@@ -1,12 +1,6 @@
 import type { MutexInterface } from 'async-mutex';
 import type { DeviceManager } from 'virtualfs';
-import type {
-  INodeIndex,
-  INodeId,
-  INodeType,
-  INodeData,
-  BufferId,
-} from './types';
+import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
 import type { DB } from '../db';
 import type { StatProps } from '../Stat';
 import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
@@ -75,7 +69,7 @@ class INodeManager {
       gcDomain,
       gcDb,
     });
-    // clean up any dangling inodes
+    // Clean up any dangling inodes
     for await (const k of gcDb.createKeyStream()) {
       await db.transact(async (tran) => {
         await iNodeMgr.destroy(tran, inodesUtils.uniNodeId(k as INodeId));
@@ -188,7 +182,7 @@ class INodeManager {
     f: (t: DBTransaction) => Promise<T>,
     inos: Array<INodeIndex> = [],
   ) {
-    // will lock nothing by default
+    // Will lock nothing by default
     return await this.db.transact(f, inos.map(this.getLock.bind(this)));
   }
 
@@ -234,7 +228,7 @@ class INodeManager {
     const dirDomain = [...this.dirsDomain, ino.toString()];
     let nlink: number;
     if (parent == null) {
-      // root cannot never be garbage collected
+      // Root cannot never be garbage collected
       nlink = 2;
       parent = ino;
       if ((await this.dirGetRoot(tran)) != null) {
@@ -496,12 +490,12 @@ class INodeManager {
       this.iNodesDomain,
       inodesUtils.iNodeId(ino),
     ))!;
-    // the root directory will never be deleted
+    // The root directory will never be deleted
     if (nlink === 0 || (nlink === 1 && type === 'Directory')) {
       if (refs === 0) {
         await this.destroy(tran, ino);
       } else {
-        // schedule for deletion
+        // Schedule for deletion
         // when scheduled for deletion
         // it is not allowed for mutation of the directory to occur
         await tran.put(this.gcDomain, inodesUtils.iNodeId(ino), null);
@@ -723,7 +717,7 @@ class INodeManager {
     if (inoOld == null) {
       throw new inodesErrors.ErrorINodesInvalidName();
     }
-    const now = new Date;
+    const now = new Date();
     await this.statSetProp(tran, ino, 'ctime', now);
     await this.statSetProp(tran, ino, 'mtime', now);
     await this.statSetProp(tran, inoOld, 'ctime', now);
@@ -731,7 +725,7 @@ class INodeManager {
     if (inoReplace) {
       await this.statSetProp(tran, inoReplace, 'ctime', now);
     }
-    // the order must be set then unset
+    // The order must be set then unset
     // it cannot work if unset then set, the old inode may get garbage collected
     await this.dirSetEntry(tran, ino, nameNew, inoOld);
     await this.dirUnsetEntry(tran, ino, nameOld);
@@ -901,7 +895,10 @@ class INodeManager {
       } else {
         // In this case we are overwriting
         if (offset + data.length > block.length) {
-          block = Buffer.concat([block, Buffer.alloc(offset + data.length - block.length)]);
+          block = Buffer.concat([
+            block,
+            Buffer.alloc(offset + data.length - block.length),
+          ]);
         }
         bytesWritten = block.write(data.toString(), offset);
         const value = block.toString();

@@ -1,9 +1,9 @@
 import type { FdIndex } from '../fd/types';
 
-type optionsStream = {
+type OptionsStream = {
   highWaterMark?: number;
   flags?: string;
-  encoding?: BufferEncoding;
+  encoding?: BufferEncoding; // FIXME undefined?
   fd?: FdIndex;
   mode?: number;
   autoClose?: boolean;
@@ -11,4 +11,4 @@ type optionsStream = {
   end?: number;
 };
 
-export { optionsStream };
+export { OptionsStream };

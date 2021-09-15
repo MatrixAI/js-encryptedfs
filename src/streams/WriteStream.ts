@@ -1,4 +1,4 @@
-import type { optionsStream } from './types';
+import type { OptionsStream } from './types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
@@ -20,7 +20,7 @@ class WriteStream extends Writable {
   /**
    * Creates WriteStream.
    */
-  constructor(path: string, options: optionsStream, fs: EncryptedFS) {
+  constructor(path: string, options: OptionsStream, fs: EncryptedFS) {
     super({
       highWaterMark: options.highWaterMark,
     });

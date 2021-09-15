@@ -82,7 +82,7 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    const [_, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    const [, fdIndex] = await fdMgr.createFd(fileIno, 0);
     await fdMgr.deleteFd(fdIndex);
     const fdDup = fdMgr.getFd(fdIndex);
     expect(fdDup).toBeUndefined();

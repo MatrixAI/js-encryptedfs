@@ -18,6 +18,10 @@
     "sourceType": "module",
     "ecmaVersion": 2020
   },
+  "globals": {
+    "NodeJS": "readonly",
+    "BufferEncoding": "readonly"
+  },
   "rules": {
     "linebreak-style": ["error", "unix"],
     "no-empty": 1,
@@ -27,7 +31,12 @@
     "@typescript-eslint/no-namespace": 0,
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/explicit-module-boundary-types": 0,
-    "@typescript-eslint/no-unused-vars": "warn",
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "varsIgnorePattern": "^_"
+      }
+    ],
     "@typescript-eslint/no-inferrable-types": 0,
     "@typescript-eslint/no-non-null-assertion": 0,
     "capitalized-comments": [
@@ -60,7 +69,8 @@
       {
         "selector": "typeLike",
         "format": ["PascalCase"],
-        "trailingUnderscore": "allowSingleOrDouble"
+        "trailingUnderscore": "allowSingleOrDouble",
+        "leadingUnderscore": "allow"
       },
       {
         "selector": "objectLiteralProperty",
