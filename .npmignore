@@ -1,9 +1,14 @@
 .*
+/nix
 /pkgs.nix
 /default.nix
 /shell.nix
 /release.nix
 /tsconfig.json
+/tsconfig.build.json
+/jest.config.js
 /src
 /tests
 /tmp
+/docs
+/benches

@@ -11,6 +11,12 @@
     },
     {
       "name": "Robert Cronin"
+    },
+    {
+      "name": "Scott Morris"
+    },
+    {
+      "name": "Brian Botha"
     }
   ],
   "description": "In-memory encrypted filesystem",
@@ -29,12 +35,14 @@
     "build": "tsc -p ./tsconfig.build.json",
     "ts-node": "ts-node -r tsconfig-paths/register",
     "test": "jest",
-    "lint": "eslint '{src,tests}/**/*.{js,ts}'",
-    "lintfix": "eslint '{src,tests}/**/*.{js,ts}' --fix",
-    "docs": "typedoc --out ./docs src && touch ./docs/.nojekyll"
+    "lint": "eslint '{src,tests,benches}/**/*.{js,ts}'",
+    "lintfix": "eslint '{src,tests,benches}/**/*.{js,ts}' --fix",
+    "docs": "typedoc --tsconfig ./tsconfig.build.json --out ./docs src && touch ./docs/.nojekyll",
+    "bench": "ts-node -r tsconfig-paths/register ./benches"
   },
   "dependencies": {
     "@matrixai/logger": "^2.0.1",
+    "@matrixai/workers": "^1.1.1",
     "abstract-leveldown": "^7.0.0",
     "async-mutex": "^0.3.1",
     "canonicalize": "^1.0.5",
@@ -47,7 +55,6 @@
     "resource-counter": "^1.2.4",
     "sublevel-prefixer": "^1.0.0",
     "subleveldown": "^5.0.1",
-    "threads": "^1.6.5",
     "ts-custom-error": "^3.2.0",
     "util-callbackify": "^1.0.0",
     "virtualfs": "^2.2.0"
@@ -61,15 +68,17 @@
     "@types/subleveldown": "^4.1.0",
     "@typescript-eslint/eslint-plugin": "^4.12.0",
     "@typescript-eslint/parser": "^4.12.0",
+    "benny": "^3.6.15",
     "eslint": "^7.17.0",
     "eslint-config-prettier": "^7.1.0",
     "eslint-plugin-prettier": "^3.3.1",
     "jest": "^26.6.3",
     "prettier": "^2.2.1",
+    "systeminformation": "^5.8.9",
     "ts-jest": "^26.4.4",
     "ts-node": "^9.1.1",
     "tsconfig-paths": "^3.9.0",
-    "typedoc": "^0.20.16",
+    "typedoc": "^0.21.5",
     "typescript": "^4.1.3"
   }
 }
