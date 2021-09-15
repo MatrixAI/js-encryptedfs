@@ -11,6 +11,24 @@ const authTagSize = 16;
 const pathJoin = pathNode.posix ? pathNode.posix.join : pathNode.join;
 const pathResolve = pathNode.posix ? pathNode.posix.resolve : pathNode.resolve;
 
+/**
+ * Slice-copies the Node Buffer to a new ArrayBuffer
+ */
+function toArrayBuffer(b: Buffer): ArrayBuffer {
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+}
+
+/**
+ * Wraps ArrayBuffer in Node Buffer with zero copy
+ */
+function fromArrayBuffer(
+  b: ArrayBuffer,
+  offset?: number,
+  length?: number,
+): Buffer {
+  return Buffer.from(b, offset, length);
+}
+
 async function getRandomBytes(size: number): Promise<Buffer> {
   return Buffer.from(await random.getBytes(size), 'binary');
 }
@@ -74,6 +92,9 @@ function generateKeyFromPassSync(
   const key = pkcs5.pbkdf2(password, salt, 2048, keyLen, md.sha512.create());
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
+
+// ATTEMPT TO DO THIS WITH ARRAYBUFFER
+// Use ByteBuffer instead
 
 function encryptWithKey(key: Buffer, plainText: Buffer): Buffer {
   const iv = getRandomBytesSync(ivSize);
@@ -434,6 +455,8 @@ export {
   authTagSize,
   pathJoin,
   pathResolve,
+  toArrayBuffer,
+  fromArrayBuffer,
   encryptWithKey,
   decryptWithKey,
   generateKey,

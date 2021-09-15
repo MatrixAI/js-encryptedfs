@@ -1,4 +1,8 @@
-export { default as WorkerManager } from './WorkerManager';
-export { default as efsWorker } from './efsWorkerModule';
-export * as errors from './errors';
-export { WorkerManagerInterface } from './types';
+import type { WorkerManagerInterface } from '@matrixai/workers';
+import type { EFSWorkerModule } from './efsWorkerModule';
+
+type EFSWorkerManagerInterface = WorkerManagerInterface<EFSWorkerModule>;
+
+export { default as efsWorkerModule } from './efsWorkerModule';
+
+export type { EFSWorkerModule, EFSWorkerManagerInterface };
