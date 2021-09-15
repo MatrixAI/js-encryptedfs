@@ -4,7 +4,7 @@ import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
 import * as vfs from 'virtualfs';
-import { Readable } from 'stream';
+import { Readable } from 'readable-stream';
 
 class ReadStream extends Readable {
   protected _bytesRead: number;

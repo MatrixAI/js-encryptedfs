@@ -911,11 +911,72 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents2).toContain('C');
     // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
   });
-  test('Writing a file and deleting the file at the same time', async () => {
+  test('Writing a file and deleting the file at the same time using writeFile', async () => {
     await efs.writeFile('file', '');
 
     // Odd error, needs fixing.
     await Promise.all([efs.writeFile('file', 'CONTENT!'), efs.unlink('file')]);
+  });
+  test('opening a file and deleting the file at the same time', async () => {
+    await efs.writeFile('file', '');
+
+    // Odd error, needs fixing.
+    const results = await Promise.all([
+      efs.open('file', flags.O_WRONLY),
+      efs.unlink('file'),
+    ]);
+    const fd = results[0];
+    await efs.write(fd, 'yooo');
+  });
+  test('Writing a file and deleting the file at the same time for fd', async () => {
+    await efs.writeFile('file', '');
+
+    const fd1 = await efs.open('file', flags.O_WRONLY);
+    await Promise.all([
+      efs.write(fd1, Buffer.from('TESTING WOOo')),
+      efs.unlink('file'),
+    ]);
+    await efs.close(fd1);
+    expect(await efs.readdir('.')).toEqual([]);
+
+    await efs.writeFile('file', '');
+    const fd2 = await efs.open('file', flags.O_WRONLY);
+    await Promise.all([
+      efs.unlink('file'),
+      efs.write(fd2, Buffer.from('TESTING TWOOo')),
+    ]);
+    await efs.close(fd2);
+    expect(await efs.readdir('.')).toEqual([]);
+  });
+  test('Writing a file and deleting the file at the same time for stream', async () => {
+    await efs.writeFile('file', '');
+
+    const writeStream1 = await efs.createWriteStream('file');
+    await Promise.all([
+      new Promise((res) => {
+        writeStream1.write(Buffer.from('AAAAAAAAAA'), () => {
+          writeStream1.end(() => {
+            res(null);
+          });
+        });
+      }),
+      efs.unlink('file'),
+    ]);
+    expect(await efs.readdir('.')).toEqual([]);
+
+    await efs.writeFile('file', '');
+    const writeStream2 = await efs.createWriteStream('file');
+    await Promise.all([
+      efs.unlink('file'),
+      new Promise((res) => {
+        writeStream2.write(Buffer.from('BBBBBBBBBB'), () => {
+          writeStream2.end(() => {
+            res(null);
+          });
+        });
+      }),
+    ]);
+    expect(await efs.readdir('.')).toEqual([]);
   });
   test('Appending to a file that is being written to for fd ', async () => {
     await efs.writeFile('file', '');
@@ -927,12 +988,11 @@ describe('EncryptedFS Concurrency', () => {
     ]);
 
     const fileContents = (await efs.readFile('file')).toString();
-    console.log(fileContents);
     expect(fileContents).toContain('A');
     expect(fileContents).toContain('B');
     expect(fileContents).toContain('AB');
-
     await efs.close(fd1);
+
     await efs.writeFile('file', '');
     const fd2 = await efs.open('file', flags.O_WRONLY);
     await Promise.all([
@@ -942,10 +1002,11 @@ describe('EncryptedFS Concurrency', () => {
 
     // The append seems to happen after the write.
     const fileContents2 = (await efs.readFile('file')).toString();
-    console.log(fileContents2);
     expect(fileContents2).toContain('A');
     expect(fileContents2).toContain('B');
     expect(fileContents2).toContain('AB');
+    await sleep(1000);
+    await efs.close(fd2);
   });
   test('Appending to a file that is being written for stream', async () => {
     await efs.writeFile('file', '');
@@ -962,27 +1023,26 @@ describe('EncryptedFS Concurrency', () => {
     ]);
 
     const fileContents = (await efs.readFile('file')).toString();
-    console.log(fileContents);
     expect(fileContents).toContain('A');
     expect(fileContents).toContain('B');
     expect(fileContents).toContain('AB');
 
     await efs.writeFile('file', '');
+    const writeStream2 = await efs.createWriteStream('file');
     await Promise.all([
       efs.appendFile('file', 'BBBBBBBBBB'),
       new Promise((res) => {
-        writeStream.write(Buffer.from('AAAAAAAAAA'), () => {
-          writeStream.end(() => {
+        writeStream2.write(Buffer.from('AAAAAAAAAA'), () => {
+          writeStream2.end(() => {
             res(null);
           });
         });
       }),
     ]);
 
-    // The append seems to overwrite the stream.
+    // Append seems to happen after stream.
     const fileContents2 = (await efs.readFile('file')).toString();
-    console.log(fileContents2);
-    expect(fileContents2).not.toContain('A');
+    expect(fileContents2).toContain('A');
     expect(fileContents2).toContain('B');
   });
   test('Copying a file that is being written to for fd', async () => {
@@ -1011,7 +1071,6 @@ describe('EncryptedFS Concurrency', () => {
 
     // Also gets overwritten before copy.
     const fileContents2 = (await efs.readFile('fileCopy')).toString();
-    console.log(fileContents2);
     expect(fileContents2).not.toContain('A');
     expect(fileContents2).toContain('B');
   });
@@ -1037,22 +1096,24 @@ describe('EncryptedFS Concurrency', () => {
 
     await efs.writeFile('file', 'AAAAAAAAAA');
     await efs.unlink('fileCopy');
+    const writeStream2 = await efs.createWriteStream('file');
 
     await Promise.all([
       efs.copyFile('file', 'fileCopy'),
       new Promise((res) => {
-        writeStream.write(Buffer.from('BBBBBBBBBB'), () => {
-          writeStream.end(() => {
+        writeStream2.write(Buffer.from('BBBBBBBBBB'), () => {
+          writeStream2.end(() => {
             res(null);
           });
         });
       }),
     ]);
 
-    // Copy happens first.
+    // Copy happens after stream.
     const fileContents2 = (await efs.readFile('fileCopy')).toString();
     console.log(fileContents2);
-    expect(fileContents2).toContain('A');
-    expect(fileContents2).not.toContain('B');
+    expect(fileContents2).not.toContain('A');
+    expect(fileContents2).toContain('B');
+    await sleep(100);
   });
 });

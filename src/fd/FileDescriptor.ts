@@ -285,7 +285,6 @@ class FileDescriptor {
     }
 
     let bytesWritten = 0;
-
     switch (type) {
       case 'File':
         {

@@ -3,7 +3,7 @@ import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
 import * as vfs from 'virtualfs';
-import { Writable } from 'stream';
+import { Writable } from 'readable-stream';
 import { Callback } from '@/types';
 
 class WriteStream extends Writable {

@@ -64,7 +64,7 @@ describe('INodeManager File', () => {
       expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
       // The size, blocks and block size should be 0 if no data supplied
       expect(stat['size']).toBe(0);
-      expect(stat['blksize']).toBe(0);
+      expect(stat['blksize']).toBe(5); // 5 was supplied
       expect(stat['blocks']).toBe(0);
       // The mode should start at the default file permissions
       expect(stat['mode']).toBe(
@@ -106,7 +106,7 @@ describe('INodeManager File', () => {
         expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
         // The size, blocks and block size should be set if data supplied
         expect(stat['size']).toBe(buffer.length);
-        expect(stat['blksize']).toBe(0);
+        expect(stat['blksize']).toBe(5);
         expect(stat['blocks']).toBe(3);
         // All timestamps should be the same at creation
         expect(stat['atime']).toEqual(stat['mtime']);

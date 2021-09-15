@@ -7,7 +7,7 @@ import * as utils from '@/utils';
 import EncryptedFS from '@/EncryptedFS';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
-import { Readable, Writable } from 'readable-stream';
+import { Readable, Writable } from 'stream';
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [
@@ -268,6 +268,7 @@ describe('EncryptedFS Streams', () => {
       }
 
       const testWritable = new TestWritable();
+      // @ts-ignore: This works but problem with types.
       readStream.pipe(testWritable);
       testWritable.on('finish', () => {
         expect(data).toEqual(str);
@@ -301,6 +302,7 @@ describe('EncryptedFS Streams', () => {
       }
 
       const testReadableStream = new TestReadableStream();
+      // @ts-ignore: This works but problem with types.
       testReadableStream.pipe(writeStream);
       writeStream.on('finish', async () => {
         const data = await efs.readFile('file');
