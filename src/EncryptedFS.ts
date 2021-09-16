@@ -1570,153 +1570,143 @@ class EncryptedFS {
     }
     let navigated = await this.navigate(path, false);
     let target = navigated.target;
+    const openFlags = flags;
+    const openPath = path;
+    let openRet;
     // This is needed for the purpose of symlinks, if the navigated target exists
     // and is a symlink we need to go inside and check the target again. So a while
     // loop suits us best. In VFS this was easier as the type checking wasn't as strict
-    for (;;) {
-      if (!target) {
-        // O_CREAT only applies if there's a left over name without any remaining path
-        if (!navigated.remaining && flags & vfs.constants.O_CREAT) {
-          let navigatedDirStat;
-          const fileINode = this._iNodeMgr.inoAllocate();
-          await this._iNodeMgr.transact(
-            async (tran) => {
-              tran.queueFailure(() => {
-                this._iNodeMgr.inoDeallocate(fileINode);
-              });
-              navigatedDirStat = await this._iNodeMgr.statGet(
-                tran,
-                navigated.dir,
-              );
-              // Cannot create if the current directory has been unlinked from its parent directory
-              if (navigatedDirStat.nlink < 2) {
-                throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
-              }
-              if (
-                !this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)
-              ) {
-                throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
-              }
-              await this._iNodeMgr.fileCreate(
-                tran,
-                fileINode,
-                {
-                  mode: vfs.applyUmask(mode, this._umask),
-                  uid: this._uid,
-                  gid: this._gid,
-                },
-                this._blkSize,
-              );
-              await this._iNodeMgr.dirSetEntry(
-                tran,
-                navigated.dir,
-                navigated.name,
-                fileINode,
-              );
-            },
-            [fileINode, navigated.dir],
-          );
-          target = fileINode;
-          break;
+    await this._iNodeMgr.transact(async (tran) => {
+      for (;;) {
+        if (!target) {
+          // O_CREAT only applies if there's a left over name without any remaining path
+          if (!navigated.remaining && openFlags & vfs.constants.O_CREAT) {
+            let navigatedDirStat;
+            const fileINode = this._iNodeMgr.inoAllocate();
+            await this._iNodeMgr.transact(
+              async (tran) => {
+                tran.queueFailure(() => {
+                  this._iNodeMgr.inoDeallocate(fileINode);
+                });
+                navigatedDirStat = await this._iNodeMgr.statGet(
+                  tran,
+                  navigated.dir,
+                );
+                // Cannot create if the current directory has been unlinked from its parent directory
+                if (navigatedDirStat.nlink < 2) {
+                  throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
+                }
+                if (
+                  !this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)
+                ) {
+                  throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+                }
+                await this._iNodeMgr.fileCreate(
+                  tran,
+                  fileINode,
+                  {
+                    mode: vfs.applyUmask(mode, this._umask),
+                    uid: this._uid,
+                    gid: this._gid,
+                  },
+                  this._blkSize,
+                );
+                await this._iNodeMgr.dirSetEntry(
+                  tran,
+                  navigated.dir,
+                  navigated.name,
+                  fileINode,
+                );
+              },
+              [fileINode, navigated.dir],
+            );
+            target = fileINode;
+            break;
+          } else {
+            throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
+          }
         } else {
-          throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
-        }
-      } else {
-        const targetIno = target;
-        let targetType;
-        await this._iNodeMgr.transact(
-          async (tran) => {
-            targetType = (await this._iNodeMgr.get(tran, targetIno))?.type;
-          },
-          [targetIno],
-        );
-        if (targetType === 'Symlink') {
-          // Cannot be symlink if O_NOFOLLOW
-          if (flags & vfs.constants.O_NOFOLLOW) {
-            throw new EncryptedFSError(errno.ELOOP, `open '${path}'`);
-          }
-          navigated = await this.navigateFrom(
-            navigated.dir,
-            navigated.name + navigated.remaining,
-            true,
-            undefined,
-            undefined,
-            path,
-          );
-          target = navigated.target;
-        } else {
-          // Target already exists cannot be created exclusively
-          if (flags & vfs.constants.O_CREAT && flags & vfs.constants.O_EXCL) {
-            throw new EncryptedFSError(errno.EEXIST, `open '${path}'`);
-          }
-          // Cannot be directory if write capabilities are requested
-          if (
-            targetType === 'Directory' &&
-            flags &
-              (vfs.constants.O_WRONLY |
-                (flags &
-                  (vfs.constants.O_RDWR | (flags & vfs.constants.O_TRUNC))))
-          ) {
-            throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
-          }
-          // Must be directory if O_DIRECTORY
-          if (
-            flags & vfs.constants.O_DIRECTORY &&
-            !(targetType === 'Directory')
-          ) {
-            throw new EncryptedFSError(errno.ENOTDIR, `open '${path}'`);
-          }
-          // Must truncate a file if O_TRUNC
-          if (
-            flags & vfs.constants.O_TRUNC &&
-            targetType === 'File' &&
-            flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)
-          ) {
-            await this._iNodeMgr.transact(async (tran) => {
-              await this._iNodeMgr.fileClearData(tran, targetIno);
+          const targetType = (await this._iNodeMgr.get(tran, target))?.type;
+          if (targetType === 'Symlink') {
+            // Cannot be symlink if O_NOFOLLOW
+            if (openFlags & vfs.constants.O_NOFOLLOW) {
+              throw new EncryptedFSError(errno.ELOOP, `open '${path}'`);
+            }
+            navigated = await this.navigateFrom(
+              navigated.dir,
+              navigated.name + navigated.remaining,
+              true,
+              undefined,
+              undefined,
+              openPath,
+            );
+            target = navigated.target;
+          } else {
+            // Target already exists cannot be created exclusively
+            if (openFlags & vfs.constants.O_CREAT && openFlags & vfs.constants.O_EXCL) {
+              throw new EncryptedFSError(errno.EEXIST, `open '${path}'`);
+            }
+            // Cannot be directory if write capabilities are requested
+            if (
+              targetType === 'Directory' &&
+              openFlags &
+                (vfs.constants.O_WRONLY |
+                  (openFlags &
+                    (vfs.constants.O_RDWR | (openFlags & vfs.constants.O_TRUNC))))
+            ) {
+              throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
+            }
+            // Must be directory if O_DIRECTORY
+            if (
+              openFlags & vfs.constants.O_DIRECTORY &&
+              !(targetType === 'Directory')
+            ) {
+              throw new EncryptedFSError(errno.ENOTDIR, `open '${path}'`);
+            }
+            // Must truncate a file if O_TRUNC
+            if (
+              openFlags & vfs.constants.O_TRUNC &&
+              targetType === 'File' &&
+              openFlags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)
+            ) {
+              await this._iNodeMgr.fileClearData(tran, target);
               await this._iNodeMgr.fileSetBlocks(
                 tran,
-                targetIno,
+                target,
                 Buffer.alloc(0),
                 this._blkSize,
               );
-            }, []);
+            }
+            break;
           }
-          break;
         }
       }
-    }
-    // Convert file descriptor access flags into bitwise permission flags
-    let access;
-    if (flags & vfs.constants.O_RDWR) {
-      access = vfs.constants.R_OK | vfs.constants.W_OK;
-    } else if (
-      (flags & vfs.constants.O_WRONLY) |
-      (flags & vfs.constants.O_TRUNC)
-    ) {
-      access = vfs.constants.W_OK;
-    } else {
-      access = vfs.constants.R_OK;
-    }
-    const finalTarget = target;
-    let targetStat;
-    await this._iNodeMgr.transact(
-      async (tran) => {
-        targetStat = await this._iNodeMgr.statGet(tran, finalTarget);
-      },
-      [target],
-    );
-    if (!this.checkPermissions(access, targetStat)) {
-      throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
-    }
-    try {
-      return await this._fdMgr.createFd(target, flags);
-    } catch (e) {
-      if (e instanceof EncryptedFSError) {
+      // Convert file descriptor access flags into bitwise permission flags
+      let access;
+      if (openFlags & vfs.constants.O_RDWR) {
+        access = vfs.constants.R_OK | vfs.constants.W_OK;
+      } else if (
+        (openFlags & vfs.constants.O_WRONLY) |
+        (openFlags & vfs.constants.O_TRUNC)
+      ) {
+        access = vfs.constants.W_OK;
+      } else {
+        access = vfs.constants.R_OK;
+      }
+      const targetStat = await this._iNodeMgr.statGet(tran, target);
+      if (!this.checkPermissions(access, targetStat)) {
         throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
       }
-      throw e;
-    }
+      try {
+        openRet = await this._fdMgr.createFd(tran, target, openFlags);
+      } catch (e) {
+        if (e instanceof EncryptedFSError) {
+          throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
+        }
+        throw e;
+      }
+    }, navigated.target ? [navigated.target] : []);
+    return openRet;
   }
 
   public async read(
@@ -2758,7 +2748,7 @@ class EncryptedFS {
           const targetData = await this._iNodeMgr.get(tran, target);
           targetType = targetData?.type;
         },
-        [target],
+        [],
       );
       switch (targetType) {
         case 'File':
@@ -2819,7 +2809,7 @@ class EncryptedFS {
               async (tran) => {
                 targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
               },
-              [target],
+              [],
             );
             nextPath = pathJoin(targetLinks, parse.rest);
             if (nextPath[0] === '/') {

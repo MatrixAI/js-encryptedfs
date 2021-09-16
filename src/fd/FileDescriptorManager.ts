@@ -1,5 +1,6 @@
 import type { INodeType, INodeIndex } from '../inodes/types';
 import type { FdIndex } from './types';
+import type { DBTransaction } from '../db/types';
 
 import Counter from 'resource-counter';
 
@@ -32,30 +33,22 @@ class FileDescriptorManager {
    * This will increment the reference to the iNode preventing garbage collection by the INodeManager.
    */
   public async createFd(
+    tran: DBTransaction,
     ino: INodeIndex,
     flags: number,
   ): Promise<[FileDescriptor, FdIndex]> {
     const index = this._counter.allocate();
     const fd = new FileDescriptor(this._iNodeMgr, ino, flags);
-    let type;
-    await this._iNodeMgr.transact(
-      async (tran) => {
-        type = await tran.get<INodeType>(
-          this._iNodeMgr.iNodesDomain,
-          inodesUtils.iNodeId(ino),
-        );
-      },
-      [ino],
+    const type = await tran.get<INodeType>(
+      this._iNodeMgr.iNodesDomain,
+      inodesUtils.iNodeId(ino),
     );
     if (type === 'CharacterDev') {
-      let fops;
-      await this._iNodeMgr.transact(async (tran) => {
-        fops = await this._iNodeMgr.charDevGetFileDesOps(tran, ino);
-      });
+      const fops = await this._iNodeMgr.charDevGetFileDesOps(tran, ino);
       if (!fops) {
         throw Error('INode does not exist');
       } else {
-        fops.open(fd);
+        // fops.open(fd);
       }
     }
 

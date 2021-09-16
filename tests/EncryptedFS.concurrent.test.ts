@@ -916,6 +916,7 @@ describe('EncryptedFS Concurrency', () => {
 
     // Odd error, needs fixing.
     await Promise.all([efs.writeFile('file', 'CONTENT!'), efs.unlink('file')]);
+    await expectError(efs.readFile('file'), errno.ENOENT);
   });
   test('opening a file and deleting the file at the same time', async () => {
     await efs.writeFile('file', '');
@@ -1111,7 +1112,6 @@ describe('EncryptedFS Concurrency', () => {
 
     // Copy happens after stream.
     const fileContents2 = (await efs.readFile('fileCopy')).toString();
-    console.log(fileContents2);
     expect(fileContents2).not.toContain('A');
     expect(fileContents2).toContain('B');
     await sleep(100);

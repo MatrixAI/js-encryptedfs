@@ -58,7 +58,10 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    let fd, fdIndex;
+    await iNodeMgr.transact(async (tran) => {
+      [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
+    }, [fileIno]);
     expect(fd).toBeInstanceOf(FileDescriptor);
     expect(typeof fdIndex).toBe('number');
   });
@@ -70,7 +73,10 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    let fd, fdIndex;
+    await iNodeMgr.transact(async (tran) => {
+      [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
+    }, [fileIno]);
     const fdDup = fdMgr.getFd(fdIndex);
     expect(fd).toBe(fdDup);
   });
@@ -82,7 +88,10 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    const [, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    let fd, fdIndex;
+    await iNodeMgr.transact(async (tran) => {
+      [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
+    }, [fileIno]);
     await fdMgr.deleteFd(fdIndex);
     const fdDup = fdMgr.getFd(fdIndex);
     expect(fdDup).toBeUndefined();
@@ -95,7 +104,10 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    let fd, fdIndex;
+    await iNodeMgr.transact(async (tran) => {
+      [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
+    }, [fileIno]);
     const fdDupIndex = fdMgr.dupFd(fdIndex);
     expect(fdDupIndex).not.toBe(fdIndex);
     if (!fdDupIndex) {
@@ -153,8 +165,10 @@ describe('File Descriptor Manager', () => {
       [rootIno, fileIno],
     );
     // The ref to the file iNode is made here
-    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
-    // The file is 'deleted' from the directory
+    let fd, fdIndex;
+    await iNodeMgr.transact(async (tran) => {
+      [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
+    }, [fileIno]);    // The file is 'deleted' from the directory
     await iNodeMgr.transact(
       async (tran) => {
         await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');
