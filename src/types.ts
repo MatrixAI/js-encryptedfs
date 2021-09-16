@@ -71,40 +71,6 @@ type Data = string | Buffer | Uint8Array;
 
 type File = FdIndex | Path;
 
-// We want to take in types from the relevant db types
-// queue
-// that's the common types
-// you know
-// callbacks must take nothing
-// no actually void really
-// we are not capturing anything
-// they are pure side effects to be executed
-// during a bathc
-// unless batch
-// right now batch runs
-// and then we run with the batched up operations as well
-// type QueueUp = {
-//   // ops: Array<DBOp>;
-//   callbacks: Array<() => void>;
-// };
-
-// const x: QueueUp = {
-//   callbacks: [
-//     () => {},
-//     () => { console.log('hello'); },
-//     async () => {
-//       console.log('oh');
-//       return 1;
-//     }
-//   ]
-// };
-
-// random callbacks to perform
-// but these may be other
-// queuing up the transformations
-// after the batching succeeds
-// it makes sense that these are not asynchronous?
-
 /**
  * Minimal filesystem type
  * Based on the required operations from fs/promises
@@ -125,16 +91,6 @@ interface FileSystem {
   };
 }
 
-// We may not need this anymore
-// since reading any blocks require taking it from the underlying fs
-// and so it's no longer in-memory anymore
-
-type BlockMeta = {
-  loaded: Set<number>;
-};
-
-type EncryptedFSLayer = 'upper' | 'lower' | 'middle';
-
 export type {
   POJO,
   Opaque,
@@ -143,8 +99,6 @@ export type {
   FunctionProperties,
   NonFunctionProperties,
   FileSystem,
-  EncryptedFSLayer,
-  BlockMeta,
   Navigated,
   ParsedPath,
   Path,
