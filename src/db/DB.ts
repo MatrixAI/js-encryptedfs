@@ -315,26 +315,27 @@ class DB {
     if (!this._started) {
       throw new dbErrors.ErrorDBNotStarted();
     }
-    const ops_: Array<AbstractBatch> = [];
+    const opsP: Array<Promise<AbstractBatch> | AbstractBatch> = [];
     for (const op of ops) {
       if (op.type === 'del') {
-        ops_.push({
+        opsP.push({
           type: op.type,
           key: dbUtils.domainPath(op.domain, op.key),
         });
-      } else if (op.type === 'put') {
-        const data = await this.serializeEncrypt(
-          op.value,
-          (op.raw === true) as any,
+      } else {
+        opsP.push(
+          this.serializeEncrypt(op.value, (op.raw === true) as any).then(
+            (data) => ({
+              type: op.type,
+              key: dbUtils.domainPath(op.domain, op.key),
+              value: data,
+            }),
+          ),
         );
-        ops_.push({
-          type: op.type,
-          key: dbUtils.domainPath(op.domain, op.key),
-          value: data,
-        });
       }
     }
-    return this._db.batch(ops_);
+    const opsB = await Promise.all(opsP);
+    return this._db.batch(opsB);
   }
 
   public async serializeEncrypt(value: any, raw: false): Promise<Buffer>;

@@ -50,6 +50,51 @@ describe('DB', () => {
     expect(await db.get(['level1'], 'a')).toBeUndefined();
     await db.stop();
   });
+  test('batch put and del', async () => {
+    const dbPath = `${dataDir}/db`;
+    const db = await DB.createDB({ dbKey, dbPath, logger });
+    await db.start();
+    await db.batch([
+      {
+        type: 'put',
+        domain: [],
+        key: 'a',
+        value: 'value0',
+        raw: false,
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'b',
+        value: 'value1',
+        raw: false,
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'c',
+        value: 'value2',
+        raw: false,
+      },
+      {
+        type: 'del',
+        domain: [],
+        key: 'a',
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'd',
+        value: 'value3',
+        raw: false,
+      },
+    ]);
+    expect(await db.get([], 'a')).toBeUndefined();
+    expect(await db.get([], 'b')).toBe('value1');
+    expect(await db.get([], 'c')).toBe('value2');
+    expect(await db.get([], 'd')).toBe('value3');
+    await db.stop();
+  });
   test('db levels are leveldbs', async () => {
     const dbPath = `${dataDir}/db`;
     const db = await DB.createDB({ dbKey, dbPath, logger });
@@ -318,6 +363,58 @@ describe('DB', () => {
     expect(await db.get(['level1'], 'a')).toBe('value1');
     await db.del(['level1'], 'a');
     expect(await db.get(['level1'], 'a')).toBeUndefined();
+    await db.stop();
+    await workerManager.stop();
+  });
+  test('parallelized batch put and del', async () => {
+    const dbPath = `${dataDir}/db`;
+    const db = await DB.createDB({ dbKey, dbPath, logger });
+    const workerManager = new WorkerManager<EFSWorkerModule>({ logger });
+    await workerManager.start({
+      workerFactory: () => spawn(new Worker('../../src/workers/efsWorker')),
+      cores: 4,
+    });
+    db.setWorkerManager(workerManager);
+    await db.start();
+    await db.batch([
+      {
+        type: 'put',
+        domain: [],
+        key: 'a',
+        value: 'value0',
+        raw: false,
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'b',
+        value: 'value1',
+        raw: false,
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'c',
+        value: 'value2',
+        raw: false,
+      },
+      {
+        type: 'del',
+        domain: [],
+        key: 'a',
+      },
+      {
+        type: 'put',
+        domain: [],
+        key: 'd',
+        value: 'value3',
+        raw: false,
+      },
+    ]);
+    expect(await db.get([], 'a')).toBeUndefined();
+    expect(await db.get([], 'b')).toBe('value1');
+    expect(await db.get([], 'c')).toBe('value2');
+    expect(await db.get([], 'd')).toBe('value3');
     await db.stop();
     await workerManager.stop();
   });
