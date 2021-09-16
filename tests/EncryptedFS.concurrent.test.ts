@@ -1116,4 +1116,22 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents2).toContain('B');
     await sleep(100);
   });
+  test('removing a dir while renaming it.', async () => {
+    // create the directory
+    await efs.mkdir('dir');
+    // removing and renaming.
+    await Promise.all([
+      efs.rmdir('dir'),
+      efs.rename('dir', 'renamedDir'),
+    ])
+    console.log(await efs.readdir('.'));
+
+    // reverse order.
+    await efs.mkdir('dir2');
+    await Promise.all([
+      efs.rename('dir2', 'renamedDir2'),
+      efs.rmdir('dir2'),
+    ])
+    console.log(await efs.readdir('.'));
+  })
 });
