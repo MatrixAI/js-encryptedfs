@@ -2,9 +2,9 @@ import type { OptionsStream } from './types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
-import * as vfs from 'virtualfs';
 import { Writable } from 'readable-stream';
 import { Callback } from '@/types';
+import { permissions } from "../constants";
 
 class WriteStream extends Writable {
   protected _bytesWritten: number;
@@ -30,7 +30,7 @@ class WriteStream extends Writable {
     this._fd = options.fd === undefined ? undefined : options.fd;
     this._flags = options.flags === undefined ? 'w' : options.flags;
     this._mode =
-      options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
+      options.mode === undefined ? permissions.DEFAULT_FILE_PERM : options.mode;
     this._autoClose =
       options.autoClose === undefined ? true : options.autoClose;
     this._pos = options.start;

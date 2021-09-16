@@ -5,7 +5,7 @@ import { INodeManager } from '../inodes';
 
 import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
-import { constants } from '../';
+import { constants } from '../constants';
 
 /*
  * File descriptor class which uses the INode type as a template

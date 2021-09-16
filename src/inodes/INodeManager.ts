@@ -13,7 +13,7 @@ import * as inodesUtils from './utils';
 import * as inodesErrors from './errors';
 import Stat from '../Stat';
 import * as utils from '../utils';
-import { constants } from '../';
+import { constants, permissions } from '../constants';
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
 type FileParams = Partial<Omit<INodeParams, 'ino'>>;
@@ -289,8 +289,8 @@ class INodeManager {
     const statDomain = [...this.statsDomain, params.ino.toString()];
     params.dev = params.dev ?? 0;
     params.nlink = params.nlink ?? 0;
-    params.uid = params.uid ?? vfs.DEFAULT_ROOT_UID;
-    params.gid = params.gid ?? vfs.DEFAULT_ROOT_GID;
+    params.uid = params.uid ?? permissions.DEFAULT_ROOT_UID;
+    params.gid = params.gid ?? permissions.DEFAULT_ROOT_GID;
     params.rdev = params.rdev ?? 0;
     params.size = params.size ?? 0;
     params.blksize = params.blksize ?? 0;

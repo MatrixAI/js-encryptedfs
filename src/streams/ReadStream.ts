@@ -3,8 +3,8 @@ import type { Callback } from '../types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
-import * as vfs from 'virtualfs';
 import { Readable } from 'readable-stream';
+import { permissions } from '../constants';
 
 class ReadStream extends Readable {
   protected _bytesRead: number;
@@ -34,7 +34,7 @@ class ReadStream extends Readable {
     this._fd = options.fd === undefined ? undefined : options.fd;
     this._flags = options.flags === undefined ? 'r' : options.flags;
     this._mode =
-      options.mode === undefined ? vfs.DEFAULT_FILE_PERM : options.mode;
+      options.mode === undefined ? permissions.DEFAULT_FILE_PERM : options.mode;
     this._autoClose =
       options.autoClose === undefined ? true : options.autoClose;
     this._end = options.end === undefined ? Infinity : options.end;

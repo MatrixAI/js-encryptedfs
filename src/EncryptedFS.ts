@@ -22,7 +22,8 @@ import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
 import Stat from './Stat';
-import { constants, DeviceManager } from '.';
+import { DeviceManager } from '.';
+import { constants, permissions, devices as deviceConstants} from './constants';
 
 import * as inodesErrors from './inodes/errors';
 
@@ -88,9 +89,9 @@ class EncryptedFS {
           iNodeManager.inoDeallocate(rootIno);
         });
         await iNodeManager.dirCreate(tran, rootIno, {
-          mode: vfs.DEFAULT_ROOT_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_ROOT_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         });
       },
       [rootIno],
@@ -133,8 +134,8 @@ class EncryptedFS {
     this._fdMgr = new FileDescriptorManager(this._iNodeMgr);
     this._root = rootIno;
     this._cwd = new CurrentDirectory(this._iNodeMgr, this._root);
-    this._uid = vfs.DEFAULT_ROOT_UID;
-    this._gid = vfs.DEFAULT_ROOT_GID;
+    this._uid = permissions.DEFAULT_ROOT_UID;
+    this._gid = permissions.DEFAULT_ROOT_GID;
     this._umask = umask;
     this._blkSize = blkSize;
     this.logger = logger;
@@ -263,7 +264,7 @@ class EncryptedFS {
     data: Data = 'undefined',
     optionsOrCallback: Options | Callback = {
       encoding: 'utf8',
-      mode: vfs.DEFAULT_FILE_PERM,
+      mode: permissions.DEFAULT_FILE_PERM,
       flag: 'a',
     },
     callback?: Callback,
@@ -271,10 +272,10 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions(
-            { encoding: 'utf8' as BufferEncoding, mode: vfs.DEFAULT_FILE_PERM },
+            { encoding: 'utf8' as BufferEncoding, mode: permissions.DEFAULT_FILE_PERM },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as Options);
+        : ({ encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -336,7 +337,7 @@ class EncryptedFS {
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
           if (
-            this._uid !== vfs.DEFAULT_ROOT_UID &&
+            this._uid !== permissions.DEFAULT_ROOT_UID &&
             this._uid !== targetStat.uid
           ) {
             throw new EncryptedFSError(errno.EPERM, `chmod '${path}'`);
@@ -368,7 +369,7 @@ class EncryptedFS {
       await this._iNodeMgr.transact(
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
-          if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          if (this._uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (targetStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `chown '${path}'`);
@@ -530,7 +531,7 @@ class EncryptedFS {
       flags: 'r',
       encoding: undefined,
       fd: undefined,
-      mode: vfs.DEFAULT_FILE_PERM,
+      mode: permissions.DEFAULT_FILE_PERM,
       autoClose: true,
       end: Infinity,
     };
@@ -573,7 +574,7 @@ class EncryptedFS {
       flags: 'w',
       encoding: 'utf8',
       fd: undefined,
-      mode: vfs.DEFAULT_FILE_PERM,
+      mode: permissions.DEFAULT_FILE_PERM,
       autoClose: true,
     };
     const options =
@@ -689,7 +690,7 @@ class EncryptedFS {
       await this._iNodeMgr.transact(
         async (tran) => {
           const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
-          if (this._uid !== vfs.DEFAULT_ROOT_UID && this._uid !== fdStat.uid) {
+          if (this._uid !== permissions.DEFAULT_ROOT_UID && this._uid !== fdStat.uid) {
             throw new EncryptedFSError(errno.EPERM, `fchmod '${fdIndex}'`);
           }
           await this._iNodeMgr.statSetProp(
@@ -718,7 +719,7 @@ class EncryptedFS {
       await this._iNodeMgr.transact(
         async (tran) => {
           const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
-          if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          if (this._uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (fdStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
@@ -916,7 +917,7 @@ class EncryptedFS {
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
           if (
-            this._uid !== vfs.DEFAULT_ROOT_UID &&
+            this._uid !== permissions.DEFAULT_ROOT_UID &&
             this._uid !== targetStat.uid
           ) {
             throw new EncryptedFSError(errno.EPERM, `lchmod '${path}'`);
@@ -948,7 +949,7 @@ class EncryptedFS {
       await this._iNodeMgr.transact(
         async (tran) => {
           const targetStat = await this._iNodeMgr.statGet(tran, target);
-          if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+          if (this._uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (targetStat.uid !== this._uid) {
               throw new EncryptedFSError(errno.EPERM, `lchown '${path}'`);
@@ -1121,13 +1122,13 @@ class EncryptedFS {
   ): Promise<void>;
   public async mkdir(
     path: Path,
-    modeOrCallback: number | Callback = vfs.DEFAULT_DIRECTORY_PERM,
+    modeOrCallback: number | Callback = permissions.DEFAULT_DIRECTORY_PERM,
     callback?: Callback,
   ): Promise<void> {
     const mode =
       typeof modeOrCallback !== 'function'
         ? modeOrCallback
-        : vfs.DEFAULT_DIRECTORY_PERM;
+        : permissions.DEFAULT_DIRECTORY_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -1200,13 +1201,13 @@ class EncryptedFS {
   ): Promise<void>;
   public async mkdirp(
     path: Path,
-    modeOrCallback: number | Callback = vfs.DEFAULT_DIRECTORY_PERM,
+    modeOrCallback: number | Callback = permissions.DEFAULT_DIRECTORY_PERM,
     callback?: Callback,
   ): Promise<void> {
     const mode =
       typeof modeOrCallback !== 'function'
         ? modeOrCallback
-        : vfs.DEFAULT_DIRECTORY_PERM;
+        : permissions.DEFAULT_DIRECTORY_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -1375,13 +1376,13 @@ class EncryptedFS {
     type: number,
     major: number,
     minor: number,
-    modeOrCallback: number | Callback = vfs.DEFAULT_FILE_PERM,
+    modeOrCallback: number | Callback = permissions.DEFAULT_FILE_PERM,
     callback?: Callback,
   ): Promise<void> {
     const mode =
       typeof modeOrCallback !== 'function'
         ? modeOrCallback
-        : vfs.DEFAULT_FILE_PERM;
+        : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -1425,10 +1426,10 @@ class EncryptedFS {
                 );
               }
               if (
-                major > vfs.MAJOR_MAX ||
-                minor > vfs.MINOR_MAX ||
-                minor < vfs.MAJOR_MIN ||
-                minor < vfs.MINOR_MIN
+                major > deviceConstants.MAJOR_MAX ||
+                minor > deviceConstants.MINOR_MAX ||
+                minor < deviceConstants.MAJOR_MIN ||
+                minor < deviceConstants.MINOR_MIN
               ) {
                 throw new EncryptedFSError(errno.EINVAL, `mknod '${path}'`);
               }
@@ -1473,13 +1474,13 @@ class EncryptedFS {
   public async open(
     path: Path,
     flags: string | number,
-    modeOrCallback: number | Callback<[FdIndex]> = vfs.DEFAULT_FILE_PERM,
+    modeOrCallback: number | Callback<[FdIndex]> = permissions.DEFAULT_FILE_PERM,
     callback?: Callback<[FdIndex]>,
   ): Promise<FdIndex | void> {
     const mode =
       typeof modeOrCallback !== 'function'
         ? modeOrCallback
-        : vfs.DEFAULT_FILE_PERM;
+        : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       return (await this._open(path, flags, mode))[1];
@@ -1489,7 +1490,7 @@ class EncryptedFS {
   protected async _open(
     path: Path,
     flags: string | number,
-    mode: number = vfs.DEFAULT_FILE_PERM,
+    mode: number = permissions.DEFAULT_FILE_PERM,
   ): Promise<[FileDescriptor, FdIndex]> {
     path = this.getPath(path);
     if (typeof flags === 'string') {
@@ -2349,7 +2350,7 @@ class EncryptedFS {
               tran,
               symlinkINode,
               {
-                mode: vfs.DEFAULT_SYMLINK_PERM,
+                mode: permissions.DEFAULT_SYMLINK_PERM,
                 uid: this._uid,
                 gid: this._gid,
               },
@@ -2609,7 +2610,7 @@ class EncryptedFS {
     data: Data = 'undefined',
     optionsOrCallback: Options | Callback = {
       encoding: 'utf8',
-      mode: vfs.DEFAULT_FILE_PERM,
+      mode: permissions.DEFAULT_FILE_PERM,
       flag: 'w',
     },
     callback?: Callback,
@@ -2617,10 +2618,10 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions(
-            { encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM },
+            { encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: vfs.DEFAULT_FILE_PERM } as Options);
+        : ({ encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -2870,7 +2871,7 @@ class EncryptedFS {
    * If the user is root, they can access anything.
    */
   protected checkPermissions(access: number, stat: Stat): boolean {
-    if (this._uid !== vfs.DEFAULT_ROOT_UID) {
+    if (this._uid !== permissions.DEFAULT_ROOT_UID) {
       return vfs.checkPermissions(access, this._uid, this._gid, stat);
     } else {
       return true;
