@@ -21,6 +21,7 @@ import { FileDescriptor, FileDescriptorManager } from './fd';
 import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
+import Stat from '@/Stat';
 
 import * as inodesErrors from './inodes/errors';
 
@@ -411,7 +412,7 @@ class EncryptedFS {
       for (const child of children) {
         const pathChild = pathJoin(path as string, child);
         // Don't traverse symlinks
-        if (!((await this.lstat(pathChild)) as vfs.Stat).isSymbolicLink()) {
+        if (!(await this.lstat(pathChild)).isSymbolicLink()) {
           await this.chownr(pathChild, uid, gid);
         }
       }
@@ -750,15 +751,15 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async fstat(fdIndex: FdIndex): Promise<vfs.Stat>;
+  public async fstat(fdIndex: FdIndex): Promise<Stat>;
   public async fstat(
     fdIndex: FdIndex,
-    callback: Callback<[vfs.Stat]>,
+    callback: Callback<[Stat]>,
   ): Promise<void>;
   public async fstat(
     fdIndex: FdIndex,
-    callback?: Callback<[vfs.Stat]>,
-  ): Promise<vfs.Stat | void> {
+    callback?: Callback<[Stat]>,
+  ): Promise<Stat | void> {
     return maybeCallback(async () => {
       const fd = this._fdMgr.getFd(fdIndex);
       if (!fd) {
@@ -771,7 +772,7 @@ class EncryptedFS {
         },
         [fd.ino],
       );
-      return new vfs.Stat(fdStat);
+      return new Stat(fdStat);
     }, callback);
   }
 
@@ -1095,12 +1096,12 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async lstat(path: Path): Promise<vfs.Stat>;
-  public async lstat(path: Path, callback: Callback<[vfs.Stat]>): Promise<void>;
+  public async lstat(path: Path): Promise<Stat>;
+  public async lstat(path: Path, callback: Callback<[Stat]>): Promise<void>;
   public async lstat(
     path: Path,
-    callback?: Callback<[vfs.Stat]>,
-  ): Promise<vfs.Stat | void> {
+    callback?: Callback<[Stat]>,
+  ): Promise<Stat | void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
@@ -1112,7 +1113,7 @@ class EncryptedFS {
           },
           [target],
         );
-        return new vfs.Stat({ ...targetStat });
+        return new Stat({ ...targetStat });
       } else {
         throw new EncryptedFSError(errno.ENOENT, `lstat '${path}'`);
       }
@@ -2286,12 +2287,12 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async stat(path: Path): Promise<vfs.Stat>;
-  public async stat(path: Path, callback: Callback<[vfs.Stat]>): Promise<void>;
+  public async stat(path: Path): Promise<Stat>;
+  public async stat(path: Path, callback: Callback<[Stat]>): Promise<void>;
   public async stat(
     path: Path,
-    callback?: Callback<[vfs.Stat]>,
-  ): Promise<vfs.Stat | void> {
+    callback?: Callback<[Stat]>,
+  ): Promise<Stat | void> {
     return maybeCallback(async () => {
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
@@ -2303,7 +2304,7 @@ class EncryptedFS {
           },
           [target],
         );
-        return new vfs.Stat({ ...targetStat });
+        return new Stat({ ...targetStat });
       } else {
         throw new EncryptedFSError(errno.ENOENT, `stat '${path}`);
       }
@@ -2885,7 +2886,7 @@ class EncryptedFS {
    * Checks the permissions fixng the current uid and gid.
    * If the user is root, they can access anything.
    */
-  protected checkPermissions(access: number, stat: vfs.Stat): boolean {
+  protected checkPermissions(access: number, stat: Stat): boolean {
     if (this._uid !== vfs.DEFAULT_ROOT_UID) {
       return vfs.checkPermissions(access, this._uid, this._gid, stat);
     } else {

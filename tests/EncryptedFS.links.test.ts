@@ -75,7 +75,7 @@ describe('EncryptedFS Links', () => {
     await efs.writeFile(`a`, 'data');
     await efs.symlink(`a`, `link-to-a`);
     await efs.lchown('link-to-a', 1000, 1000);
-    const stat = (await efs.lstat(`link-to-a`)) as vfs.Stat;
+    const stat = await efs.lstat(`link-to-a`);
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(false);
     expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -416,8 +416,8 @@ describe('EncryptedFS Links', () => {
       await efs.mkdir(`test`);
       await efs.writeFile(`test/a`, '');
       await efs.link(`test/a`, `test/b`);
-      const inoA = ((await efs.stat(`test/a`)) as vfs.Stat).ino;
-      const inoB = ((await efs.stat(`test/b`)) as vfs.Stat).ino;
+      const inoA = (await efs.stat(`test/a`)).ino;
+      const inoB = (await efs.stat(`test/b`)).ino;
       expect(inoA).toEqual(inoB);
       const readB = await efs.readFile(`test/b`);
       await expect(efs.readFile(`test/a`)).resolves.toEqual(readB);
