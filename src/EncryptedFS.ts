@@ -164,12 +164,7 @@ class EncryptedFS {
   }
 
   public async start() {
-    // Start it up again
-    // requires decryption keys
-    // only after you stop it
-    // create the initial root inode
-    // well wait a minute
-    // that's not exactly necessary
+    // Start up the EFS instance
     await this.db.start();
   }
 
@@ -2763,7 +2758,7 @@ class EncryptedFS {
       await this._iNodeMgr.transact(async (tran) => {
         const targetData = await this._iNodeMgr.get(tran, target);
         targetType = targetData?.type;
-      }, []);
+      });
       switch (targetType) {
         case 'File':
         case 'CharacterDev': {
@@ -2821,7 +2816,7 @@ class EncryptedFS {
             let targetLinks;
             await this._iNodeMgr.transact(async (tran) => {
               targetLinks = await this._iNodeMgr.symlinkGetLink(tran, target);
-            }, []);
+            });
             nextPath = pathJoin(targetLinks, parse.rest);
             if (nextPath[0] === '/') {
               return this.navigate(
