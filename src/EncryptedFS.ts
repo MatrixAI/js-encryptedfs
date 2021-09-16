@@ -22,6 +22,8 @@ import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
 
+import * as inodesErrors from './inodes/errors';
+
 /**
  * Prefer the posix join function if it exists.
  * Browser polyfills of the path module may not have the posix property.
@@ -2037,15 +2039,15 @@ class EncryptedFS {
       newPath = this.getPath(newPath);
       const navigatedSource = await this.navigate(oldPath, false);
       const navigatedTarget = await this.navigate(newPath, false);
-      if (!navigatedSource.target || navigatedTarget.remaining) {
-        throw new EncryptedFSError(
-          errno.ENOENT,
-          `rename '${oldPath}', ${newPath}'`,
-        );
-      }
-      const sourceTarget = navigatedSource.target;
       await this._iNodeMgr.transact(
         async (tran) => {
+        if (!navigatedSource.target || navigatedTarget.remaining) {
+          throw new EncryptedFSError(
+            errno.ENOENT,
+            `rename '${oldPath}', ${newPath}'`,
+          );
+        }
+        const sourceTarget = navigatedSource.target;
           const sourceTargetType = (
             await this._iNodeMgr.get(tran, sourceTarget)
           )?.type;
@@ -2156,12 +2158,19 @@ class EncryptedFS {
           }
           // If they are in the same directory, it is simple rename
           if (navigatedSource.dir === navigatedTarget.dir) {
-            await this._iNodeMgr.dirResetEntry(
-              tran,
-              navigatedSource.dir,
-              navigatedSource.name,
-              navigatedTarget.name,
-            );
+            try {
+              await this._iNodeMgr.dirResetEntry(
+                tran,
+                navigatedSource.dir,
+                navigatedSource.name,
+                navigatedTarget.name,
+              );
+              } catch (err) {
+                if (err instanceof inodesErrors.ErrorINodesInvalidName) {
+                  throw new EncryptedFSError(errno.ENOENT, `rename '${navigatedSource.name}' '${navigatedTarget.name}'`);
+                }
+                throw err;
+              }
             return;
           }
           const index = (await this._iNodeMgr.dirGetEntry(
@@ -2216,8 +2225,8 @@ class EncryptedFS {
           );
         },
         navigatedTarget.target
-          ? [navigatedTarget.target, navigatedSource.target]
-          : [navigatedSource.target],
+          ? (navigatedSource.target ? [navigatedTarget.target, navigatedSource.target] : [navigatedTarget.target])
+          : (navigatedSource.target ? [navigatedSource.target] : []),
       );
     }, callback);
   }
@@ -2229,26 +2238,26 @@ class EncryptedFS {
       // we must trim off these trailing slashes to allow these directories to be removed
       path = path.replace(/(.+?)\/+$/, '$1');
       const navigated = await this.navigate(path, false);
-      // This is for if the path resolved to root
-      if (!navigated.name) {
-        throw new EncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
-      }
-      // On linux, when .. is used, the parent directory becomes unknown
-      // in that case, they return with ENOTEMPTY
-      // but the directory may in fact be empty
-      // for this edge case, we instead use EINVAL
-      if (navigated.name === '.' || navigated.name === '..') {
-        throw new EncryptedFSError(errno.EINVAL, `rmdir '${path}'`);
-      }
-      if (!navigated.target) {
-        throw new EncryptedFSError(errno.ENOENT, `rmdir'${path}'`);
-      }
-      const target = navigated.target;
-      const dir = navigated.dir;
-      let targetType, dirStat;
-      const targetEntries: Array<[string | Buffer, INodeIndex]> = [];
       await this._iNodeMgr.transact(
         async (tran) => {
+          // This is for if the path resolved to root
+          if (!navigated.name) {
+            throw new EncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
+          }
+          // On linux, when .. is used, the parent directory becomes unknown
+          // in that case, they return with ENOTEMPTY
+          // but the directory may in fact be empty
+          // for this edge case, we instead use EINVAL
+          if (navigated.name === '.' || navigated.name === '..') {
+            throw new EncryptedFSError(errno.EINVAL, `rmdir '${path}'`);
+          }
+          if (!navigated.target) {
+            throw new EncryptedFSError(errno.ENOENT, `rmdir'${path}'`);
+          }
+          const target = navigated.target;
+          const dir = navigated.dir;
+          let targetType, dirStat;
+          const targetEntries: Array<[string | Buffer, INodeIndex]> = [];
           targetType = (await this._iNodeMgr.get(tran, target))?.type;
           dirStat = await this._iNodeMgr.statGet(tran, dir);
           for await (const entry of this._iNodeMgr.dirGet(tran, target)) {
@@ -2265,7 +2274,7 @@ class EncryptedFS {
           }
           await this._iNodeMgr.dirUnsetEntry(tran, dir, navigated.name);
         },
-        [target, dir],
+        navigated.target ? [navigated.target, navigated.dir]: [navigated.dir],
       );
     }, callback);
   }

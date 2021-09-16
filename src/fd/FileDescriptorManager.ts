@@ -48,6 +48,9 @@ class FileDescriptorManager {
       if (!fops) {
         throw Error('INode does not exist');
       } else {
+        if (fops.open) {
+          // fops.open(fd);
+        }
         // fops.open(fd);
       }
     }
