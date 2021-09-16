@@ -12,21 +12,20 @@ npm install --save encryptedfs
 
 ## Usage
 
-```sh
-const vfs = require('virtualfs');
+```ts
+import EncryptedFS from '@/EncryptedFS';
 
-const vfsInstance = new vfs.VirtualFS();
-const efs = new EncryptedFS(key, vfsInstance, fs, '/', `./tmp`);
+const efs = await EncryptedFS.createEncryptedFS({key, path});
 
-# create a new directory
-newDir = `test`;
-efs.mkdirSync(newDir);
+// create a new directory
+const newDir = `test`;
+await efs.mkdir(newDir);
 
-# write out to a file
-efs.writeFileSync(`${newDir}/testFile`, 'output');
+// write out to a file
+await efs.writeFile(`${newDir}/testFile`, 'output');
 
-# read in the file (contents = 'output')
-const conentes = efs.readFileSync(`${newDir}/testFile`);
+// read in the file (contents = 'output')
+const contents = await efs.readFile(`${newDir}/testFile`);
 ```
 
 ## Development
