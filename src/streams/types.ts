@@ -3,7 +3,7 @@ import type { FdIndex } from '../fd/types';
 type OptionsStream = {
   highWaterMark?: number;
   flags?: string;
-  encoding?: BufferEncoding; // FIXME undefined?
+  encoding?: BufferEncoding;
   fd?: FdIndex;
   mode?: number;
   autoClose?: boolean;

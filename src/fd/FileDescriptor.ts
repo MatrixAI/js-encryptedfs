@@ -229,7 +229,6 @@ class FileDescriptor {
           if (!fops) {
             throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
           } else {
-            // TODO: Check if this is actually ok, this expects a vfs file descriptor
             // but some things have changed
             bytesRead = fops.read(this, buffer, currentPos);
           }
@@ -461,7 +460,6 @@ class FileDescriptor {
             if (!fops) {
               throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
             } else {
-              // TODO: Check if this is actually ok, this expects a vfs file descriptor
               // but some things have changed
               bytesWritten = fops.write(this, buffer, currentPos, extraFlags);
             }

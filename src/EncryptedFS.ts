@@ -2331,7 +2331,6 @@ class EncryptedFS {
     typeOrCallback: string | Callback = 'file',
     callback?: Callback,
   ): Promise<void> {
-    // Const type = typeof typeOrCallback !== 'function' ? typeOrCallback : 'file'; // FIXME: remove or not?
     callback = typeof typeOrCallback === 'function' ? typeOrCallback : callback;
     return maybeCallback(async () => {
       dstPath = this.getPath(dstPath);
