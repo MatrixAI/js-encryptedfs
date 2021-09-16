@@ -9,7 +9,7 @@ let ttyInFd;
 let ttyOutFd;
 
 const ttyDev: DeviceInterface<CharacterDev> = {
-  open: (fd: FileDescriptor<CharacterDev>) => {
+  open: (_fd: FileDescriptor<CharacterDev>) => {
     if (fds === 0) {
       if (process.release && process.release.name === 'node') {
         ttyOutFd = process.stdout.fd;
@@ -33,7 +33,7 @@ const ttyDev: DeviceInterface<CharacterDev> = {
     }
     ++fds;
   },
-  close: (fd: FileDescriptor<CharacterDev>) => {
+  close: (_fd: FileDescriptor<CharacterDev>) => {
     --fds;
     if (fds === 0) {
       if (ttyInFd && fs) {
@@ -44,7 +44,7 @@ const ttyDev: DeviceInterface<CharacterDev> = {
   read: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
+    _position: number,
   ) => {
     if (ttyInFd !== null && fs) {
       return fs.readSync(ttyInFd, buffer, 0, buffer.length, null);
@@ -58,8 +58,8 @@ const ttyDev: DeviceInterface<CharacterDev> = {
   write: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
-    extraFlags: number,
+    _position: number,
+    _extraFlags: number,
   ) => {
     if (ttyOutFd !== null && fs) {
       return fs.writeSync(ttyOutFd, buffer);

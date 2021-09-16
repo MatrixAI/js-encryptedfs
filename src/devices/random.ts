@@ -5,8 +5,8 @@ import * as utils from '../utils';
 const randomDev: DeviceInterface<CharacterDev> = {
   setPos: (
     fd: FileDescriptor<CharacterDev>,
-    position: number,
-    flags: number,
+    _position: number,
+    _flags: number,
   ) => {
     fd._pos = 0;
     return;
@@ -14,7 +14,7 @@ const randomDev: DeviceInterface<CharacterDev> = {
   read: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
+    _position: number,
   ) => {
     const randomBuf = Buffer.from(
       utils.getRandomBytesSync(buffer.length).toString(),
@@ -26,8 +26,8 @@ const randomDev: DeviceInterface<CharacterDev> = {
   write: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
-    extraFlags: number,
+    _position: number,
+    _extraFlags: number,
   ) => {
     return buffer.length;
   },

@@ -57,8 +57,7 @@
     "subleveldown": "^5.0.1",
     "threads": "^1.6.5",
     "ts-custom-error": "^3.2.0",
-    "util-callbackify": "^1.0.0",
-    "virtualfs": "^2.2.0"
+    "util-callbackify": "^1.0.0"
   },
   "devDependencies": {
     "@types/jest": "^26.0.20",

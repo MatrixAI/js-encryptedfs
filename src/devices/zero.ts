@@ -3,8 +3,8 @@ import type { DeviceInterface, CharacterDev, FileDescriptor } from 'virtualfs';
 const zeroDev: DeviceInterface<CharacterDev> = {
   setPos: (
     fd: FileDescriptor<CharacterDev>,
-    position: number,
-    flags: number,
+    _position: number,
+    _flags: number,
   ) => {
     fd._pos = 0;
     return;
@@ -12,7 +12,7 @@ const zeroDev: DeviceInterface<CharacterDev> = {
   read: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
+    _position: number,
   ) => {
     buffer.fill(0);
     return buffer.length;
@@ -20,7 +20,7 @@ const zeroDev: DeviceInterface<CharacterDev> = {
   write: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
+    _position: number,
     _extraFlags: number,
   ) => {
     return buffer.length;

@@ -5,8 +5,8 @@ import { EncryptedFSError, errno } from '../EncryptedFSError';
 const fullDev: DeviceInterface<CharacterDev> = {
   setPos: (
     fd: FileDescriptor<CharacterDev>,
-    position: number,
-    flags: number,
+    _position: number,
+    _flags: number,
   ) => {
     fd._pos = 0;
     return;
@@ -14,16 +14,16 @@ const fullDev: DeviceInterface<CharacterDev> = {
   read: (
     fd: FileDescriptor<CharacterDev>,
     buffer: Buffer,
-    position: number,
+    _position: number,
   ) => {
     buffer.fill(0);
     return buffer.length;
   },
   write: (
-    fd: FileDescriptor<CharacterDev>,
-    buffer: Buffer,
-    position: number,
-    extraFlags: number,
+    _fd: FileDescriptor<CharacterDev>,
+    _buffer: Buffer,
+    _position: number,
+    _extraFlags: number,
   ) => {
     throw new EncryptedFSError(errno.ENOSPC);
   },

@@ -34,7 +34,8 @@
     "@typescript-eslint/no-unused-vars": [
       "warn",
       {
-        "varsIgnorePattern": "^_"
+        "varsIgnorePattern": "^_",
+        "argsIgnorePattern": "^_"
       }
     ],
     "@typescript-eslint/no-inferrable-types": 0,
@@ -64,7 +65,8 @@
       {
         "selector": "parameter",
         "format": ["camelCase"],
-        "trailingUnderscore": "allowSingleOrDouble"
+        "trailingUnderscore": "allowSingleOrDouble",
+        "leadingUnderscore": "allow"
       },
       {
         "selector": "typeLike",
