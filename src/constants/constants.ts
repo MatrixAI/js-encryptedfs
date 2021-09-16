@@ -43,4 +43,3 @@ export const SEEK_CUR: number = 1;
 export const SEEK_END: number = 2;
 export const MAP_SHARED: number = 1;
 export const MAP_PRIVATE: number = 2;
-

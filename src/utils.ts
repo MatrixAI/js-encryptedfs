@@ -3,9 +3,9 @@ import type { Stat } from '.';
 
 import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
-import { constants } from 'virtualfs';
-import * as vfs from 'virtualfs';
 import callbackify from 'util-callbackify';
+
+import { constants, devices as deviceConstants } from './constants';
 
 const ivSize = 16;
 const authTagSize = 16;
@@ -292,14 +292,19 @@ function parseOpenFlags(flags: string): number {
  * Applies umask to default set of permissions.
  */
 function applyUmask(perms: number, umask: number): number {
-  return (perms & (~umask));
+  return perms & ~umask;
 }
 
 /**
  * Checks the desired permissions with user id and group id against the metadata of an iNode.
  * The desired permissions can be bitwise combinations of constants.R_OK, constants.W_OK and constants.X_OK.
  */
-function checkPermissions(access: number, uid: number, gid: number, stat: Stat): boolean {
+function checkPermissions(
+  access: number,
+  uid: number,
+  gid: number,
+  stat: Stat,
+): boolean {
   return (access & resolveOwnership(uid, gid, stat)) === access;
 }
 
@@ -320,12 +325,12 @@ function resolveOwnership(uid: number, gid: number, stat: Stat): number {
 }
 
 function mkDev(major: number, minor: number): number {
-  return ((major << vfs.MINOR_BITSIZE) | minor);
+  return (major << deviceConstants.MINOR_BITSIZE) | minor;
 }
 
 function unmkDev(dev: number): [number, number] {
-  const major = dev >> vfs.MINOR_BITSIZE;
-  const minor = dev & ((1 << vfs.MINOR_BITSIZE) - 1);
+  const major = dev >> deviceConstants.MINOR_BITSIZE;
+  const minor = dev & ((1 << deviceConstants.MINOR_BITSIZE) - 1);
   return [major, minor];
 }
 
@@ -383,7 +388,6 @@ function unmkDev(dev: number): [number, number] {
 //   }
 //   return plainSegment;
 // }
-
 
 function promisify<T>(f): (...args: any[]) => Promise<T> {
   return function <T>(...args): Promise<T> {

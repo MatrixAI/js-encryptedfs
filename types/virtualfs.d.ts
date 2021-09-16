@@ -142,6 +142,7 @@ declare module 'virtualfs' {
   }
   export class FileDescriptor<I extends INode> {
     constructor(iNode: I, flags: number);
+    public _pos: number
     public getINode(): I;
     public getFlags(): number;
     public setFlags(flags: number): void;

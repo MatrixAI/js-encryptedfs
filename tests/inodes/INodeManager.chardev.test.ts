@@ -2,18 +2,19 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import * as vfs from 'virtualfs';
+import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
+import { nullDev } from '@/devices';
 
 describe('INodeManager CharacterDev', () => {
   const logger = new Logger('INodeManager CharacterDev Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   // Register the devices
-  devMgr.registerChr(vfs.nullDev, 1, 3);
+  devMgr.registerChr(nullDev, 1, 3);
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -58,7 +59,7 @@ describe('INodeManager CharacterDev', () => {
           iNodeMgr.inoDeallocate(charDevIno);
         });
         await iNodeMgr.charDevCreate(tran, charDevIno, {
-          rdev: vfs.mkDev(1, 3),
+          rdev: utils.mkDev(1, 3),
         });
         await iNodeMgr.dirSetEntry(tran, rootIno, 'chardev', charDevIno);
       },
@@ -67,7 +68,7 @@ describe('INodeManager CharacterDev', () => {
     await iNodeMgr.transact(async (tran) => {
       const nullDev = await iNodeMgr.charDevGetFileDesOps(tran, charDevIno);
       expect(nullDev).toBeDefined();
-      expect(nullDev).toBe(vfs.nullDev);
+      expect(nullDev).toBe(nullDev);
       const statCharDev = await iNodeMgr.statGet(tran, charDevIno);
       expect(statCharDev.isCharacterDevice()).toBe(true);
       expect(statCharDev['ino']).toBe(charDevIno);

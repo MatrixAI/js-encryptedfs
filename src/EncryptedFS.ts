@@ -13,7 +13,6 @@ import type { OptionsStream } from './streams/types';
 
 import pathNode from 'path';
 import Logger from '@matrixai/logger';
-import * as vfs from 'virtualfs';
 import { DB } from './db';
 import { INodeManager } from './inodes';
 import CurrentDirectory from './CurrentDirectory';
@@ -22,7 +21,11 @@ import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno, DeviceManager } from '.';
 import { maybeCallback } from './utils';
 import Stat from './Stat';
-import { constants, permissions, devices as deviceConstants} from './constants';
+import {
+  constants,
+  permissions,
+  devices as deviceConstants,
+} from './constants';
 
 import * as utils from './utils';
 import * as inodesErrors from './inodes/errors';
@@ -272,10 +275,16 @@ class EncryptedFS {
     const options =
       typeof optionsOrCallback !== 'function'
         ? this.getOptions(
-            { encoding: 'utf8' as BufferEncoding, mode: permissions.DEFAULT_FILE_PERM },
+            {
+              encoding: 'utf8' as BufferEncoding,
+              mode: permissions.DEFAULT_FILE_PERM,
+            },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM } as Options);
+        : ({
+            encoding: 'utf8',
+            mode: permissions.DEFAULT_FILE_PERM,
+          } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {
@@ -690,7 +699,10 @@ class EncryptedFS {
       await this._iNodeMgr.transact(
         async (tran) => {
           const fdStat = await this._iNodeMgr.statGet(tran, fd.ino);
-          if (this._uid !== permissions.DEFAULT_ROOT_UID && this._uid !== fdStat.uid) {
+          if (
+            this._uid !== permissions.DEFAULT_ROOT_UID &&
+            this._uid !== fdStat.uid
+          ) {
             throw new EncryptedFSError(errno.EPERM, `fchmod '${fdIndex}'`);
           }
           await this._iNodeMgr.statSetProp(
@@ -1474,7 +1486,9 @@ class EncryptedFS {
   public async open(
     path: Path,
     flags: string | number,
-    modeOrCallback: number | Callback<[FdIndex]> = permissions.DEFAULT_FILE_PERM,
+    modeOrCallback:
+      | number
+      | Callback<[FdIndex]> = permissions.DEFAULT_FILE_PERM,
     callback?: Callback<[FdIndex]>,
   ): Promise<FdIndex | void> {
     const mode =
@@ -2621,7 +2635,10 @@ class EncryptedFS {
             { encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM },
             optionsOrCallback,
           )
-        : ({ encoding: 'utf8', mode: permissions.DEFAULT_FILE_PERM } as Options);
+        : ({
+            encoding: 'utf8',
+            mode: permissions.DEFAULT_FILE_PERM,
+          } as Options);
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return maybeCallback(async () => {

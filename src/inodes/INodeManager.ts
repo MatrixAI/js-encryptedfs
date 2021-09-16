@@ -1,11 +1,11 @@
 import type { MutexInterface } from 'async-mutex';
-import type { DeviceManager } from 'virtualfs';
+import type { DeviceManager } from '..';
 import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
 import type { DB } from '../db';
 import type { StatProps } from '../Stat';
 import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
 
-import * as vfs from 'virtualfs';
+import { DeviceInterface, CharacterDev } from 'virtualfs';
 import Logger from '@matrixai/logger';
 import { Mutex } from 'async-mutex';
 import Counter from 'resource-counter';
@@ -742,7 +742,7 @@ class INodeManager {
   public async charDevGetFileDesOps(
     tran: DBTransaction,
     ino: INodeIndex,
-  ): Promise<Readonly<vfs.DeviceInterface<vfs.CharacterDev>> | undefined> {
+  ): Promise<Readonly<DeviceInterface<CharacterDev>> | undefined> {
     const rdev = await this.statGetProp(tran, ino, 'rdev');
     const [major, minor] = utils.unmkDev(rdev);
     return this.devMgr.getChr(major, minor);

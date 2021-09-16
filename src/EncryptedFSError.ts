@@ -3,10 +3,7 @@ import { CustomError } from 'ts-custom-error';
 class EncryptedFSError extends CustomError {
   public readonly error?: NodeJS.ErrnoException;
 
-  constructor(
-    error?: NodeJS.ErrnoException,
-    message: string = '',
-  ) {
+  constructor(error?: NodeJS.ErrnoException, message: string = '') {
     if (error != null) {
       super(error.message);
     } else {

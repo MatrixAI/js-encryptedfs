@@ -4,7 +4,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import * as vfs from 'virtualfs';
+import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
@@ -14,7 +14,7 @@ describe('INodeManager Directory', () => {
   const logger = new Logger('INodeManager Directory Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);

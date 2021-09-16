@@ -2,10 +2,10 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptor } from '@/fd';
+import { DeviceManager } from '@';
 import * as utils from '@/utils';
 import { constants, permissions } from '@/constants';
 
@@ -13,7 +13,7 @@ describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -493,11 +493,7 @@ describe('File Descriptor', () => {
     // Appending data to a non full block which will not exceed the block size
     // The second argument of 'write' is position and should not do anything when appending
     // so set to 10 to test this
-    bytesWritten = await fd.write(
-      appendBufferUnder,
-      10,
-      constants.O_APPEND,
-    );
+    bytesWritten = await fd.write(appendBufferUnder, 10, constants.O_APPEND);
     expect(fd.pos).toBe(0);
     expect(bytesWritten).toBe(appendBufferUnder.length);
     readBuffer = Buffer.alloc(readBuffer.length + appendBufferUnder.length);

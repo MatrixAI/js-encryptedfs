@@ -6,16 +6,21 @@ import * as devices from '../constants/devices';
 import { DeviceError } from './errors';
 
 class DeviceManager {
-
   protected _chrCounterMaj: Counter;
-  protected _chrDevices: Map<number, [Map<number, DeviceInterface<CharacterDev>>, Counter]>;
+  protected _chrDevices: Map<
+    number,
+    [Map<number, DeviceInterface<CharacterDev>>, Counter]
+  >;
 
-  constructor () {
+  constructor() {
     this._chrCounterMaj = new Counter(devices.MAJOR_MIN);
-    this._chrDevices = new Map;
+    this._chrDevices = new Map();
   }
 
-  getChr (major: number, minor: number): DeviceInterface<CharacterDev> | undefined {
+  getChr(
+    major: number,
+    minor: number,
+  ): DeviceInterface<CharacterDev> | undefined {
     const devicesAndCounterMin = this._chrDevices.get(major);
     if (devicesAndCounterMin) {
       const [devicesMin] = devicesAndCounterMin;
@@ -24,7 +29,7 @@ class DeviceManager {
     return;
   }
 
-  registerChr (
+  registerChr(
     device: DeviceInterface<CharacterDev>,
     major: number | void,
     minor: number | void,
@@ -48,7 +53,7 @@ class DeviceManager {
       }
       if (!devicesMin || !counterMin) {
         counterMin = new Counter(devices.MINOR_MIN);
-        devicesMin = new Map;
+        devicesMin = new Map();
       }
       if (minor === undefined) {
         minor = counterMin.allocate();
@@ -58,15 +63,16 @@ class DeviceManager {
           counterMin.allocate(minor);
           autoAllocMin = minor;
         } else {
-          throw new DeviceError(DeviceError.ERROR_CONFLICT);
+          throw new DeviceError(DeviceError.errorConflict);
         }
       }
-      if (major > devices.MAJOR_MAX ||
-          major < devices.MAJOR_MIN ||
-          minor > devices.MINOR_MAX ||
-          minor < devices.MINOR_MIN)
-      {
-        throw new DeviceError(DeviceError.ERROR_RANGE);
+      if (
+        major > devices.MAJOR_MAX ||
+        major < devices.MAJOR_MIN ||
+        minor > devices.MINOR_MAX ||
+        minor < devices.MINOR_MIN
+      ) {
+        throw new DeviceError(DeviceError.errorRange);
       }
       devicesMin.set(minor as number, device);
       this._chrDevices.set(major as number, [devicesMin, counterMin]);
@@ -82,7 +88,7 @@ class DeviceManager {
     }
   }
 
-  deregisterChr (major: number, minor: number): void {
+  deregisterChr(major: number, minor: number): void {
     const devicesCounterMin = this._chrDevices.get(major);
     if (devicesCounterMin) {
       const [devicesMin, counterMin] = devicesCounterMin;

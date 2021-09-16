@@ -4,7 +4,7 @@ import type { EncryptedFS } from '../';
 
 import { Writable } from 'readable-stream';
 import { Callback } from '@/types';
-import { permissions } from "../constants";
+import { permissions } from '../constants';
 
 class WriteStream extends Writable {
   protected _bytesWritten: number;
