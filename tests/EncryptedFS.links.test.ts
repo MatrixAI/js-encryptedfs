@@ -1,13 +1,9 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS } from '@';
-import { errno } from '@/EncryptedFSError';
-import { DB } from '@/db';
-import { INodeManager } from '@/inodes';
+import { EncryptedFS, errno, DB, INodeManager, DeviceManager } from '@';
 import {
   expectError,
   createFile,
@@ -27,7 +23,7 @@ describe('EncryptedFS Links', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';

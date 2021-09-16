@@ -1,6 +1,5 @@
 import EncryptedFS from '@/EncryptedFS';
-import * as vfs from 'virtualfs';
-
+import { constants } from '@/constants';
 /**
  *
  * @param promise - the Promise that throws the expected error.
@@ -39,10 +38,10 @@ async function createFile(
       await efs.mkdir(name, 0o0755);
       break;
     case 'block':
-      await efs.mknod(name, vfs.constants.S_IFREG, 0o0644, 1, 2);
+      await efs.mknod(name, constants.S_IFREG, 0o0644, 1, 2);
       break;
     case 'char':
-      await efs.mknod(name, vfs.constants.S_IFCHR, 0o0644, 1, 2);
+      await efs.mknod(name, constants.S_IFCHR, 0o0644, 1, 2);
       break;
     case 'symlink':
       await efs.symlink('test', name);

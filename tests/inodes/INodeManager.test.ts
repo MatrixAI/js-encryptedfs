@@ -6,6 +6,7 @@ import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
+import { permissions } from '@/constants';
 
 describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [
@@ -137,9 +138,9 @@ describe('INodeManager', () => {
           iNodeMgr.inoDeallocate(rootIno);
         });
         await iNodeMgr.dirCreate(tran, rootIno, {
-          mode: vfs.DEFAULT_ROOT_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_ROOT_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         });
       },
       [rootIno],
@@ -154,7 +155,7 @@ describe('INodeManager', () => {
           tran,
           childIno,
           {
-            mode: vfs.DEFAULT_DIRECTORY_PERM,
+            mode: permissions.DEFAULT_DIRECTORY_PERM,
           },
           rootIno,
         );

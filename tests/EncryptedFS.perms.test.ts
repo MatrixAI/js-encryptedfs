@@ -1,16 +1,16 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import {
   EncryptedFS,
-  constants,
   errno,
   DB,
   INodeManager,
   DeviceManager,
+  constants,
+  permissions,
 } from '@';
 import { expectError } from './utils';
 
@@ -89,16 +89,16 @@ describe('EncryptedFS Permissions', () => {
     stat = await efs.stat('/file');
     expect(
       stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
-    ).toBe(vfs.DEFAULT_FILE_PERM & ~umask);
+    ).toBe(permissions.DEFAULT_FILE_PERM & ~umask);
     stat = await efs.stat('/dir');
     expect(
       stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
-    ).toBe(vfs.DEFAULT_DIRECTORY_PERM & ~umask);
+    ).toBe(permissions.DEFAULT_DIRECTORY_PERM & ~umask);
     // Umask is not applied to symlinks
     stat = await efs.lstat('/symlink');
     expect(
       stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
-    ).toBe(vfs.DEFAULT_SYMLINK_PERM);
+    ).toBe(permissions.DEFAULT_SYMLINK_PERM);
   });
   test('non-root users can only chown uid if they own the file and they are chowning to themselves', async () => {
     await efs.writeFile('file', 'hello');
@@ -167,8 +167,8 @@ describe('EncryptedFS Permissions', () => {
       constants.R_OK | constants.W_OK | constants.X_OK,
     );
     await efs.access('dir', constants.R_OK | constants.W_OK | constants.X_OK);
-    efs.uid = vfs.DEFAULT_ROOT_UID;
-    efs.uid = vfs.DEFAULT_ROOT_GID;
+    efs.uid = permissions.DEFAULT_ROOT_UID;
+    efs.uid = permissions.DEFAULT_ROOT_GID;
     await efs.chown('testfile', 2000, 1000);
     await efs.chown('dir', 2000, 1000);
     efs.uid = 1000;
@@ -177,8 +177,8 @@ describe('EncryptedFS Permissions', () => {
     await efs.access('dir', constants.R_OK | constants.W_OK);
     await expectError(efs.access('testfile', constants.X_OK), errno.EACCES);
     await expectError(efs.access('dir', constants.X_OK), errno.EACCES);
-    efs.uid = vfs.DEFAULT_ROOT_UID;
-    efs.uid = vfs.DEFAULT_ROOT_GID;
+    efs.uid = permissions.DEFAULT_ROOT_UID;
+    efs.uid = permissions.DEFAULT_ROOT_GID;
     await efs.chown('testfile', 2000, 2000);
     await efs.chown('dir', 2000, 2000);
     efs.uid = 1000;

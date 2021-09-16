@@ -6,6 +6,7 @@ import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
+import {constants, permissions} from '@/constants'
 
 describe('INodeManager File', () => {
   const logger = new Logger('INodeManager File Test', LogLevel.WARN, [
@@ -51,24 +52,24 @@ describe('INodeManager File', () => {
         tran,
         fileIno,
         {
-          mode: vfs.DEFAULT_FILE_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         },
         blockSize,
       );
       const stat = await iNodeMgr.statGet(tran, fileIno);
       expect(stat['ino']).toBe(fileIno);
       expect(stat.isDirectory()).toBe(false);
-      expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
-      expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
+      expect(stat['uid']).toBe(permissions.DEFAULT_ROOT_UID);
+      expect(stat['gid']).toBe(permissions.DEFAULT_ROOT_GID);
       // The size, blocks and block size should be 0 if no data supplied
       expect(stat['size']).toBe(0);
       expect(stat['blksize']).toBe(5); // 5 was supplied
       expect(stat['blocks']).toBe(0);
       // The mode should start at the default file permissions
       expect(stat['mode']).toBe(
-        vfs.constants.S_IFREG | (vfs.DEFAULT_FILE_PERM & ~vfs.constants.S_IFMT),
+        constants.S_IFREG | (permissions.DEFAULT_FILE_PERM & ~constants.S_IFMT),
       );
       // All timestamps should be the same at creation
       expect(stat['atime']).toEqual(stat['mtime']);
@@ -92,9 +93,9 @@ describe('INodeManager File', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           buffer,
@@ -102,8 +103,8 @@ describe('INodeManager File', () => {
         const stat = await iNodeMgr.statGet(tran, fileIno);
         expect(stat['ino']).toBe(fileIno);
         expect(stat.isDirectory()).toBe(false);
-        expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
-        expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
+        expect(stat['uid']).toBe(permissions.DEFAULT_ROOT_UID);
+        expect(stat['gid']).toBe(permissions.DEFAULT_ROOT_GID);
         // The size, blocks and block size should be set if data supplied
         expect(stat['size']).toBe(buffer.length);
         expect(stat['blksize']).toBe(5);
@@ -160,9 +161,9 @@ describe('INodeManager File', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
         );
@@ -203,9 +204,9 @@ describe('INodeManager File', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           buffer,
@@ -243,9 +244,9 @@ describe('INodeManager File', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
         );
@@ -288,9 +289,9 @@ describe('INodeManager File', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           buffer,

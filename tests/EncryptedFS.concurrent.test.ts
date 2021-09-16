@@ -2,11 +2,11 @@ import path from 'path';
 import { expectError, sleep } from './utils';
 import {
   EncryptedFS,
-  constants,
   errno,
   DB,
   INodeManager,
   DeviceManager,
+  constants,
 } from '@';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import * as utils from '@/utils';

@@ -8,6 +8,7 @@ import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptorManager } from '@/fd';
 import { FileDescriptor } from '@/fd';
+import { permissions } from '@/constants';
 
 import * as utils from '@/utils';
 
@@ -159,9 +160,9 @@ describe('File Descriptor Manager', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           4096,
           origBuffer,

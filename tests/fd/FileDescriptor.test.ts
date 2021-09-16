@@ -7,6 +7,7 @@ import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptor } from '@/fd';
 import * as utils from '@/utils';
+import { constants, permissions } from '@/constants';
 
 describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
@@ -60,8 +61,8 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
-    fd.flags = vfs.constants.O_APPEND;
-    expect(fd.flags).toBe(vfs.constants.O_APPEND);
+    fd.flags = constants.O_APPEND;
+    expect(fd.flags).toBe(constants.O_APPEND);
   });
   test('can set position', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
@@ -72,7 +73,7 @@ describe('File Descriptor', () => {
     const fileIno = iNodeMgr.inoAllocate();
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     // Rejects as the iNode has not been created
-    await expect(fd.setPos(1, vfs.constants.SEEK_SET)).rejects.toThrow(Error);
+    await expect(fd.setPos(1, constants.SEEK_SET)).rejects.toThrow(Error);
     await iNodeMgr.transact(
       async (tran) => {
         tran.queueFailure(() => {
@@ -82,9 +83,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -95,13 +96,13 @@ describe('File Descriptor', () => {
     // Rejects as the new position would be a negativ number
     await expect(fd.setPos(-10, 0)).rejects.toThrow(Error);
     // Will seek the absolute position given
-    await fd.setPos(5, vfs.constants.SEEK_SET);
+    await fd.setPos(5, constants.SEEK_SET);
     expect(fd.pos).toBe(5);
     // Will seek the current position plus the absolute position
-    await fd.setPos(5, vfs.constants.SEEK_CUR);
+    await fd.setPos(5, constants.SEEK_CUR);
     expect(fd.pos).toBe(5 + 5);
     // Will seek the end of the data plus the absolute position
-    await fd.setPos(5, vfs.constants.SEEK_END);
+    await fd.setPos(5, constants.SEEK_END);
     expect(fd.pos).toBe(origBuffer.length + 5);
   });
   test('read all the data on the file iNode', async () => {
@@ -123,9 +124,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -163,9 +164,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -206,9 +207,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -247,9 +248,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
         );
@@ -294,9 +295,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -347,9 +348,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -398,9 +399,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -455,9 +456,9 @@ describe('File Descriptor', () => {
           tran,
           fileIno,
           {
-            mode: vfs.DEFAULT_FILE_PERM,
-            uid: vfs.DEFAULT_ROOT_UID,
-            gid: vfs.DEFAULT_ROOT_GID,
+            mode: permissions.DEFAULT_FILE_PERM,
+            uid: permissions.DEFAULT_ROOT_UID,
+            gid: permissions.DEFAULT_ROOT_GID,
           },
           blockSize,
           origBuffer,
@@ -468,7 +469,7 @@ describe('File Descriptor', () => {
       },
       [fileIno],
     );
-    const fd = new FileDescriptor(iNodeMgr, fileIno, vfs.constants.O_APPEND);
+    const fd = new FileDescriptor(iNodeMgr, fileIno, constants.O_APPEND);
 
     // Appending data to a non full block which will exceed the block size
     bytesWritten = await fd.write(appendBufferOver, 0);
@@ -495,7 +496,7 @@ describe('File Descriptor', () => {
     bytesWritten = await fd.write(
       appendBufferUnder,
       10,
-      vfs.constants.O_APPEND,
+      constants.O_APPEND,
     );
     expect(fd.pos).toBe(0);
     expect(bytesWritten).toBe(appendBufferUnder.length);

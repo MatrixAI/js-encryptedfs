@@ -8,6 +8,7 @@ import * as vfs from 'virtualfs';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
+import { permissions } from '@/constants';
 
 describe('INodeManager Directory', () => {
   const logger = new Logger('INodeManager Directory Test', LogLevel.WARN, [
@@ -49,15 +50,15 @@ describe('INodeManager Directory', () => {
           iNodeMgr.inoDeallocate(rootIno);
         });
         await iNodeMgr.dirCreate(tran, rootIno, {
-          mode: vfs.DEFAULT_ROOT_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_ROOT_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         });
         const stat = await iNodeMgr.statGet(tran, rootIno);
         expect(stat['ino']).toBe(rootIno);
         expect(stat.isDirectory()).toBe(true);
-        expect(stat['uid']).toBe(vfs.DEFAULT_ROOT_UID);
-        expect(stat['gid']).toBe(vfs.DEFAULT_ROOT_GID);
+        expect(stat['uid']).toBe(permissions.DEFAULT_ROOT_UID);
+        expect(stat['gid']).toBe(permissions.DEFAULT_ROOT_GID);
         // Root directories should have nlink of 2
         expect(stat['nlink']).toBe(2);
         // All timestamps should be the same at creation
@@ -97,9 +98,9 @@ describe('INodeManager Directory', () => {
           iNodeMgr.inoDeallocate(rootIno);
         });
         await iNodeMgr.dirCreate(tran, rootIno, {
-          mode: vfs.DEFAULT_ROOT_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_ROOT_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         });
       },
       [rootIno],
@@ -114,7 +115,7 @@ describe('INodeManager Directory', () => {
           tran,
           childIno,
           {
-            mode: vfs.DEFAULT_DIRECTORY_PERM,
+            mode: permissions.DEFAULT_DIRECTORY_PERM,
           },
           rootIno,
         );
@@ -193,15 +194,15 @@ describe('INodeManager Directory', () => {
           iNodeMgr.inoDeallocate(childIno);
         });
         await iNodeMgr.dirCreate(tran, rootIno, {
-          mode: vfs.DEFAULT_ROOT_PERM,
-          uid: vfs.DEFAULT_ROOT_UID,
-          gid: vfs.DEFAULT_ROOT_GID,
+          mode: permissions.DEFAULT_ROOT_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
         });
         await iNodeMgr.dirCreate(
           tran,
           childIno,
           {
-            mode: vfs.DEFAULT_DIRECTORY_PERM,
+            mode: permissions.DEFAULT_DIRECTORY_PERM,
           },
           rootIno,
         );
