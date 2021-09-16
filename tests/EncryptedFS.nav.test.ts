@@ -1,13 +1,9 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import EncryptedFS from '@/EncryptedFS';
-import { errno } from '@/EncryptedFSError';
-import { DB } from '@/db';
-import { INodeManager } from '@/inodes';
+import { EncryptedFS, constants, errno, DB, INodeManager, DeviceManager } from '@';
 import { expectError } from './utils';
 
 describe('EncryptedFS Navigation', () => {
@@ -19,7 +15,7 @@ describe('EncryptedFS Navigation', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -60,7 +56,7 @@ describe('EncryptedFS Navigation', () => {
   });
   test('EFS using callback style functions', (done) => {
     const str = 'callback';
-    const flags = vfs.constants.O_CREAT | vfs.constants.O_RDWR;
+    const flags = constants.O_CREAT |constants.O_RDWR;
     const readBuffer = Buffer.alloc(str.length);
     efs.mkdir('callback', () => {
       efs.open('callback/cb', flags, (err, fdIndex) => {
@@ -97,12 +93,12 @@ describe('EncryptedFS Navigation', () => {
     const buffer = Buffer.from('Hello World');
     await efs.mkdir(`first`);
     await efs.writeFile(`hello-world.txt`, buffer);
-    let stat = (await efs.stat(`first/../../../../../../first`)) as vfs.Stat;
+    let stat = (await efs.stat(`first/../../../../../../first`));
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
     stat = (await efs.stat(
       `first/../../../../../../hello-world.txt`,
-    )) as vfs.Stat;
+    ));
     expect(stat.isFile()).toStrictEqual(true);
     expect(stat.isDirectory()).toStrictEqual(false);
   });
@@ -115,7 +111,7 @@ describe('EncryptedFS Navigation', () => {
   });
   test('trailing slash works for non-existent directories when intending to create them', async () => {
     await efs.mkdir(`abc/`);
-    const stat = (await efs.stat(`abc/`)) as vfs.Stat;
+    const stat = (await efs.stat(`abc/`));
     expect(stat.isDirectory()).toStrictEqual(true);
   });
   test('trailing `/.` for mkdir should result in errors', async () => {
@@ -172,12 +168,12 @@ describe('EncryptedFS Navigation', () => {
   });
   test('deleted current directory can still use . and .. for traversal', async () => {
     await efs.mkdir('/removed');
-    const statRoot = (await efs.stat('/')) as vfs.Stat;
+    const statRoot = (await efs.stat('/'));
     await efs.chdir('/removed');
-    const statCurrent1 = (await efs.stat('.')) as vfs.Stat;
+    const statCurrent1 = (await efs.stat('.'));
     await efs.rmdir('../removed');
-    const statCurrent2 = (await efs.stat('.')) as vfs.Stat;
-    const statParent = (await efs.stat('..')) as vfs.Stat;
+    const statCurrent2 = (await efs.stat('.'));
+    const statParent = (await efs.stat('..'));
     expect(statCurrent1.ino).toBe(statCurrent2.ino);
     expect(statRoot.ino).toBe(statParent.ino);
     expect(statCurrent2.nlink).toBe(1);

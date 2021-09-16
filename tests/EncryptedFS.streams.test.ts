@@ -1,12 +1,9 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import EncryptedFS from '@/EncryptedFS';
-import { DB } from '@/db';
-import { INodeManager } from '@/inodes';
+import { EncryptedFS, DB, INodeManager, DeviceManager } from '@';
 import { Readable, Writable } from 'stream';
 
 describe('EncryptedFS Streams', () => {
@@ -18,7 +15,7 @@ describe('EncryptedFS Streams', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(

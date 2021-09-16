@@ -1,15 +1,11 @@
 import path from 'path';
 import { expectError, sleep } from './utils';
-import { errno } from '@';
-import EncryptedFS from '@/EncryptedFS';
+import { EncryptedFS, constants, errno, DB, INodeManager, DeviceManager } from '@';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DB } from '@/db';
 import * as utils from '@/utils';
-import { INodeManager } from '@/inodes';
 import fs from 'fs';
 import pathNode from 'path';
 import os from 'os';
-import * as vfs from 'virtualfs';
 import { FdIndex } from '@/fd/types';
 import { WriteStream } from '@/streams';
 
@@ -22,9 +18,9 @@ describe('EncryptedFS Concurrency', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
-  const flags = vfs.constants;
+  const flags = constants;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -130,7 +126,6 @@ describe('EncryptedFS Concurrency', () => {
     expect(await efs.readdir('dir')).toContain('file1');
   });
   describe('concurrent file writes', () => {
-    const flags = vfs.constants;
     test('10 short writes with efs.writeFile.', async () => {
       const contents = [
         'one',
@@ -334,7 +329,7 @@ describe('EncryptedFS Concurrency', () => {
   test('File metadata changes while reading/writing a file.', async () => {
     const fd1 = await efs.promises.open(
       'file',
-      vfs.constants.O_WRONLY | vfs.constants.O_CREAT,
+      flags.O_WRONLY | flags.O_CREAT,
     );
     const content = 'A'.repeat(2);
     await Promise.all([
@@ -349,7 +344,7 @@ describe('EncryptedFS Concurrency', () => {
 
     const fd2 = await efs.promises.open(
       'file',
-      vfs.constants.O_WRONLY | vfs.constants.O_CREAT,
+      flags.O_WRONLY | flags.O_CREAT,
     );
     await Promise.all([
       efs.promises.utimes('file', 0, 0),
@@ -740,7 +735,6 @@ describe('EncryptedFS Concurrency', () => {
     // expect(readString.length).toEqual(4096);
   });
   test('One write stream and one fd writing to the same file', async () => {
-    const flags = vfs.constants;
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
     const writeStream = await efs.createWriteStream('file');
@@ -772,7 +766,6 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents).toContain('C');
   });
   test('One read stream and one fd writing to the same file', async () => {
-    const flags = vfs.constants;
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
     const readStream = await efs.createReadStream('file');
@@ -801,7 +794,6 @@ describe('EncryptedFS Concurrency', () => {
     expect(readData).not.toContain('C');
   });
   test('One write stream and one fd reading to the same file', async () => {
-    const flags = vfs.constants;
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
     const writeStream = await efs.createWriteStream('file');
@@ -837,7 +829,6 @@ describe('EncryptedFS Concurrency', () => {
     expect(buf3.toString()).toContain('AB');
   });
   test('One read stream and one fd reading to the same file', async () => {
-    const flags = vfs.constants;
     await efs.writeFile('file', 'AAAAAAAAAABBBBBBBBBB');
     const fd = await efs.open('file', flags.O_RDONLY);
     const readStream = await efs.createReadStream('file');

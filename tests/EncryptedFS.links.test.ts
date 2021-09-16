@@ -4,7 +4,7 @@ import pathNode from 'path';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import EncryptedFS from '@/EncryptedFS';
+import { EncryptedFS } from '@';
 import { errno } from '@/EncryptedFSError';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';

@@ -1,13 +1,9 @@
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import EncryptedFS from '@/EncryptedFS';
-import { errno } from '@/EncryptedFSError';
-import { DB } from '@/db';
-import { INodeManager } from '@/inodes';
+import { EncryptedFS, constants, errno, INodeManager, DeviceManager, DB } from '@';
 import { expectError, createFile, FileTypes, setId, sleep } from './utils';
 import path from 'path';
 
@@ -20,7 +16,7 @@ describe('EncryptedFS Directories', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new vfs.DeviceManager();
+  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
@@ -73,7 +69,7 @@ describe('EncryptedFS Directories', () => {
   });
   test('Directory stat makes sense', async () => {
     await efs.mkdir(`dir`);
-    const stat = (await efs.stat(`dir`)) as vfs.Stat;
+    const stat = (await efs.stat(`dir`));
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
     expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -84,7 +80,7 @@ describe('EncryptedFS Directories', () => {
   });
   test('Empty root directory at startup', async () => {
     await expect(efs.readdir('/')).resolves.toEqual([]);
-    const stat = (await efs.stat('/')) as vfs.Stat;
+    const stat = (await efs.stat('/'));
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
     expect(stat.isSymbolicLink()).toStrictEqual(false);
@@ -100,7 +96,7 @@ describe('EncryptedFS Directories', () => {
       await efs.fchown(dirfd, 0, 0);
       const date = new Date();
       await efs.futimes(dirfd, date, date);
-      const stats = (await efs.fstat(dirfd)) as vfs.Stat;
+      const stats = (await efs.fstat(dirfd));
       expect(stats.atime.toJSON()).toEqual(date.toJSON());
       expect(stats.mtime.toJSON()).toEqual(date.toJSON());
       await efs.close(dirfd);
@@ -111,7 +107,7 @@ describe('EncryptedFS Directories', () => {
       // Opening it without O_RDONLY would result in EISDIR
       const dirfd = await efs.open(
         dirName,
-        vfs.constants.O_RDONLY | vfs.constants.O_DIRECTORY,
+        constants.O_RDONLY | constants.O_DIRECTORY,
       );
       const buffer = Buffer.alloc(10);
       await expectError(efs.ftruncate(dirfd), errno.EINVAL);
@@ -125,7 +121,7 @@ describe('EncryptedFS Directories', () => {
       await efs.mkdir('/dir');
       const fd = await efs.open('/dir', 'r');
       await efs.rmdir('/dir');
-      const stat = (await efs.fstat(fd)) as vfs.Stat;
+      const stat = (await efs.fstat(fd));
       expect(stat.nlink).toBe(1);
       await efs.close(fd);
     });
@@ -230,7 +226,7 @@ describe('EncryptedFS Directories', () => {
       );
       await efs.mkdirp(`a/depth/sub/dir`);
       await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
-      const stat = (await efs.stat(`a/depth/sub`)) as vfs.Stat;
+      const stat = (await efs.stat(`a/depth/sub`));
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
     });
