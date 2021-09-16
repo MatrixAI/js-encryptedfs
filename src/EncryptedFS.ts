@@ -21,7 +21,8 @@ import { FileDescriptor, FileDescriptorManager } from './fd';
 import { ReadStream, WriteStream } from './streams';
 import { EncryptedFSError, errno } from '.';
 import { maybeCallback } from './utils';
-import Stat from '@/Stat';
+import Stat from './Stat';
+import { constants, DeviceManager } from '.';
 
 import * as inodesErrors from './inodes/errors';
 
@@ -33,7 +34,7 @@ const pathJoin = pathNode.posix ? pathNode.posix.join : pathNode.join;
 
 class EncryptedFS {
   protected db: DB;
-  protected devMgr: vfs.DeviceManager;
+  protected devMgr: DeviceManager;
   protected _iNodeMgr: INodeManager;
   protected _fdMgr: FileDescriptorManager;
   protected _root: INodeIndex;
@@ -57,7 +58,7 @@ class EncryptedFS {
     dbKey: Buffer;
     dbPath: string;
     db?: DB;
-    devMgr?: vfs.DeviceManager;
+    devMgr?: DeviceManager;
     iNodeMgr?: INodeManager;
     blkSize?: number;
     umask?: number;
@@ -70,7 +71,7 @@ class EncryptedFS {
         dbPath,
         logger: logger.getChild(DB.name),
       }));
-    devMgr = devMgr ?? new vfs.DeviceManager();
+    devMgr = devMgr ?? new DeviceManager();
     iNodeMgr =
       iNodeMgr ??
       (await INodeManager.createINodeManager({
@@ -119,7 +120,7 @@ class EncryptedFS {
     logger,
   }: {
     db: DB;
-    devMgr: vfs.DeviceManager;
+    devMgr: DeviceManager;
     iNodeMgr: INodeManager;
     rootIno: INodeIndex;
     blkSize: number;
@@ -192,7 +193,7 @@ class EncryptedFS {
         if (!(targetType === 'Directory')) {
           throw new EncryptedFSError(errno.ENOTDIR, path);
         }
-        if (!this.checkPermissions(vfs.constants.X_OK, targetStat)) {
+        if (!this.checkPermissions(constants.X_OK, targetStat)) {
           throw new EncryptedFSError(errno.EACCES, path);
         }
         await this._cwd.changeDir(target, navigated.pathStack);
@@ -210,13 +211,11 @@ class EncryptedFS {
   ): Promise<void>;
   public async access(
     path: Path,
-    modeOrCallback: number | Callback = vfs.constants.F_OK,
+    modeOrCallback: number | Callback = constants.F_OK,
     callback?: Callback,
   ): Promise<void> {
     const mode =
-      typeof modeOrCallback !== 'function'
-        ? modeOrCallback
-        : vfs.constants.F_OK;
+      typeof modeOrCallback !== 'function' ? modeOrCallback : constants.F_OK;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return maybeCallback(async () => {
       path = this.getPath(path);
@@ -227,7 +226,7 @@ class EncryptedFS {
           `access ${path} does not exist`,
         );
       }
-      if (mode === vfs.constants.F_OK) {
+      if (mode === constants.F_OK) {
         return;
       }
       let targetStat;
@@ -291,7 +290,7 @@ class EncryptedFS {
               errno.EBADF,
               `appendFile '${fd}' invalid File Descriptor`,
             );
-          if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+          if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
             throw new EncryptedFSError(
               errno.EBADF,
               `appendFile '${fd}' invalide File Descriptor flags`,
@@ -305,7 +304,7 @@ class EncryptedFS {
           );
         }
         try {
-          await fd.write(data, undefined, vfs.constants.O_APPEND);
+          await fd.write(data, undefined, constants.O_APPEND);
         } catch (e) {
           if (e instanceof RangeError) {
             throw new EncryptedFSError(errno.EFBIG, 'appendFile');
@@ -346,7 +345,7 @@ class EncryptedFS {
             tran,
             target,
             'mode',
-            (targetStat.mode & vfs.constants.S_IFMT) | mode,
+            (targetStat.mode & constants.S_IFMT) | mode,
           );
         },
         [target],
@@ -454,7 +453,7 @@ class EncryptedFS {
       let srcFd, srcFdIndex, dstFd, dstFdIndex;
       try {
         // The only things that are copied is the data and the mode
-        [srcFd, srcFdIndex] = await this._open(srcPath, vfs.constants.O_RDONLY);
+        [srcFd, srcFdIndex] = await this._open(srcPath, constants.O_RDONLY);
         const srcINode = srcFd.ino;
         await this._iNodeMgr.transact(async (tran) => {
           tran.queueFailure(() => {
@@ -468,9 +467,9 @@ class EncryptedFS {
               `copyFile '${srcPath}', '${dstPath}'`,
             );
           }
-          let dstFlags = vfs.constants.O_WRONLY | vfs.constants.O_CREAT;
-          if (flags & vfs.constants.COPYFILE_EXCL) {
-            dstFlags |= vfs.constants.O_EXCL;
+          let dstFlags = constants.O_WRONLY | constants.O_CREAT;
+          if (flags & constants.COPYFILE_EXCL) {
+            dstFlags |= constants.O_EXCL;
           }
           [dstFd, dstFdIndex] = await this._open(
             dstPath,
@@ -629,7 +628,7 @@ class EncryptedFS {
           if (!(iNodeType === 'File')) {
             throw new EncryptedFSError(errno.ENODEV, `fallocate '${fdIndex}'`);
           }
-          if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+          if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
             throw new EncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
           }
           const data = Buffer.alloc(0);
@@ -697,7 +696,7 @@ class EncryptedFS {
             tran,
             fd.ino,
             'mode',
-            (fdStat.mode & vfs.constants.S_IFMT) | mode,
+            (fdStat.mode & constants.S_IFMT) | mode,
           );
         },
         [fd.ino],
@@ -809,7 +808,7 @@ class EncryptedFS {
           if (!(iNodeType === 'File')) {
             throw new EncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
           }
-          if (!(fd.flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+          if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
             throw new EncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
           }
           let data = Buffer.alloc(0);
@@ -926,7 +925,7 @@ class EncryptedFS {
             tran,
             target,
             'mode',
-            (targetStat.mode & vfs.constants.S_IFMT) | mode,
+            (targetStat.mode & constants.S_IFMT) | mode,
           );
         },
         [target],
@@ -1007,7 +1006,7 @@ class EncryptedFS {
                 `link '${existingPath}', '${newPath}'`,
               );
             }
-            if (!this.checkPermissions(vfs.constants.W_OK, newDirStat)) {
+            if (!this.checkPermissions(constants.W_OK, newDirStat)) {
               throw new EncryptedFSError(
                 errno.EACCES,
                 `link '${existingPath}', '${newPath}'`,
@@ -1061,13 +1060,13 @@ class EncryptedFS {
   public async lseek(
     fdIndex: FdIndex,
     position: number,
-    seekFlagsOrCallback: number | Callback<[number]> = vfs.constants.SEEK_SET,
+    seekFlagsOrCallback: number | Callback<[number]> = constants.SEEK_SET,
     callback?: Callback<[number]>,
   ): Promise<number | void> {
     const seekFlags =
       typeof seekFlagsOrCallback !== 'function'
         ? seekFlagsOrCallback
-        : vfs.constants.SEEK_SET;
+        : constants.SEEK_SET;
     callback =
       typeof seekFlagsOrCallback === 'function'
         ? seekFlagsOrCallback
@@ -1078,11 +1077,9 @@ class EncryptedFS {
         throw new EncryptedFSError(errno.EBADF, `lseek '${fdIndex}'`);
       }
       if (
-        [
-          vfs.constants.SEEK_SET,
-          vfs.constants.SEEK_CUR,
-          vfs.constants.SEEK_END,
-        ].indexOf(seekFlags) === -1
+        [constants.SEEK_SET, constants.SEEK_CUR, constants.SEEK_END].indexOf(
+          seekFlags,
+        ) === -1
       ) {
         throw new EncryptedFSError(errno.EINVAL, `lseek '${fdIndex}'`);
       }
@@ -1165,7 +1162,7 @@ class EncryptedFS {
                 `mkdir '${path}' does not exist`,
               );
             }
-            if (!this.checkPermissions(vfs.constants.W_OK, navigatedDirStats)) {
+            if (!this.checkPermissions(constants.W_OK, navigatedDirStats)) {
               throw new EncryptedFSError(
                 errno.EACCES,
                 `mkdir '${path}' does not have correct permissions`,
@@ -1236,9 +1233,7 @@ class EncryptedFS {
                   `mkdirp '${path}' does not exist`,
                 );
               }
-              if (
-                !this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)
-              ) {
+              if (!this.checkPermissions(constants.W_OK, navigatedDirStat)) {
                 throw new EncryptedFSError(
                   errno.EACCES,
                   `mkdirp '${path}' does not have correct permissions`,
@@ -1407,11 +1402,11 @@ class EncryptedFS {
           if (navigatedDirStat.nlink < 2) {
             throw new EncryptedFSError(errno.ENOENT, `mknod '${path}'`);
           }
-          if (!this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)) {
+          if (!this.checkPermissions(constants.W_OK, navigatedDirStat)) {
             throw new EncryptedFSError(errno.EACCES, `mknod '${path}'`);
           }
           switch (type) {
-            case vfs.constants.S_IFREG:
+            case constants.S_IFREG:
               await this._iNodeMgr.fileCreate(
                 tran,
                 iNode,
@@ -1423,7 +1418,7 @@ class EncryptedFS {
                 this._blkSize,
               );
               break;
-            case vfs.constants.S_IFCHR:
+            case constants.S_IFCHR:
               if (typeof major !== 'number' || typeof minor !== 'number') {
                 throw TypeError(
                   'major and minor must set as numbers when creating device nodes',
@@ -1501,63 +1496,51 @@ class EncryptedFS {
       switch (flags) {
         case 'r':
         case 'rs':
-          flags = vfs.constants.O_RDONLY;
+          flags = constants.O_RDONLY;
           break;
         case 'r+':
         case 'rs+':
-          flags = vfs.constants.O_RDWR;
+          flags = constants.O_RDWR;
           break;
         case 'w':
-          flags =
-            vfs.constants.O_WRONLY |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_TRUNC;
+          flags = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC;
           break;
         case 'wx':
           flags =
-            vfs.constants.O_WRONLY |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_TRUNC |
-            vfs.constants.O_EXCL;
+            constants.O_WRONLY |
+            constants.O_CREAT |
+            constants.O_TRUNC |
+            constants.O_EXCL;
           break;
         case 'w+':
-          flags =
-            vfs.constants.O_RDWR |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_TRUNC;
+          flags = constants.O_RDWR | constants.O_CREAT | constants.O_TRUNC;
           break;
         case 'wx+':
           flags =
-            vfs.constants.O_RDWR |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_TRUNC |
-            vfs.constants.O_EXCL;
+            constants.O_RDWR |
+            constants.O_CREAT |
+            constants.O_TRUNC |
+            constants.O_EXCL;
           break;
         case 'a':
-          flags =
-            vfs.constants.O_WRONLY |
-            vfs.constants.O_APPEND |
-            vfs.constants.O_CREAT;
+          flags = constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT;
           break;
         case 'ax':
           flags =
-            vfs.constants.O_WRONLY |
-            vfs.constants.O_APPEND |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_EXCL;
+            constants.O_WRONLY |
+            constants.O_APPEND |
+            constants.O_CREAT |
+            constants.O_EXCL;
           break;
         case 'a+':
-          flags =
-            vfs.constants.O_RDWR |
-            vfs.constants.O_APPEND |
-            vfs.constants.O_CREAT;
+          flags = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT;
           break;
         case 'ax+':
           flags =
-            vfs.constants.O_RDWR |
-            vfs.constants.O_APPEND |
-            vfs.constants.O_CREAT |
-            vfs.constants.O_EXCL;
+            constants.O_RDWR |
+            constants.O_APPEND |
+            constants.O_CREAT |
+            constants.O_EXCL;
           break;
         default:
           throw new TypeError('Unknown file open flag: ' + flags);
@@ -1579,7 +1562,7 @@ class EncryptedFS {
         for (;;) {
           if (!target) {
             // O_CREAT only applies if there's a left over name without any remaining path
-            if (!navigated.remaining && openFlags & vfs.constants.O_CREAT) {
+            if (!navigated.remaining && openFlags & constants.O_CREAT) {
               let navigatedDirStat;
               const fileINode = this._iNodeMgr.inoAllocate();
               await this._iNodeMgr.transact(
@@ -1596,7 +1579,7 @@ class EncryptedFS {
                     throw new EncryptedFSError(errno.ENOENT, `open '${path}'`);
                   }
                   if (
-                    !this.checkPermissions(vfs.constants.W_OK, navigatedDirStat)
+                    !this.checkPermissions(constants.W_OK, navigatedDirStat)
                   ) {
                     throw new EncryptedFSError(errno.EACCES, `open '${path}'`);
                   }
@@ -1628,7 +1611,7 @@ class EncryptedFS {
             const targetType = (await this._iNodeMgr.get(tran, target))?.type;
             if (targetType === 'Symlink') {
               // Cannot be symlink if O_NOFOLLOW
-              if (openFlags & vfs.constants.O_NOFOLLOW) {
+              if (openFlags & constants.O_NOFOLLOW) {
                 throw new EncryptedFSError(errno.ELOOP, `open '${path}'`);
               }
               navigated = await this.navigateFrom(
@@ -1643,8 +1626,8 @@ class EncryptedFS {
             } else {
               // Target already exists cannot be created exclusively
               if (
-                openFlags & vfs.constants.O_CREAT &&
-                openFlags & vfs.constants.O_EXCL
+                openFlags & constants.O_CREAT &&
+                openFlags & constants.O_EXCL
               ) {
                 throw new EncryptedFSError(errno.EEXIST, `open '${path}'`);
               }
@@ -1652,25 +1635,24 @@ class EncryptedFS {
               if (
                 targetType === 'Directory' &&
                 openFlags &
-                  (vfs.constants.O_WRONLY |
+                  (constants.O_WRONLY |
                     (openFlags &
-                      (vfs.constants.O_RDWR |
-                        (openFlags & vfs.constants.O_TRUNC))))
+                      (constants.O_RDWR | (openFlags & constants.O_TRUNC))))
               ) {
                 throw new EncryptedFSError(errno.EISDIR, `open '${path}'`);
               }
               // Must be directory if O_DIRECTORY
               if (
-                openFlags & vfs.constants.O_DIRECTORY &&
+                openFlags & constants.O_DIRECTORY &&
                 !(targetType === 'Directory')
               ) {
                 throw new EncryptedFSError(errno.ENOTDIR, `open '${path}'`);
               }
               // Must truncate a file if O_TRUNC
               if (
-                openFlags & vfs.constants.O_TRUNC &&
+                openFlags & constants.O_TRUNC &&
                 targetType === 'File' &&
-                openFlags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR)
+                openFlags & (constants.O_WRONLY | constants.O_RDWR)
               ) {
                 await this._iNodeMgr.fileClearData(tran, target);
                 await this._iNodeMgr.fileSetBlocks(
@@ -1686,15 +1668,15 @@ class EncryptedFS {
         }
         // Convert file descriptor access flags into bitwise permission flags
         let access;
-        if (openFlags & vfs.constants.O_RDWR) {
-          access = vfs.constants.R_OK | vfs.constants.W_OK;
+        if (openFlags & constants.O_RDWR) {
+          access = constants.R_OK | constants.W_OK;
         } else if (
-          (openFlags & vfs.constants.O_WRONLY) |
-          (openFlags & vfs.constants.O_TRUNC)
+          (openFlags & constants.O_WRONLY) |
+          (openFlags & constants.O_TRUNC)
         ) {
-          access = vfs.constants.W_OK;
+          access = constants.W_OK;
         } else {
-          access = vfs.constants.R_OK;
+          access = constants.R_OK;
         }
         const targetStat = await this._iNodeMgr.statGet(tran, target);
         if (!this.checkPermissions(access, targetStat)) {
@@ -1788,7 +1770,7 @@ class EncryptedFS {
         throw new EncryptedFSError(errno.EISDIR, 'read');
       }
       const flags = fd.flags;
-      if (flags & vfs.constants.O_WRONLY) {
+      if (flags & constants.O_WRONLY) {
         throw new EncryptedFSError(errno.EBADF, 'read');
       }
       if (offset < 0 || offset > buffer.length) {
@@ -1857,7 +1839,7 @@ class EncryptedFS {
               `readdir '${path}' not a directory`,
             );
           }
-          if (!this.checkPermissions(vfs.constants.R_OK, navigatedTargetStat)) {
+          if (!this.checkPermissions(constants.R_OK, navigatedTargetStat)) {
             throw new EncryptedFSError(
               errno.EACCES,
               `readdir '${path}' does ot have correct permissions`,
@@ -2044,13 +2026,13 @@ class EncryptedFS {
       const navigatedTarget = await this.navigate(newPath, false);
       await this._iNodeMgr.transact(
         async (tran) => {
-        if (!navigatedSource.target || navigatedTarget.remaining) {
-          throw new EncryptedFSError(
-            errno.ENOENT,
-            `rename '${oldPath}', ${newPath}'`,
-          );
-        }
-        const sourceTarget = navigatedSource.target;
+          if (!navigatedSource.target || navigatedTarget.remaining) {
+            throw new EncryptedFSError(
+              errno.ENOENT,
+              `rename '${oldPath}', ${newPath}'`,
+            );
+          }
+          const sourceTarget = navigatedSource.target;
           const sourceTargetType = (
             await this._iNodeMgr.get(tran, sourceTarget)
           )?.type;
@@ -2151,8 +2133,8 @@ class EncryptedFS {
           );
           // Both the navigatedSource.dir and navigatedTarget.dir must support write permissions
           if (
-            !this.checkPermissions(vfs.constants.W_OK, sourceDirStat) ||
-            !this.checkPermissions(vfs.constants.W_OK, targetDirStat)
+            !this.checkPermissions(constants.W_OK, sourceDirStat) ||
+            !this.checkPermissions(constants.W_OK, targetDirStat)
           ) {
             throw new EncryptedFSError(
               errno.EACCES,
@@ -2168,12 +2150,15 @@ class EncryptedFS {
                 navigatedSource.name,
                 navigatedTarget.name,
               );
-              } catch (err) {
-                if (err instanceof inodesErrors.ErrorINodesInvalidName) {
-                  throw new EncryptedFSError(errno.ENOENT, `rename '${navigatedSource.name}' '${navigatedTarget.name}'`);
-                }
-                throw err;
+            } catch (err) {
+              if (err instanceof inodesErrors.ErrorINodesInvalidName) {
+                throw new EncryptedFSError(
+                  errno.ENOENT,
+                  `rename '${navigatedSource.name}' '${navigatedTarget.name}'`,
+                );
               }
+              throw err;
+            }
             return;
           }
           const index = (await this._iNodeMgr.dirGetEntry(
@@ -2228,8 +2213,12 @@ class EncryptedFS {
           );
         },
         navigatedTarget.target
-          ? (navigatedSource.target ? [navigatedTarget.target, navigatedSource.target] : [navigatedTarget.target])
-          : (navigatedSource.target ? [navigatedSource.target] : []),
+          ? navigatedSource.target
+            ? [navigatedTarget.target, navigatedSource.target]
+            : [navigatedTarget.target]
+          : navigatedSource.target
+          ? [navigatedSource.target]
+          : [],
       );
     }, callback);
   }
@@ -2259,10 +2248,9 @@ class EncryptedFS {
           }
           const target = navigated.target;
           const dir = navigated.dir;
-          let targetType, dirStat;
           const targetEntries: Array<[string | Buffer, INodeIndex]> = [];
-          targetType = (await this._iNodeMgr.get(tran, target))?.type;
-          dirStat = await this._iNodeMgr.statGet(tran, dir);
+          const targetType = (await this._iNodeMgr.get(tran, target))?.type;
+          const dirStat = await this._iNodeMgr.statGet(tran, dir);
           for await (const entry of this._iNodeMgr.dirGet(tran, target)) {
             targetEntries.push(entry);
           }
@@ -2272,12 +2260,12 @@ class EncryptedFS {
           if (targetEntries.length - 2) {
             throw new EncryptedFSError(errno.ENOTEMPTY, `rmdir'${path}'`);
           }
-          if (!this.checkPermissions(vfs.constants.W_OK, dirStat)) {
+          if (!this.checkPermissions(constants.W_OK, dirStat)) {
             throw new EncryptedFSError(errno.EACCES, `rmdir '${path}'`);
           }
           await this._iNodeMgr.dirUnsetEntry(tran, dir, navigated.name);
         },
-        navigated.target ? [navigated.target, navigated.dir]: [navigated.dir],
+        navigated.target ? [navigated.target, navigated.dir] : [navigated.dir],
       );
     }, callback);
   }
@@ -2351,7 +2339,7 @@ class EncryptedFS {
                 `symlink '${srcPath}', '${dstPath}'`,
               );
             }
-            if (!this.checkPermissions(vfs.constants.W_OK, dirStat)) {
+            if (!this.checkPermissions(constants.W_OK, dirStat)) {
               throw new EncryptedFSError(
                 errno.EACCES,
                 `symlink '${srcPath}', '${dstPath}'`,
@@ -2409,7 +2397,7 @@ class EncryptedFS {
         file = this.getPath(file as Path);
         let fdIndex;
         try {
-          fdIndex = await this.open(file, vfs.constants.O_WRONLY);
+          fdIndex = await this.open(file, constants.O_WRONLY);
           await this.ftruncate(fdIndex, len);
         } finally {
           if (fdIndex !== undefined) await this.close(fdIndex);
@@ -2430,7 +2418,7 @@ class EncryptedFS {
         async (tran) => {
           const dirStat = await this._iNodeMgr.statGet(tran, navigated.dir);
           const targetType = (await this._iNodeMgr.get(tran, target))?.type;
-          if (!this.checkPermissions(vfs.constants.W_OK, dirStat)) {
+          if (!this.checkPermissions(constants.W_OK, dirStat)) {
             throw new EncryptedFSError(errno.EACCES, `unlink '${path}'`);
           }
           if (targetType === 'Directory') {
@@ -2562,7 +2550,7 @@ class EncryptedFS {
         throw new EncryptedFSError(errno.EINVAL, 'write');
       }
       const flags = fd.flags;
-      if (!(flags & (vfs.constants.O_WRONLY | vfs.constants.O_RDWR))) {
+      if (!(flags & (constants.O_WRONLY | constants.O_RDWR))) {
         throw new EncryptedFSError(errno.EBADF, 'write');
       }
       let buffer;
@@ -2732,7 +2720,7 @@ class EncryptedFS {
       },
       [curdir],
     );
-    if (!this.checkPermissions(vfs.constants.X_OK, curdirStat)) {
+    if (!this.checkPermissions(constants.X_OK, curdirStat)) {
       throw new EncryptedFSError(
         errno.EACCES,
         `navigateFrom '${origPathS}' does not have correct permissions`,

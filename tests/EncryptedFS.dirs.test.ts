@@ -3,7 +3,14 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, constants, errno, INodeManager, DeviceManager, DB } from '@';
+import {
+  EncryptedFS,
+  constants,
+  errno,
+  INodeManager,
+  DeviceManager,
+  DB,
+} from '@';
 import { expectError, createFile, FileTypes, setId, sleep } from './utils';
 import path from 'path';
 
@@ -69,7 +76,7 @@ describe('EncryptedFS Directories', () => {
   });
   test('Directory stat makes sense', async () => {
     await efs.mkdir(`dir`);
-    const stat = (await efs.stat(`dir`));
+    const stat = await efs.stat(`dir`);
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
     expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -80,7 +87,7 @@ describe('EncryptedFS Directories', () => {
   });
   test('Empty root directory at startup', async () => {
     await expect(efs.readdir('/')).resolves.toEqual([]);
-    const stat = (await efs.stat('/'));
+    const stat = await efs.stat('/');
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
     expect(stat.isSymbolicLink()).toStrictEqual(false);
@@ -96,7 +103,7 @@ describe('EncryptedFS Directories', () => {
       await efs.fchown(dirfd, 0, 0);
       const date = new Date();
       await efs.futimes(dirfd, date, date);
-      const stats = (await efs.fstat(dirfd));
+      const stats = await efs.fstat(dirfd);
       expect(stats.atime.toJSON()).toEqual(date.toJSON());
       expect(stats.mtime.toJSON()).toEqual(date.toJSON());
       await efs.close(dirfd);
@@ -121,7 +128,7 @@ describe('EncryptedFS Directories', () => {
       await efs.mkdir('/dir');
       const fd = await efs.open('/dir', 'r');
       await efs.rmdir('/dir');
-      const stat = (await efs.fstat(fd));
+      const stat = await efs.fstat(fd);
       expect(stat.nlink).toBe(1);
       await efs.close(fd);
     });
@@ -226,7 +233,7 @@ describe('EncryptedFS Directories', () => {
       );
       await efs.mkdirp(`a/depth/sub/dir`);
       await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
-      const stat = (await efs.stat(`a/depth/sub`));
+      const stat = await efs.stat(`a/depth/sub`);
       expect(stat.isFile()).toStrictEqual(false);
       expect(stat.isDirectory()).toStrictEqual(true);
     });

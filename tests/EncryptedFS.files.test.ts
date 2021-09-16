@@ -3,7 +3,14 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, constants, DB, INodeManager, errno, DeviceManager } from '@';
+import {
+  EncryptedFS,
+  constants,
+  DB,
+  INodeManager,
+  errno,
+  DeviceManager,
+} from '@';
 import {
   createFile,
   expectError,
@@ -67,7 +74,7 @@ describe('EncryptedFS Files', () => {
   });
   test('File stat makes sense', async () => {
     await efs.writeFile(`test`, 'test data');
-    const stat = (await efs.stat(`test`));
+    const stat = await efs.stat(`test`);
     expect(stat.isFile()).toStrictEqual(true);
     expect(stat.isDirectory()).toStrictEqual(false);
     expect(stat.isBlockDevice()).toStrictEqual(false);
@@ -136,7 +143,7 @@ describe('EncryptedFS Files', () => {
       const offset = 10;
       const length = 100;
       await efs.fallocate(fd, offset, length);
-      const stat = (await efs.stat('allocate'));
+      const stat = await efs.stat('allocate');
       expect(stat.size).toBe(offset + length);
       await efs.close(fd);
     });
@@ -157,11 +164,11 @@ describe('EncryptedFS Files', () => {
     test('will only change ctime', async () => {
       const fd = await efs.open(`allocate`, 'w');
       await efs.write(fd, Buffer.from('abc'));
-      const stat = (await efs.stat(`allocate`));
+      const stat = await efs.stat(`allocate`);
       const offset = 0;
       const length = 8000;
       await efs.fallocate(fd, offset, length);
-      const stat2 = (await efs.stat(`allocate`));
+      const stat2 = await efs.stat(`allocate`);
       expect(stat2.size).toEqual(offset + length);
       expect(stat2.ctime > stat.ctime).toEqual(true);
       expect(stat2.mtime).toEqual(stat.mtime);
@@ -173,20 +180,20 @@ describe('EncryptedFS Files', () => {
     test('will change mtime and ctime', async () => {
       const str = 'abcdef';
       await efs.writeFile(`test`, str);
-      const stat = (await efs.stat(`test`));
+      const stat = await efs.stat(`test`);
       await efs.truncate(`test`, str.length);
-      const stat2 = (await efs.stat(`test`));
+      const stat2 = await efs.stat(`test`);
       expect(stat.mtime < stat2.mtime && stat.ctime < stat2.ctime).toEqual(
         true,
       );
       const fd = await efs.open(`test`, 'r+');
       await efs.ftruncate(fd, str.length);
-      const stat3 = (await efs.stat(`test`));
+      const stat3 = await efs.stat(`test`);
       expect(stat2.mtime < stat3.mtime && stat2.ctime < stat3.ctime).toEqual(
         true,
       );
       await efs.ftruncate(fd, str.length);
-      const stat4 = (await efs.stat(`test`));
+      const stat4 = await efs.stat(`test`);
       expect(stat3.mtime < stat4.mtime && stat3.ctime < stat4.ctime).toEqual(
         true,
       );

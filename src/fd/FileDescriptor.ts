@@ -3,10 +3,9 @@ import type { INodeType } from '../inodes/types';
 import { INodeIndex } from '@/inodes/types';
 import { INodeManager } from '../inodes';
 
-import * as vfs from 'virtualfs';
-
 import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
+import { constants } from '../';
 
 /*
  * File descriptor class which uses the INode type as a template
@@ -62,7 +61,7 @@ class FileDescriptor {
    */
   public async setPos(
     pos: number,
-    flags: number = vfs.constants.SEEK_SET,
+    flags: number = constants.SEEK_SET,
   ): Promise<void> {
     let newPos, type, size;
     await this._iNodeMgr.transact(
@@ -80,13 +79,13 @@ class FileDescriptor {
       case 'Directory':
         {
           switch (flags) {
-            case vfs.constants.SEEK_SET:
+            case constants.SEEK_SET:
               newPos = pos;
               break;
-            case vfs.constants.SEEK_CUR:
+            case constants.SEEK_CUR:
               newPos = this._pos + pos;
               break;
-            case vfs.constants.SEEK_END:
+            case constants.SEEK_END:
               newPos = size + pos;
               break;
             default:
@@ -288,7 +287,7 @@ class FileDescriptor {
     switch (type) {
       case 'File':
         {
-          if ((this._flags | extraFlags) & vfs.constants.O_APPEND) {
+          if ((this._flags | extraFlags) & constants.O_APPEND) {
             let idx, value;
             // To append we check the idx and length of the last block
             await this._iNodeMgr.transact(

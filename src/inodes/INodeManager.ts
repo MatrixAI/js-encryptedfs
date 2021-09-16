@@ -13,6 +13,7 @@ import * as inodesUtils from './utils';
 import * as inodesErrors from './errors';
 import Stat from '../Stat';
 import * as utils from '../utils';
+import { constants } from '../';
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
 type FileParams = Partial<Omit<INodeParams, 'ino'>>;
@@ -202,8 +203,7 @@ class INodeManager {
     data?: Buffer,
   ): Promise<void> {
     const statDomain = [...this.statsDomain, ino.toString()];
-    const mode =
-      vfs.constants.S_IFREG | ((params.mode ?? 0) & ~vfs.constants.S_IFMT);
+    const mode = constants.S_IFREG | ((params.mode ?? 0) & ~constants.S_IFMT);
     await this.iNodeCreate(tran, 'File', {
       ...params,
       ino,
@@ -223,8 +223,7 @@ class INodeManager {
     params: DirectoryParams,
     parent?: INodeIndex,
   ): Promise<void> {
-    const mode =
-      vfs.constants.S_IFDIR | ((params.mode ?? 0) & ~vfs.constants.S_IFMT);
+    const mode = constants.S_IFDIR | ((params.mode ?? 0) & ~constants.S_IFMT);
     const dirDomain = [...this.dirsDomain, ino.toString()];
     let nlink: number;
     if (parent == null) {
@@ -260,8 +259,7 @@ class INodeManager {
     params: SymlinkParams,
     link: string,
   ): Promise<void> {
-    const mode =
-      vfs.constants.S_IFLNK | ((params.mode ?? 0) & ~vfs.constants.S_IFMT);
+    const mode = constants.S_IFLNK | ((params.mode ?? 0) & ~constants.S_IFMT);
     await this.iNodeCreate(tran, 'Symlink', {
       ...params,
       ino,
@@ -275,8 +273,7 @@ class INodeManager {
     ino: INodeIndex,
     params: CharDevParams,
   ): Promise<void> {
-    const mode =
-      vfs.constants.S_IFCHR | ((params.mode ?? 0) & ~vfs.constants.S_IFMT);
+    const mode = constants.S_IFCHR | ((params.mode ?? 0) & ~constants.S_IFMT);
     await this.iNodeCreate(tran, 'CharacterDev', {
       ...params,
       ino,

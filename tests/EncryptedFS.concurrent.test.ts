@@ -1,6 +1,13 @@
 import path from 'path';
 import { expectError, sleep } from './utils';
-import { EncryptedFS, constants, errno, DB, INodeManager, DeviceManager } from '@';
+import {
+  EncryptedFS,
+  constants,
+  errno,
+  DB,
+  INodeManager,
+  DeviceManager,
+} from '@';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import * as utils from '@/utils';
 import fs from 'fs';
@@ -327,10 +334,7 @@ describe('EncryptedFS Concurrency', () => {
     });
   });
   test('File metadata changes while reading/writing a file.', async () => {
-    const fd1 = await efs.promises.open(
-      'file',
-      flags.O_WRONLY | flags.O_CREAT,
-    );
+    const fd1 = await efs.promises.open('file', flags.O_WRONLY | flags.O_CREAT);
     const content = 'A'.repeat(2);
     await Promise.all([
       efs.promises.writeFile(fd1, Buffer.from(content)),
@@ -342,10 +346,7 @@ describe('EncryptedFS Concurrency', () => {
     await efs.close(fd1);
     await efs.unlink('file');
 
-    const fd2 = await efs.promises.open(
-      'file',
-      flags.O_WRONLY | flags.O_CREAT,
-    );
+    const fd2 = await efs.promises.open('file', flags.O_WRONLY | flags.O_CREAT);
     await Promise.all([
       efs.promises.utimes('file', 0, 0),
       efs.promises.writeFile(fd2, Buffer.from(content)),
@@ -1123,8 +1124,8 @@ describe('EncryptedFS Concurrency', () => {
     await Promise.all([
       expectError(efs.rename('dir2', 'renamedDir2'), errno.ENOENT),
       efs.rmdir('dir2'),
-    ])
+    ]);
     list = await efs.readdir('.');
     expect(list).toEqual([]);
-  })
+  });
 });

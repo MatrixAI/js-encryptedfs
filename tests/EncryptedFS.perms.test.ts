@@ -4,7 +4,14 @@ import pathNode from 'path';
 import * as vfs from 'virtualfs';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, constants, errno, DB, INodeManager, DeviceManager } from '@';
+import {
+  EncryptedFS,
+  constants,
+  errno,
+  DB,
+  INodeManager,
+  DeviceManager,
+} from '@';
 import { expectError } from './utils';
 
 describe('EncryptedFS Permissions', () => {
@@ -55,7 +62,7 @@ describe('EncryptedFS Permissions', () => {
   test('chown changes uid and gid', async () => {
     await efs.mkdir('test');
     await efs.chown(`test`, 1000, 2000);
-    const stat = (await efs.stat(`test`));
+    const stat = await efs.stat(`test`);
     expect(stat.uid).toEqual(1000);
     expect(stat.gid).toEqual(2000);
   });
@@ -63,16 +70,13 @@ describe('EncryptedFS Permissions', () => {
   test('chmod with 0 wipes out all permissions', async () => {
     await efs.writeFile(`a`, 'abc');
     await efs.chmod(`a`, 0o000);
-    const stat = (await efs.stat(`a`));
+    const stat = await efs.stat(`a`);
     expect(stat.mode).toEqual(constants.S_IFREG);
   });
 
   test('mkdir and chmod affects the mode', async () => {
     await efs.mkdir(`test`, 0o644);
-    await efs.access(
-      `test`,
-      constants.F_OK | constants.R_OK | constants.W_OK,
-    );
+    await efs.access(`test`, constants.F_OK | constants.R_OK | constants.W_OK);
     await efs.chmod(`test`, 0o444);
     await efs.access(`test`, constants.F_OK | constants.R_OK);
   });
@@ -84,19 +88,16 @@ describe('EncryptedFS Permissions', () => {
     let stat;
     stat = await efs.stat('/file');
     expect(
-      stat.mode &
-        (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
+      stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
     ).toBe(vfs.DEFAULT_FILE_PERM & ~umask);
     stat = await efs.stat('/dir');
     expect(
-      stat.mode &
-        (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
+      stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
     ).toBe(vfs.DEFAULT_DIRECTORY_PERM & ~umask);
     // Umask is not applied to symlinks
     stat = await efs.lstat('/symlink');
     expect(
-      stat.mode &
-        (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
+      stat.mode & (constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO),
     ).toBe(vfs.DEFAULT_SYMLINK_PERM);
   });
   test('non-root users can only chown uid if they own the file and they are chowning to themselves', async () => {
@@ -133,10 +134,7 @@ describe('EncryptedFS Permissions', () => {
       'testfile',
       constants.R_OK | constants.W_OK | constants.X_OK,
     );
-    await efs.access(
-      'dir',
-      constants.R_OK | constants.W_OK | constants.X_OK,
-    );
+    await efs.access('dir', constants.R_OK | constants.W_OK | constants.X_OK);
     efs.uid = 2000;
     await efs.access('testfile', constants.R_OK | constants.W_OK);
     await efs.access('dir', constants.R_OK | constants.W_OK);
@@ -168,10 +166,7 @@ describe('EncryptedFS Permissions', () => {
       'testfile',
       constants.R_OK | constants.W_OK | constants.X_OK,
     );
-    await efs.access(
-      'dir',
-      constants.R_OK | constants.W_OK | constants.X_OK,
-    );
+    await efs.access('dir', constants.R_OK | constants.W_OK | constants.X_OK);
     efs.uid = vfs.DEFAULT_ROOT_UID;
     efs.uid = vfs.DEFAULT_ROOT_GID;
     await efs.chown('testfile', 2000, 1000);
@@ -228,7 +223,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.access(`file`, constants.X_OK), errno.EACCES);
     await expectError(efs.open(`file`, 'r'), errno.EACCES);
     await expectError(efs.open(`file`, 'w'), errno.EACCES);
-    const stat = (await efs.stat(`file`));
+    const stat = await efs.stat(`file`);
     expect(stat.isFile()).toStrictEqual(true);
   });
 
@@ -337,7 +332,7 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.mkdir(`---`);
     await efs.chmod(`---`, 0o000);
-    const stat = (await efs.stat(`---`));
+    const stat = await efs.stat(`---`);
     expect(stat.isDirectory()).toStrictEqual(true);
     await expectError(efs.writeFile(`---/a`, 'hello'), errno.EACCES);
     await expectError(efs.chdir(`---`), errno.EACCES);
@@ -394,7 +389,7 @@ describe('EncryptedFS Permissions', () => {
     );
     await expect(efs.readdir(`rwx`)).resolves.toContain('a');
     await efs.chdir('rwx');
-    const stat = (await efs.stat(`a`));
+    const stat = await efs.stat(`a`);
     expect(stat.isFile()).toStrictEqual(true);
   });
   test('directory permissions r-x', async () => {
@@ -421,7 +416,7 @@ describe('EncryptedFS Permissions', () => {
     );
     // You can traverse into the directory
     await efs.chdir('r-x');
-    const stat = (await efs.stat(`dir`));
+    const stat = await efs.stat(`dir`);
     expect(stat.isDirectory()).toStrictEqual(true);
     // You cannot delete the file
     await expectError(efs.unlink(`./a`), errno.EACCES);
@@ -457,7 +452,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.chdir('-wx');
     await efs.mkdir(`./dir`);
     await expectError(efs.readdir(`.`), errno.EACCES);
-    const stat = (await efs.stat(`./dir`));
+    const stat = await efs.stat(`./dir`);
     expect(stat.isDirectory()).toStrictEqual(true);
   });
   test('directory permissions --x', async () => {
@@ -501,18 +496,18 @@ describe('EncryptedFS Permissions', () => {
     await efs.writeFile('/dir/a', 'hello');
     await efs.writeFile('/dir/b', 'world');
     await efs.chownr('/dir', 1000, 2000);
-    let stat = (await efs.stat('/dir'));
+    let stat = await efs.stat('/dir');
     expect(stat.uid).toBe(1000);
     expect(stat.gid).toBe(2000);
-    stat = (await efs.stat('/dir/a'));
+    stat = await efs.stat('/dir/a');
     expect(stat.uid).toBe(1000);
     expect(stat.gid).toBe(2000);
-    stat = (await efs.stat('/dir/b'));
+    stat = await efs.stat('/dir/b');
     expect(stat.uid).toBe(1000);
     expect(stat.gid).toBe(2000);
     await efs.writeFile('/file', 'hello world');
     await efs.chownr('/file', 1000, 2000);
-    stat = (await efs.stat('/file'));
+    stat = await efs.stat('/file');
     expect(stat.uid).toBe(1000);
     expect(stat.gid).toBe(2000);
   });
