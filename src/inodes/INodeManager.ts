@@ -9,11 +9,12 @@ import { DeviceInterface, CharacterDev } from 'virtualfs';
 import Logger from '@matrixai/logger';
 import { Mutex } from 'async-mutex';
 import Counter from 'resource-counter';
+
+import Stat from '../Stat';
+import { constants, permissions } from '../constants';
 import * as inodesUtils from './utils';
 import * as inodesErrors from './errors';
-import Stat from '../Stat';
 import * as utils from '../utils';
-import { constants, permissions } from '../constants';
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
 type FileParams = Partial<Omit<INodeParams, 'ino'>>;

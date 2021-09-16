@@ -1,11 +1,10 @@
-import type { INodeType } from '../inodes/types';
+import type { INodeType, INodeIndex } from '../inodes/types';
 
-import { INodeIndex } from '@/inodes/types';
 import { INodeManager } from '../inodes';
-
+import { constants } from '../constants';
 import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
-import { constants } from '../constants';
+import * as errorsFd from './errors';
 
 class FileDescriptor {
   protected _iNodeMgr: INodeManager;
@@ -86,7 +85,7 @@ class FileDescriptor {
               newPos = this._pos;
           }
           if (newPos < 0) {
-            throw Error('Invalid Position');
+            throw new errorsFd.ErrorFileDescriptorInvalidPosition(`Position ${newPos} is not reachable`);
           }
           this._pos = newPos;
         }
@@ -98,14 +97,14 @@ class FileDescriptor {
             fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
           });
           if (!fops) {
-            throw Error('INode does not exist');
+            throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
           } else {
             fops.setPos(this, pos, flags);
           }
         }
         break;
       default:
-        throw Error('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
     }
   }
 
@@ -228,7 +227,7 @@ class FileDescriptor {
             fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
           });
           if (!fops) {
-            throw Error('INode does not exist');
+            throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
           } else {
             // TODO: Check if this is actually ok, this expects a vfs file descriptor
             // but some things have changed
@@ -237,7 +236,7 @@ class FileDescriptor {
         }
         break;
       default:
-        throw Error('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
     }
 
     // If the default position used, increment by the bytes read in
@@ -460,7 +459,7 @@ class FileDescriptor {
               fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
             });
             if (!fops) {
-              throw Error('INode does not exist');
+              throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
             } else {
               // TODO: Check if this is actually ok, this expects a vfs file descriptor
               // but some things have changed
@@ -470,7 +469,7 @@ class FileDescriptor {
         }
         break;
       default:
-        throw Error('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
     }
 
     // If the default position used, increment by the bytes read in

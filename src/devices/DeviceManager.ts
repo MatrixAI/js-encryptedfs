@@ -1,9 +1,9 @@
-import { CharacterDev, DeviceInterface } from 'virtualfs';
+import type { CharacterDev, DeviceInterface } from 'virtualfs';
+
 import Counter from 'resource-counter';
 
-import * as devices from '../constants/devices';
-
 import { DeviceError } from './errors';
+import * as devices from '../constants/devices';
 
 class DeviceManager {
   protected _chrCounterMaj: Counter;

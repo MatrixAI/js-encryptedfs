@@ -1,8 +1,9 @@
 import type { DeviceInterface, CharacterDev, FileDescriptor } from 'virtualfs';
 
 import fs from 'fs';
-import { EncryptedFSError, errno } from '../EncryptedFSError';
 import process from 'process';
+
+import { EncryptedFSError, errno } from '../EncryptedFSError';
 
 let fds = 0;
 let ttyInFd;

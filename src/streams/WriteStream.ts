@@ -1,9 +1,10 @@
 import type { OptionsStream } from './types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
+import type { Callback } from '../types';
 
 import { Writable } from 'readable-stream';
-import { Callback } from '@/types';
+
 import { permissions } from '../constants';
 
 class WriteStream extends Writable {

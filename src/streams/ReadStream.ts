@@ -4,6 +4,7 @@ import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
 
 import { Readable } from 'readable-stream';
+
 import { permissions } from '../constants';
 
 class ReadStream extends Readable {
