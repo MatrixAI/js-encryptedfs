@@ -1,7 +1,5 @@
-// Re-exports
-export { DeviceManager } from 'virtualfs';
-
 export { default as EncryptedFS } from './EncryptedFS';
+export { default as DeviceManager } from './devices/DeviceManager';
 export * from './EncryptedFSError';
 export * as workers from './workers';
 export * as db from './db';
@@ -10,6 +8,3 @@ export * as INode from './inodes';
 export { INodeManager } from './inodes';
 export type { default as Stat } from './Stat';
 export * from './constants';
-
-// Weird things
-// export * from './Streams';

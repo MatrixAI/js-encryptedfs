@@ -1,5 +1,7 @@
-import { CharacterDev, DeviceInterface, MAJOR_MIN, MINOR_MIN, MAJOR_MAX, MINOR_MAX } from 'virtualfs';
+import { CharacterDev, DeviceInterface } from 'virtualfs';
 import Counter from 'resource-counter';
+
+import * as devices from '../constants/devices';
 
 import { DeviceError } from './errors';
 
@@ -9,7 +11,7 @@ class DeviceManager {
   protected _chrDevices: Map<number, [Map<number, DeviceInterface<CharacterDev>>, Counter]>;
 
   constructor () {
-    this._chrCounterMaj = new Counter(MAJOR_MIN);
+    this._chrCounterMaj = new Counter(devices.MAJOR_MIN);
     this._chrDevices = new Map;
   }
 
@@ -45,7 +47,7 @@ class DeviceManager {
         }
       }
       if (!devicesMin || !counterMin) {
-        counterMin = new Counter(MINOR_MIN);
+        counterMin = new Counter(devices.MINOR_MIN);
         devicesMin = new Map;
       }
       if (minor === undefined) {
@@ -59,10 +61,10 @@ class DeviceManager {
           throw new DeviceError(DeviceError.ERROR_CONFLICT);
         }
       }
-      if (major > MAJOR_MAX ||
-          major < MAJOR_MIN ||
-          minor > MINOR_MAX ||
-          minor < MINOR_MIN)
+      if (major > devices.MAJOR_MAX ||
+          major < devices.MAJOR_MIN ||
+          minor > devices.MINOR_MAX ||
+          minor < devices.MINOR_MIN)
       {
         throw new DeviceError(DeviceError.ERROR_RANGE);
       }

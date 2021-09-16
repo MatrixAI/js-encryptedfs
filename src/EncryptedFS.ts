@@ -19,10 +19,9 @@ import { INodeManager } from './inodes';
 import CurrentDirectory from './CurrentDirectory';
 import { FileDescriptor, FileDescriptorManager } from './fd';
 import { ReadStream, WriteStream } from './streams';
-import { EncryptedFSError, errno } from '.';
+import { EncryptedFSError, errno, DeviceManager } from '.';
 import { maybeCallback } from './utils';
 import Stat from './Stat';
-import { DeviceManager } from '.';
 import { constants, permissions, devices as deviceConstants} from './constants';
 
 import * as utils from './utils';
