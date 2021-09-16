@@ -1117,9 +1117,9 @@ describe('EncryptedFS Concurrency', () => {
     await sleep(100);
   });
   test('removing a dir while renaming it.', async () => {
-    // create the directory
+    // Create the directory
     await efs.mkdir('dir');
-    // removing and renaming.
+    // Removing and renaming.
     await Promise.all([
       efs.rmdir('dir'),
       expectError(efs.rename('dir', 'renamedDir'), errno.ENOENT),
@@ -1127,7 +1127,7 @@ describe('EncryptedFS Concurrency', () => {
     let list = await efs.readdir('.');
     expect(list).toEqual([]);
 
-    // reverse order.
+    // Reverse order.
     await efs.mkdir('dir2');
     await Promise.all([
       expectError(efs.rename('dir2', 'renamedDir2'), errno.ENOENT),
