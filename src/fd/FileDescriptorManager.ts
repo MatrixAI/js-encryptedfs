@@ -46,7 +46,9 @@ class FileDescriptorManager {
     if (type === 'CharacterDev') {
       const fops = await this._iNodeMgr.charDevGetFileDesOps(tran, ino);
       if (!fops) {
-        throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
+        throw new errorsFd.ErrorFileDescriptorMissingINode(
+          'INode does not exist',
+        );
       } else {
         // Fops.open(fd);
       }
@@ -106,7 +108,9 @@ class FileDescriptorManager {
           fops = await this._iNodeMgr.charDevGetFileDesOps(tran, fd.ino);
         });
         if (!fops) {
-          throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
+          throw new errorsFd.ErrorFileDescriptorMissingINode(
+            'INode does not exist',
+          );
         } else {
           fops.close(fd);
         }

@@ -42,4 +42,3 @@ export const DEFAULT_DIRECTORY_PERM =
  */
 export const DEFAULT_SYMLINK_PERM =
   constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO;
-

@@ -85,7 +85,9 @@ class FileDescriptor {
               newPos = this._pos;
           }
           if (newPos < 0) {
-            throw new errorsFd.ErrorFileDescriptorInvalidPosition(`Position ${newPos} is not reachable`);
+            throw new errorsFd.ErrorFileDescriptorInvalidPosition(
+              `Position ${newPos} is not reachable`,
+            );
           }
           this._pos = newPos;
         }
@@ -97,14 +99,18 @@ class FileDescriptor {
             fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
           });
           if (!fops) {
-            throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
+            throw new errorsFd.ErrorFileDescriptorMissingINode(
+              'INode does not exist',
+            );
           } else {
             fops.setPos(this, pos, flags);
           }
         }
         break;
       default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode(
+          'Invalid INode Type',
+        );
     }
   }
 
@@ -227,15 +233,19 @@ class FileDescriptor {
             fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
           });
           if (!fops) {
-            throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
+            throw new errorsFd.ErrorFileDescriptorMissingINode(
+              'INode does not exist',
+            );
           } else {
-            // but some things have changed
+            // But some things have changed
             bytesRead = fops.read(this, buffer, currentPos);
           }
         }
         break;
       default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode(
+          'Invalid INode Type',
+        );
     }
 
     // If the default position used, increment by the bytes read in
@@ -458,16 +468,20 @@ class FileDescriptor {
               fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
             });
             if (!fops) {
-              throw new errorsFd.ErrorFileDescriptorMissingINode('INode does not exist');
+              throw new errorsFd.ErrorFileDescriptorMissingINode(
+                'INode does not exist',
+              );
             } else {
-              // but some things have changed
+              // But some things have changed
               bytesWritten = fops.write(this, buffer, currentPos, extraFlags);
             }
           }
         }
         break;
       default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode('Invalid INode Type');
+        throw new errorsFd.ErrorFileDescriptorInvalidINode(
+          'Invalid INode Type',
+        );
     }
 
     // If the default position used, increment by the bytes read in
