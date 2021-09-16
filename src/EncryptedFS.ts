@@ -2230,18 +2230,18 @@ class EncryptedFS {
       // we must trim off these trailing slashes to allow these directories to be removed
       path = path.replace(/(.+?)\/+$/, '$1');
       const navigated = await this.navigate(path, false);
+      // On linux, when .. is used, the parent directory becomes unknown
+      // in that case, they return with ENOTEMPTY
+      // but the directory may in fact be empty
+      // for this edge case, we instead use EINVAL
+      if (navigated.name === '.' || navigated.name === '..') {
+        throw new EncryptedFSError(errno.EINVAL, `rmdir '${path}'`);
+      }
       await this._iNodeMgr.transact(
         async (tran) => {
           // This is for if the path resolved to root
           if (!navigated.name) {
             throw new EncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
-          }
-          // On linux, when .. is used, the parent directory becomes unknown
-          // in that case, they return with ENOTEMPTY
-          // but the directory may in fact be empty
-          // for this edge case, we instead use EINVAL
-          if (navigated.name === '.' || navigated.name === '..') {
-            throw new EncryptedFSError(errno.EINVAL, `rmdir '${path}'`);
           }
           if (!navigated.target) {
             throw new EncryptedFSError(errno.ENOENT, `rmdir'${path}'`);

@@ -549,25 +549,4 @@ describe('File Descriptor', () => {
       expect(stat['blocks']).toBe(10);
     });
   });
-  test.skip('write to CharacterDev iNode', async () => {
-    const iNodeMgr = await INodeManager.createINodeManager({
-      db,
-      devMgr,
-      logger,
-    });
-    const charDevIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(charDevIno);
-        });
-        await iNodeMgr.charDevCreate(tran, charDevIno, {
-          rdev: vfs.mkDev(1, 3),
-        });
-      },
-      [charDevIno],
-    );
-    const fd = new FileDescriptor(iNodeMgr, charDevIno, 0);
-    bytesWritten = await fd.write(origBuffer);
-  });
 });
