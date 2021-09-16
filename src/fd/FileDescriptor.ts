@@ -7,12 +7,6 @@ import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
 import { constants } from '../constants';
 
-/*
- * File descriptor class which uses the INode type as a template
- * For now, this will just focus on the File INode, specifically the
- * read function
- * I have filled out the basic fd structure from js-virtualfs
- */
 class FileDescriptor {
   protected _iNodeMgr: INodeManager;
   protected _ino: INodeIndex;

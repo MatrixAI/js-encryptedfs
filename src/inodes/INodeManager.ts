@@ -744,7 +744,7 @@ class INodeManager {
     ino: INodeIndex,
   ): Promise<Readonly<vfs.DeviceInterface<vfs.CharacterDev>> | undefined> {
     const rdev = await this.statGetProp(tran, ino, 'rdev');
-    const [major, minor] = vfs.unmkDev(rdev);
+    const [major, minor] = utils.unmkDev(rdev);
     return this.devMgr.getChr(major, minor);
   }
 

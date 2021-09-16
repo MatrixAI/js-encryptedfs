@@ -1,8 +1,10 @@
 import type { Callback } from './types';
+import type { Stat } from '.';
 
 import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import { constants } from 'virtualfs';
+import * as vfs from 'virtualfs';
 import callbackify from 'util-callbackify';
 
 const ivSize = 16;
@@ -286,6 +288,47 @@ function parseOpenFlags(flags: string): number {
   return flags_;
 }
 
+/**
+ * Applies umask to default set of permissions.
+ */
+function applyUmask(perms: number, umask: number): number {
+  return (perms & (~umask));
+}
+
+/**
+ * Checks the desired permissions with user id and group id against the metadata of an iNode.
+ * The desired permissions can be bitwise combinations of constants.R_OK, constants.W_OK and constants.X_OK.
+ */
+function checkPermissions(access: number, uid: number, gid: number, stat: Stat): boolean {
+  return (access & resolveOwnership(uid, gid, stat)) === access;
+}
+
+/**
+ * Permission checking relies on ownership details of the iNode.
+ * If the accessing user is the same as the iNode user, then only user permissions are used.
+ * If the accessing group is the same as the iNode group, then only the group permissions are used.
+ * Otherwise the other permissions are used.
+ */
+function resolveOwnership(uid: number, gid: number, stat: Stat): number {
+  if (uid === stat.uid) {
+    return (stat.mode & constants.S_IRWXU) >> 6;
+  } else if (gid === stat.gid) {
+    return (stat.mode & constants.S_IRWXG) >> 3;
+  } else {
+    return stat.mode & constants.S_IRWXO;
+  }
+}
+
+function mkDev(major: number, minor: number): number {
+  return ((major << vfs.MINOR_BITSIZE) | minor);
+}
+
+function unmkDev(dev: number): [number, number] {
+  const major = dev >> vfs.MINOR_BITSIZE;
+  const minor = dev & ((1 << vfs.MINOR_BITSIZE) - 1);
+  return [major, minor];
+}
+
 // These 2 functions should go into the
 // workers as well, as this means multiple blocks are being decrypted at once
 // function plainToCipherSegment(
@@ -341,44 +384,6 @@ function parseOpenFlags(flags: string): number {
 //   return plainSegment;
 // }
 
-// function compareBlockArrays(
-//   blockA: Array<number>,
-//   blockB: Array<number>,
-// ): boolean {
-//   let check = true;
-//   if (!blockB) {
-//     return false;
-//   }
-//   for (const index in blockA) {
-//     if (!blockB.includes(blockA[index])) {
-//       check = false;
-//     }
-//   }
-//   return check;
-// }
-
-// function resolvePath(path: PathLike): string {
-//   const _path = path.toString();
-//   let addition = '';
-//   if (_path.substring(_path.length - 1) === '/') {
-//     addition = '/';
-//   } else if (_path.substring(_path.length - 2) === '/.') {
-//     addition = '/.';
-//   }
-//   return addition;
-// }
-
-// function getDirsRecursive(path: string): string[] {
-//   const _path = pathNode.normalize(path);
-//   const dirs = _path.split(pathNode.sep);
-//   const navPath: string[] = [];
-//   for (const dir of dirs) {
-//     if (dir != '.' && dir != '' && dir != '..') {
-//       navPath.push(dir);
-//     }
-//   }
-//   return navPath;
-// }
 
 function promisify<T>(f): (...args: any[]) => Promise<T> {
   return function <T>(...args): Promise<T> {
@@ -477,13 +482,12 @@ export {
   range,
   segmentBuffer,
   parseOpenFlags,
+  applyUmask,
+  checkPermissions,
+  mkDev,
+  unmkDev,
   // PlainToCipherSegment,
   // cipherToPlainSegment,
   callbackAll,
   maybeCallback,
-  // ResolvePath,
-  // getDirsRecursive,
-  // getPathToMeta,
-  // getBlocksToWrite,
-  // compareBlockArrays,
 };

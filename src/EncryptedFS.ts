@@ -25,6 +25,7 @@ import Stat from './Stat';
 import { DeviceManager } from '.';
 import { constants, permissions, devices as deviceConstants} from './constants';
 
+import * as utils from './utils';
 import * as inodesErrors from './inodes/errors';
 
 /**
@@ -1173,7 +1174,7 @@ class EncryptedFS {
               tran,
               dirINode,
               {
-                mode: vfs.applyUmask(mode, this._umask),
+                mode: utils.applyUmask(mode, this._umask),
                 uid: this._uid,
                 gid: this._gid,
               },
@@ -1244,7 +1245,7 @@ class EncryptedFS {
                 tran,
                 dirINode,
                 {
-                  mode: vfs.applyUmask(mode, this._umask),
+                  mode: utils.applyUmask(mode, this._umask),
                   uid: this._uid,
                   gid: this._gid,
                 },
@@ -1412,7 +1413,7 @@ class EncryptedFS {
                 tran,
                 iNode,
                 {
-                  mode: vfs.applyUmask(mode, this._umask),
+                  mode: utils.applyUmask(mode, this._umask),
                   uid: this._uid,
                   gid: this._gid,
                 },
@@ -1434,10 +1435,10 @@ class EncryptedFS {
                 throw new EncryptedFSError(errno.EINVAL, `mknod '${path}'`);
               }
               await this._iNodeMgr.charDevCreate(tran, iNode, {
-                mode: vfs.applyUmask(mode, this._umask),
+                mode: utils.applyUmask(mode, this._umask),
                 uid: this._uid,
                 gid: this._gid,
-                rdev: vfs.mkDev(major, minor),
+                rdev: utils.mkDev(major, minor),
               });
               break;
             default:
@@ -1588,7 +1589,7 @@ class EncryptedFS {
                     tran,
                     fileINode,
                     {
-                      mode: vfs.applyUmask(mode, this._umask),
+                      mode: utils.applyUmask(mode, this._umask),
                       uid: this._uid,
                       gid: this._gid,
                     },
@@ -2872,7 +2873,7 @@ class EncryptedFS {
    */
   protected checkPermissions(access: number, stat: Stat): boolean {
     if (this._uid !== permissions.DEFAULT_ROOT_UID) {
-      return vfs.checkPermissions(access, this._uid, this._gid, stat);
+      return utils.checkPermissions(access, this._uid, this._gid, stat);
     } else {
       return true;
     }

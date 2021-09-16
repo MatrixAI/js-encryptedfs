@@ -1,11 +1,10 @@
 import { CustomError } from 'ts-custom-error';
-import { VirtualFSError } from 'virtualfs';
 
 class EncryptedFSError extends CustomError {
-  public readonly error?: VirtualFSError | NodeJS.ErrnoException;
+  public readonly error?: NodeJS.ErrnoException;
 
   constructor(
-    error?: VirtualFSError | NodeJS.ErrnoException,
+    error?: NodeJS.ErrnoException,
     message: string = '',
   ) {
     if (error != null) {
