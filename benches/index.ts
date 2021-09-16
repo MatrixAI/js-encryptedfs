@@ -5,10 +5,18 @@ import si from 'systeminformation';
 import DB1KiBBench from './DB1KiB';
 import DB1MiBBench from './DB1MiB';
 import crypto1KiBBench from './crypto1KiB';
+import crypto10KiBBench from './crypto10KiB';
+import crypto16KiBBench from './crypto16KiB';
+import crypto32KiBBench from './crypto32KiB';
+import crypto100KiBBench from './crypto100KiB';
 import crypto1MiBBench from './crypto1MiB';
 
 async function main(): Promise<void> {
   await crypto1KiBBench();
+  await crypto10KiBBench();
+  await crypto16KiBBench();
+  await crypto32KiBBench();
+  await crypto100KiBBench();
   await crypto1MiBBench();
   await DB1KiBBench();
   await DB1MiBBench();
