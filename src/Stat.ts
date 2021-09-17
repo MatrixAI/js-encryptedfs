@@ -71,35 +71,35 @@ class Stat {
    * Checks if file.
    */
   isFile(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFREG;
+    return (this.mode & constants.S_IFMT) === constants.S_IFREG;
   }
 
   /**
    * Checks if directory.
    */
   isDirectory(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFDIR;
+    return (this.mode & constants.S_IFMT) === constants.S_IFDIR;
   }
 
   /**
    * Checks if symbolic link.
    */
   isSymbolicLink(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFLNK;
+    return (this.mode & constants.S_IFMT) === constants.S_IFLNK;
   }
 
   /**
    * Checks if FIFO.
    */
   isFIFO(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFIFO;
+    return (this.mode & constants.S_IFMT) === constants.S_IFIFO;
   }
 
   /**
    * Checks if socket.
    */
   isSocket(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFSOCK;
+    return (this.mode & constants.S_IFMT) === constants.S_IFSOCK;
   }
 }
 

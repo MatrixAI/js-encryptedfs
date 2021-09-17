@@ -28,6 +28,18 @@
     "no-undef": 1,
     "no-useless-catch": 1,
     "no-prototype-builtins": 1,
+    "no-constant-condition": 0,
+    "no-useless-escape": 0,
+    "no-console": "error",
+    "eqeqeq": ["error", "smart"],
+    "capitalized-comments": [
+      "warn",
+      "always",
+      {
+        "ignoreInlineComments": true,
+        "ignoreConsecutiveComments": true
+      }
+    ],
     "@typescript-eslint/no-namespace": 0,
     "@typescript-eslint/no-explicit-any": 0,
     "@typescript-eslint/explicit-module-boundary-types": 0,
@@ -40,14 +52,7 @@
     ],
     "@typescript-eslint/no-inferrable-types": 0,
     "@typescript-eslint/no-non-null-assertion": 0,
-    "capitalized-comments": [
-      "warn",
-      "always",
-      {
-        "ignoreInlineComments": true,
-        "ignoreConsecutiveComments": true
-      }
-    ],
+    "@typescript-eslint/no-var-requires": 0,
     "@typescript-eslint/naming-convention": [
       "error",
       {

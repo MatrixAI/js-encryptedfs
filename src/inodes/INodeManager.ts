@@ -743,7 +743,7 @@ class INodeManager {
     for await (const data of dataDb.createReadStream(options)) {
       // This is to account for the case where a some blocks are missing in a database
       // i.e. blocks 0 -> 3 have data and a write operation was performed on blocks 7 -> 8
-      while (inodesUtils.unbufferId((data as any).key) != blockCount) {
+      while (inodesUtils.unbufferId((data as any).key) !== blockCount) {
         yield Buffer.alloc(blockSize);
       }
       const plainTextData = await this.db.deserializeDecrypt<string>(
@@ -774,7 +774,7 @@ class INodeManager {
         false,
       );
     }
-    if (value == undefined || key == undefined) {
+    if (value == null || key == null) {
       return [0, Buffer.alloc(0)];
     }
     return [key, Buffer.from(value)];

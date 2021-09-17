@@ -1,5 +1,6 @@
 import EncryptedFS from '@/EncryptedFS';
 import { constants } from '@/constants';
+
 /**
  *
  * @param promise - the Promise that throws the expected error.
@@ -11,7 +12,8 @@ async function expectError(promise: Promise<any>, code) {
   await expect(promise).rejects.toHaveProperty('errno', code.errno);
 }
 
-export type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';
+type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';
+
 async function createFile(
   efs: EncryptedFS,
   type: FileTypes,
@@ -72,3 +74,5 @@ function setId(efs: EncryptedFS, uid: number, gid?: number) {
 }
 
 export { expectError, createFile, supportedTypes, sleep, setId };
+
+export type { FileTypes };

@@ -119,10 +119,10 @@ class FileDescriptor {
 
     // Determine the starting position within the data
     let currentPos = this._pos;
-    if (position != undefined) {
+    if (position != null) {
       currentPos = position;
     }
-    let bytesRead = buffer.length;
+    let bytesRead = buffer.byteLength;
 
     switch (type) {
       case 'File':
@@ -215,7 +215,7 @@ class FileDescriptor {
     }
 
     // If the default position used, increment by the bytes read in
-    if (position == undefined) {
+    if (position == null) {
       this._pos = currentPos + bytesRead;
     }
 
@@ -247,7 +247,7 @@ class FileDescriptor {
 
     // Determine the starting position within the data
     let currentPos = this._pos;
-    if (position != undefined) {
+    if (position != null) {
       currentPos = position;
     }
 
@@ -264,7 +264,7 @@ class FileDescriptor {
                   tran,
                   this._ino,
                 );
-                if (value.length == blkSize) {
+                if (value.byteLength === blkSize) {
                   // If the last block is full, begin writing from the next block index
                   await this._iNodeMgr.fileSetBlocks(
                     tran,
@@ -273,20 +273,22 @@ class FileDescriptor {
                     blkSize,
                     idx + 1,
                   );
-                } else if (value.length + buffer.length > blkSize) {
+                } else if (value.byteLength + buffer.byteLength > blkSize) {
                   // If the last block is not full and additional data will exceed block size
                   // Copy the bytes until block size is reached and write into the last block at offset
-                  const startBuffer = Buffer.alloc(blkSize - value.length);
+                  const startBuffer = Buffer.alloc(blkSize - value.byteLength);
                   buffer.copy(startBuffer);
                   const writeBytes = await this._iNodeMgr.fileWriteBlock(
                     tran,
                     this._ino,
                     startBuffer,
                     idx,
-                    value.length,
+                    value.byteLength,
                   );
                   // Copy the remaining bytes and write this into the next block(s)
-                  const endBuffer = Buffer.alloc(buffer.length - writeBytes);
+                  const endBuffer = Buffer.alloc(
+                    buffer.byteLength - writeBytes,
+                  );
                   buffer.copy(endBuffer, 0, writeBytes);
                   await this._iNodeMgr.fileSetBlocks(
                     tran,
@@ -303,15 +305,15 @@ class FileDescriptor {
                     this._ino,
                     buffer,
                     idx,
-                    value.length,
+                    value.byteLength,
                   );
                 }
-                bytesWritten = buffer.length;
+                bytesWritten = buffer.byteLength;
               },
               [this._ino],
             );
             // Move the cursor to the end of the existing data
-            currentPos = idx * blkSize + value.length;
+            currentPos = idx * blkSize + value.byteLength;
           } else {
             // Get the starting block index
             const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
@@ -321,7 +323,7 @@ class FileDescriptor {
             const blockLength = utils.blockLength(
               blkSize,
               blockOffset,
-              buffer.length,
+              buffer.byteLength,
             );
             // Get the ending block index
             const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
@@ -330,7 +332,7 @@ class FileDescriptor {
             const blockCursorStart = utils.blockOffset(blkSize, currentPos);
             const blockCursorEnd = utils.blockOffset(
               blkSize,
-              currentPos + buffer.length - 1,
+              currentPos + buffer.byteLength - 1,
             );
 
             // Initialise write buffer and block position counters
@@ -411,8 +413,8 @@ class FileDescriptor {
                 'size',
               );
               size =
-                currentPos + buffer.length > size
-                  ? currentPos + buffer.length
+                currentPos + buffer.byteLength > size
+                  ? currentPos + buffer.byteLength
                   : size;
               await this._iNodeMgr.statSetProp(tran, this._ino, 'size', size);
               await this._iNodeMgr.statSetProp(
@@ -433,7 +435,7 @@ class FileDescriptor {
     }
 
     // If the default position used, increment by the bytes read in
-    if (position == undefined) {
+    if (position == null) {
       this._pos = currentPos + bytesWritten;
     }
     // Return the number of bytes written

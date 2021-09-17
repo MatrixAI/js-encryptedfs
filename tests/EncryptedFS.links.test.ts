@@ -209,7 +209,7 @@ describe('EncryptedFS Links', () => {
   });
   describe('unlink', () => {
     types = supportedTypes.filter((item) => {
-      return item != 'dir' && item != 'symlink';
+      return item !== 'dir' && item !== 'symlink';
     });
     test.each(types)('can remove a link to a %s', async (type) => {
       await createFile(efs, type, n0);
