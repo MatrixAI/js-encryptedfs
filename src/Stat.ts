@@ -1,5 +1,5 @@
 import type { NonFunctionProperties } from './types';
-import { constants } from './constants';
+import * as constants from './constants';
 
 /**
  * Parameters to construct a Stat object

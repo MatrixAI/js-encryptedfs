@@ -1,15 +1,15 @@
 import type { MutexInterface } from 'async-mutex';
 import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
-import type { DB } from '../db';
+import type { DB, DBDomain, DBLevel, DBTransaction } from '@matrixai/db';
 import type { StatProps } from '../Stat';
-import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
 
 import Logger from '@matrixai/logger';
 import { Mutex } from 'async-mutex';
 import Counter from 'resource-counter';
 
 import Stat from '../Stat';
-import { constants, permissions } from '../constants';
+import * as constants from '../constants';
+import * as permissions from '../permissions';
 import * as inodesUtils from './utils';
 import * as inodesErrors from './errors';
 import * as utils from '../utils';

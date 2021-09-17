@@ -4,8 +4,7 @@ import type { Stat } from '.';
 import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import callbackify from 'util-callbackify';
-
-import { constants } from './constants';
+import * as constants from './constants';
 
 const ivSize = 16;
 const authTagSize = 16;
@@ -95,29 +94,36 @@ function generateKeyFromPassSync(
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
-// ATTEMPT TO DO THIS WITH ARRAYBUFFER
-// Use ByteBuffer instead
-
-function encryptWithKey(key: Buffer, plainText: Buffer): Buffer {
+async function encrypt(
+  key: ArrayBuffer,
+  plainText: ArrayBuffer,
+): Promise<ArrayBuffer> {
   const iv = getRandomBytesSync(ivSize);
-  const c = cipher.createCipher('AES-GCM', key.toString('binary'));
+  const c = cipher.createCipher('AES-GCM', Buffer.from(key).toString('binary'));
   c.start({ iv: iv.toString('binary'), tagLength: authTagSize * 8 });
   c.update(forgeUtil.createBuffer(plainText));
   c.finish();
   const cipherText = Buffer.from(c.output.getBytes(), 'binary');
   const authTag = Buffer.from(c.mode.tag.getBytes(), 'binary');
   const data = Buffer.concat([iv, authTag, cipherText]);
-  return data;
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
 }
 
-function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
-  if (cipherText.length <= 32) {
+async function decrypt(
+  key: ArrayBuffer,
+  cipherText: ArrayBuffer,
+): Promise<ArrayBuffer | undefined> {
+  const cipherTextBuf = Buffer.from(cipherText);
+  if (cipherTextBuf.byteLength <= 32) {
     return;
   }
-  const iv = cipherText.subarray(0, ivSize);
-  const authTag = cipherText.subarray(ivSize, ivSize + authTagSize);
-  const cipherText_ = cipherText.subarray(ivSize + authTagSize);
-  const d = cipher.createDecipher('AES-GCM', key.toString('binary'));
+  const iv = cipherTextBuf.subarray(0, ivSize);
+  const authTag = cipherTextBuf.subarray(ivSize, ivSize + authTagSize);
+  const cipherText_ = cipherTextBuf.subarray(ivSize + authTagSize);
+  const d = cipher.createDecipher(
+    'AES-GCM',
+    Buffer.from(key).toString('binary'),
+  );
   d.start({
     iv: iv.toString('binary'),
     tagLength: authTagSize * 8,
@@ -127,7 +133,8 @@ function decryptWithKey(key: Buffer, cipherText: Buffer): Buffer | undefined {
   if (!d.finish()) {
     return;
   }
-  return Buffer.from(d.output.getBytes(), 'binary');
+  const data = Buffer.from(d.output.getBytes(), 'binary');
+  return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
 }
 
 /**
@@ -357,7 +364,7 @@ function promise<T>(): {
 }
 
 /**
- * Equivalent of Promise.all but for promises
+ * Equivalent of Promise.all but for callbacks
  */
 function callbackAll(
   calls: Array<(c: Callback<Array<any>>) => any>,
@@ -401,14 +408,14 @@ export {
   pathResolve,
   toArrayBuffer,
   fromArrayBuffer,
-  encryptWithKey,
-  decryptWithKey,
+  getRandomBytes,
+  getRandomBytesSync,
   generateKey,
   generateKeySync,
   generateKeyFromPass,
   generateKeyFromPassSync,
-  getRandomBytes,
-  getRandomBytesSync,
+  encrypt,
+  decrypt,
   promisify,
   promise,
   blockIndexStart,

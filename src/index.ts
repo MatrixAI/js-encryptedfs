@@ -1,9 +1,8 @@
 export { default as EncryptedFS } from './EncryptedFS';
-export * from './EncryptedFSError';
+export { default as Stat } from './Stat';
+export * as errors from './errors';
 export * as workers from './workers';
-export * as db from './db';
-export { DB } from './db';
-export * as INode from './inodes';
-export { INodeManager } from './inodes';
-export type { default as Stat } from './Stat';
-export * from './constants';
+export * as inodes from './inodes';
+export * as constants from './constants';
+export * from './permissions';
+export * from './types';

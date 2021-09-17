@@ -41,8 +41,9 @@
     "bench": "ts-node -r tsconfig-paths/register ./benches"
   },
   "dependencies": {
+    "@matrixai/db": "^1.0.1",
     "@matrixai/logger": "^2.0.1",
-    "@matrixai/workers": "^1.1.1",
+    "@matrixai/workers": "^1.2.3",
     "abstract-leveldown": "^7.0.0",
     "async-mutex": "^0.3.1",
     "canonicalize": "^1.0.5",

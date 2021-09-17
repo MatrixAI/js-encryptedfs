@@ -1,4 +1,3 @@
-import type fs from 'fs';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
 
@@ -71,26 +70,6 @@ type Data = string | Buffer | Uint8Array;
 
 type File = FdIndex | Path;
 
-/**
- * Minimal filesystem type
- * Based on the required operations from fs/promises
- * Implement this with platform-specific filesystem
- */
-interface FileSystem {
-  mkdir: typeof fs.mkdir;
-  promises: {
-    rm: typeof fs.promises.rm;
-    stat: typeof fs.promises.stat;
-    readFile: typeof fs.promises.readFile;
-    writeFile: typeof fs.promises.writeFile;
-    copyFile: typeof fs.promises.copyFile;
-    mkdir: typeof fs.promises.mkdir;
-    readdir: typeof fs.promises.readdir;
-    rename: typeof fs.promises.rename;
-    open: typeof fs.promises.open;
-  };
-}
-
 export type {
   POJO,
   Opaque,
@@ -98,7 +77,6 @@ export type {
   Callback,
   FunctionProperties,
   NonFunctionProperties,
-  FileSystem,
   Navigated,
   ParsedPath,
   Path,

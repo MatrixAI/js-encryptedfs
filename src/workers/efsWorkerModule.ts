@@ -4,25 +4,19 @@ import { Transfer } from 'threads';
 import * as utils from '../utils';
 
 const efsWorker = {
-  efsEncryptWithKey(
+  async encrypt(
     key: ArrayBuffer,
     plainText: ArrayBuffer,
-  ): TransferDescriptor<ArrayBuffer> {
-    const keyBuffer = utils.fromArrayBuffer(key);
-    const plainTextBuffer = utils.fromArrayBuffer(plainText);
-    const cipherTextBuffer = utils.encryptWithKey(keyBuffer, plainTextBuffer);
-    const cipherText = utils.toArrayBuffer(cipherTextBuffer);
+  ): Promise<TransferDescriptor<ArrayBuffer>> {
+    const cipherText = await utils.encrypt(key, plainText);
     return Transfer(cipherText);
   },
-  efsDecryptWithKey(
+  async decrypt(
     key: ArrayBuffer,
     cipherText: ArrayBuffer,
-  ): TransferDescriptor<ArrayBuffer> | undefined {
-    const keyBuffer = utils.fromArrayBuffer(key);
-    const cipherTextBuffer = utils.fromArrayBuffer(cipherText);
-    const plainTextBuffer = utils.decryptWithKey(keyBuffer, cipherTextBuffer);
-    if (plainTextBuffer != null) {
-      const plainText = utils.toArrayBuffer(plainTextBuffer);
+  ): Promise<TransferDescriptor<ArrayBuffer> | undefined> {
+    const plainText = await utils.decrypt(key, cipherText);
+    if (plainText != null) {
       return Transfer(plainText);
     } else {
       return;

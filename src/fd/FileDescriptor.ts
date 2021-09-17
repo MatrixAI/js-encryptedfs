@@ -1,8 +1,8 @@
 import type { INodeType, INodeIndex } from '../inodes/types';
-import type { DBTransaction } from '../db/types';
+import type { DBTransaction } from '@matrixai/db';
 
 import { INodeManager } from '../inodes';
-import { constants } from '../constants';
+import * as constants from '../constants';
 import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
 import * as errorsFd from './errors';
