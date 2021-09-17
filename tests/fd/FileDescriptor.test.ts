@@ -5,7 +5,6 @@ import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptor } from '@/fd';
-import { DeviceManager } from '@';
 import * as utils from '@/utils';
 import { constants, permissions } from '@/constants';
 
@@ -13,7 +12,6 @@ describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -43,7 +41,6 @@ describe('File Descriptor', () => {
   test('create a file descriptor', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -56,7 +53,6 @@ describe('File Descriptor', () => {
   test('can set flags', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -67,15 +63,16 @@ describe('File Descriptor', () => {
   test('can set position', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     // Rejects as the iNode has not been created
-    await expect(fd.setPos(1, constants.SEEK_SET)).rejects.toThrow(Error);
     await iNodeMgr.transact(
       async (tran) => {
+        await expect(fd.setPos(tran, 1, constants.SEEK_SET)).rejects.toThrow(
+          Error,
+        );
         tran.queueFailure(() => {
           iNodeMgr.inoDeallocate(fileIno);
         });
@@ -93,28 +90,29 @@ describe('File Descriptor', () => {
       },
       [fileIno],
     );
-    // Rejects as the new position would be a negativ number
-    await expect(fd.setPos(-10, 0)).rejects.toThrow(Error);
-    // Will seek the absolute position given
-    await fd.setPos(5, constants.SEEK_SET);
-    expect(fd.pos).toBe(5);
-    // Will seek the current position plus the absolute position
-    await fd.setPos(5, constants.SEEK_CUR);
-    expect(fd.pos).toBe(5 + 5);
-    // Will seek the end of the data plus the absolute position
-    await fd.setPos(5, constants.SEEK_END);
-    expect(fd.pos).toBe(origBuffer.length + 5);
+    await iNodeMgr.transact(async (tran) => {
+      // Rejects as the new position would be a negativ number
+      await expect(fd.setPos(tran, -10, 0)).rejects.toThrow(Error);
+      // Will seek the absolute position given
+      await fd.setPos(tran, 5, constants.SEEK_SET);
+      expect(fd.pos).toBe(5);
+      // Will seek the current position plus the absolute position
+      await fd.setPos(tran, 5, constants.SEEK_CUR);
+      expect(fd.pos).toBe(5 + 5);
+      // Will seek the end of the data plus the absolute position
+      await fd.setPos(tran, 5, constants.SEEK_END);
+      expect(fd.pos).toBe(origBuffer.length + 5);
+    }, []);
   });
   test('read all the data on the file iNode', async () => {
     // Allocate the size of the buffer to be read into
     const readBuffer = Buffer.alloc(origBuffer.length);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
-    // Let atime;
+    let atime;
     await iNodeMgr.transact(
       async (tran) => {
         tran.queueFailure(() => {
@@ -131,26 +129,25 @@ describe('File Descriptor', () => {
           blockSize,
           origBuffer,
         );
-        // Atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+        atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
       },
       [fileIno],
     );
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     bytesRead = await fd.read(readBuffer);
-    // Expect(fd.pos).toBe(origBuffer.length);
-    // expect(readBuffer).toStrictEqual(origBuffer);
-    // expect(bytesRead).toBe(readBuffer.length);
-    // await iNodeMgr.transact(async (tran) => {
-    //   const stat = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
-    //   expect(stat.getTime()).toBeGreaterThan(atime.getTime());
-    // });
+    expect(fd.pos).toBe(origBuffer.length);
+    expect(readBuffer).toStrictEqual(origBuffer);
+    expect(bytesRead).toBe(readBuffer.length);
+    await iNodeMgr.transact(async (tran) => {
+      const stat = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+      expect(stat.getTime()).toBeGreaterThan(atime.getTime());
+    });
   });
   test('read with the file descriptor at a certain position', async () => {
     // Allocate the size of the buffer to be read into
     const readBuffer = Buffer.alloc(origBuffer.length - 4);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -193,7 +190,6 @@ describe('File Descriptor', () => {
     const returnBuffer = Buffer.alloc(origBuffer.length - 10);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -234,7 +230,6 @@ describe('File Descriptor', () => {
     const returnBuffer = Buffer.alloc(origBuffer.length);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -281,7 +276,6 @@ describe('File Descriptor', () => {
     const overwriteBuffer = Buffer.from('Nice');
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -334,7 +328,6 @@ describe('File Descriptor', () => {
     const overwriteBuffer = Buffer.from('ing Buf');
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -385,7 +378,6 @@ describe('File Descriptor', () => {
     const writeBuffer = Buffer.from('End!');
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -442,7 +434,6 @@ describe('File Descriptor', () => {
     let readBuffer = Buffer.alloc(origBuffer.length + appendBufferOver.length);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();

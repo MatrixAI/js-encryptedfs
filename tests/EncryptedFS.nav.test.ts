@@ -3,14 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import {
-  EncryptedFS,
-  constants,
-  errno,
-  DB,
-  INodeManager,
-  DeviceManager,
-} from '@';
+import { EncryptedFS, constants, errno, DB, INodeManager } from '@';
 import { expectError } from './utils';
 
 describe('EncryptedFS Navigation', () => {
@@ -22,7 +15,6 @@ describe('EncryptedFS Navigation', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -37,14 +29,12 @@ describe('EncryptedFS Navigation', () => {
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
       db,
-      devMgr,
       iNodeMgr,
       umask: 0o022,
       logger,

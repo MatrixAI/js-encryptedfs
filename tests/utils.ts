@@ -11,13 +11,7 @@ async function expectError(promise: Promise<any>, code) {
   await expect(promise).rejects.toHaveProperty('errno', code.errno);
 }
 
-export type FileTypes =
-  | 'none'
-  | 'regular'
-  | 'dir'
-  | 'block'
-  | 'char'
-  | 'symlink';
+export type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';
 async function createFile(
   efs: EncryptedFS,
   type: FileTypes,
@@ -39,9 +33,6 @@ async function createFile(
       break;
     case 'block':
       await efs.mknod(name, constants.S_IFREG, 0o0644, 1, 2);
-      break;
-    case 'char':
-      await efs.mknod(name, constants.S_IFCHR, 0o0644, 1, 2);
       break;
     case 'symlink':
       await efs.symlink('test', name);
@@ -68,7 +59,6 @@ const supportedTypes = [
   'regular' as FileTypes,
   'dir' as FileTypes,
   'block' as FileTypes,
-  'char' as FileTypes,
   'symlink' as FileTypes,
 ];
 

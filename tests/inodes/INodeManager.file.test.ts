@@ -2,7 +2,6 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
@@ -12,7 +11,6 @@ describe('INodeManager File', () => {
   const logger = new Logger('INodeManager File Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -40,7 +38,6 @@ describe('INodeManager File', () => {
   test('create a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -80,7 +77,6 @@ describe('INodeManager File', () => {
   test('create a file with supplied data', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -148,7 +144,6 @@ describe('INodeManager File', () => {
   test('write and read data from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -191,7 +186,6 @@ describe('INodeManager File', () => {
   test('read a single block from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -231,7 +225,6 @@ describe('INodeManager File', () => {
   test('write a single block from a file', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();
@@ -276,7 +269,6 @@ describe('INodeManager File', () => {
   test('handle accessing blocks that the db does not have', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fileIno = iNodeMgr.inoAllocate();

@@ -3,14 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import {
-  EncryptedFS,
-  constants,
-  DB,
-  INodeManager,
-  errno,
-  DeviceManager,
-} from '@';
+import { EncryptedFS, constants, DB, INodeManager, errno } from '@';
 import {
   createFile,
   expectError,
@@ -30,7 +23,6 @@ describe('EncryptedFS Files', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
@@ -51,14 +43,12 @@ describe('EncryptedFS Files', () => {
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
       db,
-      devMgr,
       iNodeMgr,
       umask: 0o022,
       logger,
@@ -77,8 +67,6 @@ describe('EncryptedFS Files', () => {
     const stat = await efs.stat(`test`);
     expect(stat.isFile()).toStrictEqual(true);
     expect(stat.isDirectory()).toStrictEqual(false);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
     expect(stat.isSocket()).toStrictEqual(false);
     expect(stat.isSymbolicLink()).toStrictEqual(false);
     expect(stat.isFIFO()).toStrictEqual(false);
@@ -525,7 +513,7 @@ describe('EncryptedFS Files', () => {
       await efs.unlink(PUT);
       await efs.close(fd);
     });
-    test.each(['regular', 'block', 'char'])(
+    test.each(['regular', 'block'])(
       'returns ENOTDIR if a component of the path prefix is a %s',
       async (type) => {
         const PUT = path.join(n1, 'test');

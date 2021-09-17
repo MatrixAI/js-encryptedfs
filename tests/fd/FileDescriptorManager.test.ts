@@ -2,7 +2,6 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DeviceManager } from '@';
 
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
@@ -16,7 +15,6 @@ describe('File Descriptor Manager', () => {
   const logger = new Logger('File Descriptor Manager Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -45,7 +43,6 @@ describe('File Descriptor Manager', () => {
   test('create a file descriptor manager', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
@@ -54,54 +51,33 @@ describe('File Descriptor Manager', () => {
   test('create a file descriptor', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    let fd, fdIndex;
-    await iNodeMgr.transact(
-      async (tran) => {
-        [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
-      },
-      [fileIno],
-    );
+    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     expect(fd).toBeInstanceOf(FileDescriptor);
     expect(typeof fdIndex).toBe('number');
   });
   test('retreive a file descriptor', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    let fd, fdIndex;
-    await iNodeMgr.transact(
-      async (tran) => {
-        [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
-      },
-      [fileIno],
-    );
+    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     const fdDup = fdMgr.getFd(fdIndex);
     expect(fd).toBe(fdDup);
   });
   test('delete a file descriptor', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    let _fd, fdIndex;
-    await iNodeMgr.transact(
-      async (tran) => {
-        [_fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
-      },
-      [fileIno],
-    );
+    const [_fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     await fdMgr.deleteFd(fdIndex);
     const fdDup = fdMgr.getFd(fdIndex);
     expect(fdDup).toBeUndefined();
@@ -109,18 +85,11 @@ describe('File Descriptor Manager', () => {
   test('duplicate a file descriptor', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const fileIno = iNodeMgr.inoAllocate();
-    let fd, fdIndex;
-    await iNodeMgr.transact(
-      async (tran) => {
-        [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
-      },
-      [fileIno],
-    );
+    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     const fdDupIndex = fdMgr.dupFd(fdIndex);
     expect(fdDupIndex).not.toBe(fdIndex);
     if (!fdDupIndex) {
@@ -136,7 +105,6 @@ describe('File Descriptor Manager', () => {
     const overwriteBuffer = Buffer.from('Nice');
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
@@ -178,13 +146,8 @@ describe('File Descriptor Manager', () => {
       [rootIno, fileIno],
     );
     // The ref to the file iNode is made here
-    let fd, fdIndex;
-    await iNodeMgr.transact(
-      async (tran) => {
-        [fd, fdIndex] = await fdMgr.createFd(tran, fileIno, 0);
-      },
-      [fileIno],
-    ); // The file is 'deleted' from the directory
+    const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
+    // The file is 'deleted' from the directory
     await iNodeMgr.transact(
       async (tran) => {
         await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');

@@ -2,7 +2,6 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
@@ -11,7 +10,6 @@ describe('INodeManager Symlink', () => {
   const logger = new Logger('INodeManager Symlink Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -36,7 +34,6 @@ describe('INodeManager Symlink', () => {
   test('create and delete symlink', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();

@@ -5,7 +5,7 @@ import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import callbackify from 'util-callbackify';
 
-import { constants, devices as deviceConstants } from './constants';
+import { constants } from './constants';
 
 const ivSize = 16;
 const authTagSize = 16;
@@ -324,71 +324,6 @@ function resolveOwnership(uid: number, gid: number, stat: Stat): number {
   }
 }
 
-function mkDev(major: number, minor: number): number {
-  return (major << deviceConstants.MINOR_BITSIZE) | minor;
-}
-
-function unmkDev(dev: number): [number, number] {
-  const major = dev >> deviceConstants.MINOR_BITSIZE;
-  const minor = dev & ((1 << deviceConstants.MINOR_BITSIZE) - 1);
-  return [major, minor];
-}
-
-// These 2 functions should go into the
-// workers as well, as this means multiple blocks are being decrypted at once
-// function plainToCipherSegment(
-//   key: Buffer,
-//   plainSegment: Buffer,
-//   blockLength: number,
-//   blockSizePlain: number,
-//   blockSizeCipher: number,
-// ): Buffer {
-//   const cipherSegment = Buffer.allocUnsafe(
-//     blockLength * blockSizeCipher
-//   );
-//   for (
-//     let i = 0, j = i * blockSizePlain;
-//     i < blockLength;
-//     ++i
-//   ) {
-//     const plainBlock = plainSegment.slice(
-//       j,
-//       j + this.blockSizePlain
-//     );
-//     const cipherBlock = encryptWithKey(key, plainBlock);
-//     cipherBlock.copy(cipherSegment, i * blockSizeCipher);
-//   }
-//   return cipherSegment;
-// }
-
-// function cipherToPlainSegment(
-//   key: Buffer,
-//   cipherSegment: Buffer,
-//   blockLength: number,
-//   blockSizePlain: number,
-//   blockSizeCipher: number,
-// ): Buffer | undefined {
-//   const plainSegment = Buffer.allocUnsafe(
-//     blockLength * blockSizePlain
-//   );
-//   for (
-//     let i = 0, j = i * blockSizeCipher;
-//     i < blockLength;
-//     ++i
-//   ) {
-//     const cipherBlock = cipherSegment.slice(
-//       j,
-//       j + blockSizeCipher
-//     );
-//     const plainBlock = decryptWithKey(key, cipherBlock);
-//     if (plainBlock == null) {
-//       return;
-//     }
-//     plainBlock.copy(plainSegment, i * blockSizePlain);
-//   }
-//   return plainSegment;
-// }
-
 function promisify<T>(f): (...args: any[]) => Promise<T> {
   return function <T>(...args): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -488,10 +423,6 @@ export {
   parseOpenFlags,
   applyUmask,
   checkPermissions,
-  mkDev,
-  unmkDev,
-  // PlainToCipherSegment,
-  // cipherToPlainSegment,
   callbackAll,
   maybeCallback,
 };

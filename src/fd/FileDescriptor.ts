@@ -1,4 +1,5 @@
 import type { INodeType, INodeIndex } from '../inodes/types';
+import type { DBTransaction } from '../db/types';
 
 import { INodeManager } from '../inodes';
 import { constants } from '../constants';
@@ -53,20 +54,16 @@ class FileDescriptor {
    * Sets the file descriptor position.
    */
   public async setPos(
+    tran: DBTransaction,
     pos: number,
     flags: number = constants.SEEK_SET,
   ): Promise<void> {
-    let newPos, type, size;
-    await this._iNodeMgr.transact(
-      async (tran) => {
-        type = await tran.get<INodeType>(
-          this._iNodeMgr.iNodesDomain,
-          inodesUtils.iNodeId(this._ino),
-        );
-        size = await this._iNodeMgr.statGetProp(tran, this._ino, 'size');
-      },
-      [this._ino],
+    let newPos;
+    const type = await tran.get<INodeType>(
+      this._iNodeMgr.iNodesDomain,
+      inodesUtils.iNodeId(this._ino),
     );
+    const size = await this._iNodeMgr.statGetProp(tran, this._ino, 'size');
     switch (type) {
       case 'File':
       case 'Directory':
@@ -92,24 +89,9 @@ class FileDescriptor {
           this._pos = newPos;
         }
         break;
-      case 'CharacterDev':
-        {
-          let fops;
-          await this._iNodeMgr.transact(async (tran) => {
-            fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
-          });
-          if (!fops) {
-            throw new errorsFd.ErrorFileDescriptorMissingINode(
-              'INode does not exist',
-            );
-          } else {
-            fops.setPos(this, pos, flags);
-          }
-        }
-        break;
       default:
         throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          'Invalid INode Type',
+          `Invalid INode Type ${type}`,
         );
     }
   }
@@ -226,25 +208,9 @@ class FileDescriptor {
           bytesRead = retBufferPos;
         }
         break;
-      case 'CharacterDev':
-        {
-          let fops;
-          await this._iNodeMgr.transact(async (tran) => {
-            fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
-          });
-          if (!fops) {
-            throw new errorsFd.ErrorFileDescriptorMissingINode(
-              'INode does not exist',
-            );
-          } else {
-            // But some things have changed
-            bytesRead = fops.read(this, buffer, currentPos);
-          }
-        }
-        break;
       default:
         throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          'Invalid INode Type',
+          `Invalid INode Type ${type}`,
         );
     }
 
@@ -460,27 +426,9 @@ class FileDescriptor {
           );
         }
         break;
-      case 'CharacterDev':
-        {
-          {
-            let fops;
-            await this._iNodeMgr.transact(async (tran) => {
-              fops = await this._iNodeMgr.charDevGetFileDesOps(tran, this._ino);
-            });
-            if (!fops) {
-              throw new errorsFd.ErrorFileDescriptorMissingINode(
-                'INode does not exist',
-              );
-            } else {
-              // But some things have changed
-              bytesWritten = fops.write(this, buffer, currentPos, extraFlags);
-            }
-          }
-        }
-        break;
       default:
         throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          'Invalid INode Type',
+          `Invalid INode Type ${type}`,
         );
     }
 

@@ -5,7 +5,7 @@ type INodeIndex = Opaque<'INodeIndex', number>;
 
 type INodeId = Opaque<'INodeId', Buffer>;
 
-type INodeType = 'File' | 'Directory' | 'Symlink' | 'CharacterDev';
+type INodeType = 'File' | 'Directory' | 'Symlink';
 
 type INodeData = {
   ino: INodeIndex;

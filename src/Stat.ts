@@ -82,20 +82,6 @@ class Stat {
   }
 
   /**
-   * Checks if block device.
-   */
-  isBlockDevice(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFBLK;
-  }
-
-  /**
-   * Checks if character device.
-   */
-  isCharacterDevice(): boolean {
-    return (this.mode & constants.S_IFMT) == constants.S_IFCHR;
-  }
-
-  /**
    * Checks if symbolic link.
    */
   isSymbolicLink(): boolean {

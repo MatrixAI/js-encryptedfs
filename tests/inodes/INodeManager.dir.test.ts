@@ -4,7 +4,6 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
@@ -14,7 +13,6 @@ describe('INodeManager Directory', () => {
   const logger = new Logger('INodeManager Directory Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -40,7 +38,6 @@ describe('INodeManager Directory', () => {
   test('create root directory', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -88,7 +85,6 @@ describe('INodeManager Directory', () => {
   test('create subdirectory', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -139,7 +135,6 @@ describe('INodeManager Directory', () => {
   test('create subdirectories', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -182,7 +177,6 @@ describe('INodeManager Directory', () => {
   test('delete subdirectory', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -228,7 +222,6 @@ describe('INodeManager Directory', () => {
   test('rename directory entry', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -284,7 +277,6 @@ describe('INodeManager Directory', () => {
   test('iterate directory entries', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();

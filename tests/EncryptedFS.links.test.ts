@@ -3,7 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, errno, DB, INodeManager, DeviceManager } from '@';
+import { EncryptedFS, errno, DB, INodeManager } from '@';
 import {
   expectError,
   createFile,
@@ -23,7 +23,6 @@ describe('EncryptedFS Links', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
@@ -46,14 +45,12 @@ describe('EncryptedFS Links', () => {
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
       db,
-      devMgr,
       iNodeMgr,
       umask: 0o022,
       logger,
@@ -74,8 +71,6 @@ describe('EncryptedFS Links', () => {
     const stat = await efs.lstat(`link-to-a`);
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(false);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
     expect(stat.isSocket()).toStrictEqual(false);
     expect(stat.isSymbolicLink()).toStrictEqual(true);
     expect(stat.isFIFO()).toStrictEqual(false);
@@ -312,7 +307,7 @@ describe('EncryptedFS Links', () => {
     });
   });
   describe('link', () => {
-    types = ['regular', 'block', 'char'];
+    types = ['regular', 'block'];
     test.each(types)('creates hardlinks to %s', async (type) => {
       await createFile(efs, type as FileTypes, n0);
       expect((await efs.lstat(n0)).nlink).toEqual(1);

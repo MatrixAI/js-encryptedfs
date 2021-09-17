@@ -2,7 +2,6 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DeviceManager } from '@';
 import { DB } from '@/db';
 import { INodeManager } from '@/inodes';
 import * as utils from '@/utils';
@@ -12,7 +11,6 @@ describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const devMgr = new DeviceManager();
   let dataDir: string;
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
@@ -36,7 +34,6 @@ describe('INodeManager', () => {
   test('inode manager is persistent across restarts', async () => {
     let iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
@@ -61,7 +58,6 @@ describe('INodeManager', () => {
     });
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     await iNodeMgr.transact(async (tran) => {
@@ -76,7 +72,6 @@ describe('INodeManager', () => {
   test('transactions are locked via inodes', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     // Demonstrate a counter increment race condition
@@ -128,7 +123,6 @@ describe('INodeManager', () => {
   test('inodes can be scheduled for deletion when there are references to them', async () => {
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();

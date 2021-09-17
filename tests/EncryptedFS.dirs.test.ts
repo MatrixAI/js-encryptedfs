@@ -3,14 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import {
-  EncryptedFS,
-  constants,
-  errno,
-  INodeManager,
-  DeviceManager,
-  DB,
-} from '@';
+import { EncryptedFS, constants, errno, INodeManager, DB } from '@';
 import { expectError, createFile, FileTypes, setId, sleep } from './utils';
 import path from 'path';
 
@@ -23,7 +16,6 @@ describe('EncryptedFS Directories', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
@@ -32,13 +24,7 @@ describe('EncryptedFS Directories', () => {
   const n4 = 'four';
   const dp = 0o0755;
   const tuid = 0o65534;
-  const supportedTypes: FileTypes[] = [
-    'regular',
-    'dir',
-    'block',
-    'char',
-    'symlink',
-  ];
+  const supportedTypes: FileTypes[] = ['regular', 'dir', 'block', 'symlink'];
   let types: FileTypes[];
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -53,14 +39,12 @@ describe('EncryptedFS Directories', () => {
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
       db,
-      devMgr,
       iNodeMgr,
       umask: 0o022,
       logger,
@@ -79,8 +63,6 @@ describe('EncryptedFS Directories', () => {
     const stat = await efs.stat(`dir`);
     expect(stat.isFile()).toStrictEqual(false);
     expect(stat.isDirectory()).toStrictEqual(true);
-    expect(stat.isBlockDevice()).toStrictEqual(false);
-    expect(stat.isCharacterDevice()).toStrictEqual(false);
     expect(stat.isSocket()).toStrictEqual(false);
     expect(stat.isSymbolicLink()).toStrictEqual(false);
     expect(stat.isFIFO()).toStrictEqual(false);
@@ -296,7 +278,7 @@ describe('EncryptedFS Directories', () => {
       await efs.mkdir('/cwd1/cwd2/cwd3');
       await expectError(efs.rename('./cwd3', './cwd3/cwd4'), errno.EINVAL);
     });
-    types = ['regular', 'block', 'char'];
+    types = ['regular', 'block'];
     test.each(types)(
       'changes name but inode remains the same for %s',
       async (type) => {
@@ -439,7 +421,7 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rename(n2, path.join(n0, 'test')), errno.ELOOP);
       await expectError(efs.rename(n2, path.join(n1, 'test')), errno.ELOOP);
     });
-    types = ['regular', 'block', 'char'];
+    types = ['regular', 'block'];
     test.each(types)(
       'returns ENOTDIR if a component of either path prefix is a %s',
       async (type) => {
@@ -456,7 +438,7 @@ describe('EncryptedFS Directories', () => {
         );
       },
     );
-    types = ['regular', 'block', 'char', 'symlink'];
+    types = ['regular', 'block', 'symlink'];
     test.each(types)(
       "returns ENOTDIR when the 'from' argument is a directory, but 'to' is a %s",
       async (type) => {
@@ -499,7 +481,7 @@ describe('EncryptedFS Directories', () => {
       const ctime2 = (await efs.lstat(dst)).ctime.getTime();
       expect(ctime1).toBeLessThan(ctime2);
     });
-    types = ['regular', 'block', 'char'];
+    types = ['regular', 'block'];
     test.each(types)(
       'succeeds when destination %s is multiply linked',
       async (type) => {

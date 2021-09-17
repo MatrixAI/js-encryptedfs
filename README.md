@@ -121,3 +121,4 @@ There are some differences between EFS and Node FS:
 
 - User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.
 - Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.
+- Character Devices: Node FS contains Character Devices which can be written to and read from. However, in EFS Character Devices are not supported yet.

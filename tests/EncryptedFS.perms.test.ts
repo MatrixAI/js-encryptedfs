@@ -8,7 +8,6 @@ import {
   errno,
   DB,
   INodeManager,
-  DeviceManager,
   constants,
   permissions,
 } from '@';
@@ -23,7 +22,6 @@ describe('EncryptedFS Permissions', () => {
   let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
   let iNodeMgr: INodeManager;
-  const devMgr = new DeviceManager();
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
@@ -38,14 +36,12 @@ describe('EncryptedFS Permissions', () => {
     await db.start();
     iNodeMgr = await INodeManager.createINodeManager({
       db,
-      devMgr,
       logger,
     });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
       db,
-      devMgr,
       iNodeMgr,
       umask: 0o022,
       logger,

@@ -1,5 +1,4 @@
 export { default as EncryptedFS } from './EncryptedFS';
-export { default as DeviceManager } from './devices/DeviceManager';
 export * from './EncryptedFSError';
 export * as workers from './workers';
 export * as db from './db';

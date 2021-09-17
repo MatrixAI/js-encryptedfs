@@ -1,11 +1,9 @@
 import type { MutexInterface } from 'async-mutex';
-import type { DeviceManager } from '..';
 import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
 import type { DB } from '../db';
 import type { StatProps } from '../Stat';
 import type { DBDomain, DBLevel, DBTransaction } from '../db/types';
 
-import { DeviceInterface, CharacterDev } from 'virtualfs';
 import Logger from '@matrixai/logger';
 import { Mutex } from 'async-mutex';
 import Counter from 'resource-counter';
@@ -20,17 +18,14 @@ type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
 type FileParams = Partial<Omit<INodeParams, 'ino'>>;
 type DirectoryParams = Partial<Omit<INodeParams, 'ino'>>;
 type SymlinkParams = Partial<Omit<INodeParams, 'ino'>>;
-type CharDevParams = Partial<Omit<INodeParams, 'ino'>>;
 
 class INodeManager {
   public static async createINodeManager({
     db,
-    devMgr,
     counter = new Counter(1),
     logger = new Logger(INodeManager.name),
   }: {
     db: DB;
-    devMgr: DeviceManager;
     counter?: Counter;
     logger?: Logger;
   }): Promise<INodeManager> {
@@ -53,7 +48,6 @@ class INodeManager {
     }
     const iNodeMgr = new INodeManager({
       db,
-      devMgr,
       counter,
       logger,
       mgrDomain,
@@ -89,7 +83,6 @@ class INodeManager {
   public gcDomain: DBDomain;
   protected logger: Logger;
   protected _db: DB;
-  protected _devMgr: DeviceManager;
   protected counter: Counter;
 
   public mgrDb: DBLevel;
@@ -104,7 +97,6 @@ class INodeManager {
 
   protected constructor({
     db,
-    devMgr,
     counter,
     logger,
     mgrDomain,
@@ -123,7 +115,6 @@ class INodeManager {
     gcDb,
   }: {
     db: DB;
-    devMgr: DeviceManager;
     counter: number;
     logger: Logger;
     mgrDomain: DBDomain;
@@ -143,7 +134,6 @@ class INodeManager {
   }) {
     this.logger = logger;
     this._db = db;
-    this._devMgr = devMgr;
     this.counter = counter;
     this.mgrDomain = mgrDomain;
     this.mgrDb = mgrDb;
@@ -163,10 +153,6 @@ class INodeManager {
 
   get db(): DB {
     return this._db;
-  }
-
-  get devMgr(): DeviceManager {
-    return this._devMgr;
   }
 
   public inoAllocate(): INodeIndex {
@@ -269,19 +255,6 @@ class INodeManager {
     await tran.put(this.linkDomain, inodesUtils.iNodeId(ino), link);
   }
 
-  public async charDevCreate(
-    tran: DBTransaction,
-    ino: INodeIndex,
-    params: CharDevParams,
-  ): Promise<void> {
-    const mode = constants.S_IFCHR | ((params.mode ?? 0) & ~constants.S_IFMT);
-    await this.iNodeCreate(tran, 'CharacterDev', {
-      ...params,
-      ino,
-      mode,
-    });
-  }
-
   protected async iNodeCreate(
     tran: DBTransaction,
     type: INodeType,
@@ -348,9 +321,6 @@ class INodeManager {
       case 'Symlink':
         await this.symlinkDestroy(tran, ino);
         break;
-      case 'CharacterDev':
-        await this.charDevDestroy(tran, ino);
-        break;
     }
     tran.queueSuccess(() => {
       this.refs.delete(ino);
@@ -391,13 +361,6 @@ class INodeManager {
     ino: INodeIndex,
   ): Promise<void> {
     await tran.del(this.linkDomain, inodesUtils.iNodeId(ino));
-    await this.iNodeDestroy(tran, ino);
-  }
-
-  public async charDevDestroy(
-    tran: DBTransaction,
-    ino: INodeIndex,
-  ): Promise<void> {
     await this.iNodeDestroy(tran, ino);
   }
 
@@ -738,15 +701,6 @@ class INodeManager {
       inodesUtils.iNodeId(ino),
     );
     return link!;
-  }
-
-  public async charDevGetFileDesOps(
-    tran: DBTransaction,
-    ino: INodeIndex,
-  ): Promise<Readonly<DeviceInterface<CharacterDev>> | undefined> {
-    const rdev = await this.statGetProp(tran, ino, 'rdev');
-    const [major, minor] = utils.unmkDev(rdev);
-    return this.devMgr.getChr(major, minor);
   }
 
   /**
