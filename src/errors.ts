@@ -14,23 +14,30 @@ class ErrorEncryptedFSError extends ErrorEncryptedFS {
   protected _description: string;
   protected _syscall?: string;
 
-  constructor(
-    errnoObj: {
-      errno: number, code: string, description: string
-    },
-    path?: string,
-    dest?: string,
-    syscall?: string
-  ) {
-    let message = errnoObj.code + ': ' + errnoObj.description;
+  constructor({
+    errno,
+    path,
+    dest,
+    syscall,
+  }: {
+    errno: {
+      errno: number;
+      code: string;
+      description: string;
+    };
+    path?: string;
+    dest?: string;
+    syscall?: string;
+  }) {
+    let message = errno.code + ': ' + errno.description;
     if (path != null) {
       message += ', ' + path;
       if (dest != null) message += ' -> ' + dest;
     }
     super(message);
-    this._errno = errnoObj.errno;
-    this._code = errnoObj.code;
-    this._description = errnoObj.description;
+    this._errno = errno.errno;
+    this._code = errno.code;
+    this._description = errno.description;
     this._syscall = syscall;
   }
 

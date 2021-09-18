@@ -33,7 +33,7 @@ class EncryptedFS {
     fdMgr,
     blockSize,
     umask,
-    logger
+    logger,
   }: {
     dbPath: string;
     dbKey: Buffer;
@@ -49,7 +49,7 @@ class EncryptedFS {
     fdMgr,
     blockSize,
     umask,
-    logger
+    logger,
   }: {
     db: DB;
     iNodeMgr?: INodeManager;
@@ -84,8 +84,8 @@ class EncryptedFS {
           key: dbKey!,
           ops: {
             encrypt: utils.encrypt,
-            decrypt: utils.decrypt
-          }
+            decrypt: utils.decrypt,
+          },
         },
         logger: logger.getChild(DB.name),
       });
@@ -119,7 +119,7 @@ class EncryptedFS {
       rootIno,
       blockSize,
       umask,
-    logger,
+      logger,
     });
     await efs.start();
     return efs;
@@ -243,30 +243,43 @@ class EncryptedFS {
     this.db.unsetWorkerManager();
   }
 
-  public async chdir(path: string): Promise<void> {
-    if (!this._running) {
-      throw new errors.ErrorEncryptedFSNotRunning();
-    }
-    path = this.getPath(path);
-    const navigated = await this.navigate(path, true);
-    const target = navigated.target;
-    await this.iNodeMgr.transact(
-      async (tran) => {
-        if (!target) {
-          throw new errors.ErrorEncryptedFSError(errno.ENOENT, path);
-        }
-        const targetType = (await this.iNodeMgr.get(tran, target))?.type;
-        const targetStat = await this.iNodeMgr.statGet(tran, target);
-        if (!(targetType === 'Directory')) {
-          throw new errors.ErrorEncryptedFSError(errno.ENOTDIR, path);
-        }
-        if (!this.checkPermissions(constants.X_OK, targetStat)) {
-          throw new errors.ErrorEncryptedFSError(errno.EACCES, path);
-        }
-        await this._cwd.changeDir(target, navigated.pathStack);
-      },
-      target ? [target] : [],
-    );
+  public async chdir(path: string): Promise<void>;
+  public async chdir(path: string, callback: Callback): Promise<void>;
+  public async chdir(path: string, callback?: Callback): Promise<void> {
+    return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
+      path = this.getPath(path);
+      const navigated = await this.navigate(path, true);
+      const target = navigated.target;
+      await this.iNodeMgr.transact(
+        async (tran) => {
+          if (!target) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string
+            });
+          }
+          const targetType = (await this.iNodeMgr.get(tran, target))?.type;
+          const targetStat = await this.iNodeMgr.statGet(tran, target);
+          if (!(targetType === 'Directory')) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOTDIR,
+              path: path as string
+            });
+          }
+          if (!this.checkPermissions(constants.X_OK, targetStat)) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EACCES,
+              path: path as string
+            });
+          }
+          await this._cwd.changeDir(target, navigated.pathStack);
+        },
+        target ? [target] : [],
+      );
+    }, callback);
   }
 
   public async access(path: Path, mode?: number): Promise<void>;
@@ -292,20 +305,22 @@ class EncryptedFS {
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(async (tran) => {
         if (!target) {
-          throw new errors.ErrorEncryptedFSError(
-            errno.ENOENT,
-            `access ${path} does not exist`,
-          );
+          throw new errors.ErrorEncryptedFSError({
+            errno: errno.ENOENT,
+            path: path as string,
+            syscall: 'access'
+          });
         }
         if (mode === constants.F_OK) {
           return;
         }
         const targetStat = await this.iNodeMgr.statGet(tran, target);
         if (!this.checkPermissions(mode, targetStat)) {
-          throw new errors.ErrorEncryptedFSError(
-            errno.EACCES,
-            `access ${path} does not exist`,
-          );
+          throw new errors.ErrorEncryptedFSError({
+            errno: errno.EACCES,
+            path: path as string,
+            syscall: 'access'
+          });
         }
       });
     }, callback);
@@ -364,15 +379,15 @@ class EncryptedFS {
         if (typeof file === 'number') {
           fd = this.fdMgr.getFd(file);
           if (!fd)
-            throw new errors.ErrorEncryptedFSError(
-              errno.EBADF,
-              `appendFile '${fd}' invalid File Descriptor`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'appendFile'
+            });
           if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
-            throw new errors.ErrorEncryptedFSError(
-              errno.EBADF,
-              `appendFile '${fd}' invalide File Descriptor flags`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'appendFile'
+            });
           }
         } else {
           [fd, fdIndex] = await this._open(
@@ -385,7 +400,10 @@ class EncryptedFS {
           await fd.write(data, undefined, constants.O_APPEND);
         } catch (e) {
           if (e instanceof RangeError) {
-            throw new errors.ErrorEncryptedFSError(errno.EFBIG, 'appendFile');
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EFBIG,
+              syscall: 'appendFile'
+            });
           }
           throw e;
         }
@@ -410,14 +428,22 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `chmod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'chmod'
+            });
           }
           const targetStat = await this.iNodeMgr.statGet(tran, target);
           if (
             this.uid !== permissions.DEFAULT_ROOT_UID &&
             this.uid !== targetStat.uid
           ) {
-            throw new errors.ErrorEncryptedFSError(errno.EPERM, `chmod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EPERM,
+              path: path as string,
+              syscall: 'chmod'
+            });
           }
           await this.iNodeMgr.statSetProp(
             tran,
@@ -446,17 +472,29 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `chown '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'chown'
+            });
           }
           const targetStat = await this.iNodeMgr.statGet(tran, target);
           if (this.uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (targetStat.uid !== this.uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `chown '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                path: path as string,
+                syscall: 'chown'
+              });
             }
             // You cannot give files to others
             if (this.uid !== uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `chown '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                path: path as string,
+                syscall: 'chown'
+              });
             }
             // Because we don't have user group hierarchies, we allow chowning to any group
           }
@@ -503,7 +541,10 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (!this.fdMgr.getFd(fdIndex)) {
-        throw new errors.ErrorEncryptedFSError(errno.EBADF, `close '${fdIndex}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EBADF,
+          syscall: 'close'
+        });
       }
       await this.fdMgr.deleteFd(fdIndex);
     }, callback);
@@ -552,10 +593,12 @@ class EncryptedFS {
           const srcINodeType = (await this.iNodeMgr.get(tran, srcINode))?.type;
           const srcINodeStat = await this.iNodeMgr.statGet(tran, srcINode);
           if (srcINodeType === 'Directory') {
-            throw new errors.ErrorEncryptedFSError(
-              errno.EBADF,
-              `copyFile '${srcPath}', '${dstPath}'`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              path: srcPath as string,
+              dest: dstPath as string,
+              syscall: 'copyFile'
+            });
           }
           let dstFlags = constants.O_WRONLY | constants.O_CREAT;
           if (flags & constants.COPYFILE_EXCL) {
@@ -585,10 +628,12 @@ class EncryptedFS {
               blkCounter++;
             }
           } else {
-            throw new errors.ErrorEncryptedFSError(
-              errno.EINVAL,
-              `copyFile '${srcPath}', '${dstPath}'`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EINVAL,
+              path: srcPath as string,
+              dest: dstPath as string,
+              syscall: 'copyFile'
+            });
           }
         });
       } finally {
@@ -717,20 +762,32 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (offset < 0 || len <= 0) {
-        throw new errors.ErrorEncryptedFSError(errno.EINVAL, `fallocate '${fdIndex}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EINVAL,
+          syscall: 'fallocate'
+        });
       }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'fallocate'
+            });
           }
           const iNodeType = (await this.iNodeMgr.get(tran, fd.ino))?.type;
           if (!(iNodeType === 'File')) {
-            throw new errors.ErrorEncryptedFSError(errno.ENODEV, `fallocate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENODEV,
+              syscall: 'fallocate'
+            });
           }
           if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `fallocate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'fallocate',
+            });
           }
           const data = Buffer.alloc(0);
           if (offset + len > data.length) {
@@ -746,10 +803,10 @@ class EncryptedFS {
               ]);
             } catch (e) {
               if (e instanceof RangeError) {
-                throw new errors.ErrorEncryptedFSError(
-                  errno.EFBIG,
-                  `fallocate '${fdIndex}'`,
-                );
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.EFBIG,
+                  syscall: 'fallocate',
+                });
               }
               throw e;
             }
@@ -787,14 +844,20 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `fchmod '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              ernno: errno.EBADF,
+              syscall: 'fchmod'
+            });
           }
           const fdStat = await this.iNodeMgr.statGet(tran, fd.ino);
           if (
             this.uid !== permissions.DEFAULT_ROOT_UID &&
             this.uid !== fdStat.uid
           ) {
-            throw new errors.ErrorEncryptedFSError(errno.EPERM, `fchmod '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EPERM,
+              syscall: 'fchmod'
+            });
           }
           await this.iNodeMgr.statSetProp(
             tran,
@@ -822,17 +885,26 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `fchown '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'fchown'
+            });
           }
           const fdStat = await this.iNodeMgr.statGet(tran, fd.ino);
           if (this.uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (fdStat.uid !== this.uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                syscall: 'fchown'
+              });
             }
             // You cannot give files to others
             if (this.uid !== uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `fchown '${fdIndex}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                syscall: 'fchown'
+              });
             }
             // Because we don't have user group hierarchies, we allow chowning to any group
           }
@@ -850,7 +922,10 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (!this.fdMgr.getFd(fdIndex)) {
-        throw new errors.ErrorEncryptedFSError(errno.EBADF, `fdatasync '${fdIndex}`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EBADF,
+          syscall: 'fdatasync'
+        });
       }
     }, callback);
   }
@@ -873,7 +948,10 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `fstat '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'fstat'
+            });
           }
           fdStat = await this.iNodeMgr.statGet(tran, fd.ino);
         },
@@ -889,7 +967,10 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (!this.fdMgr.getFd(fdIndex)) {
-        throw new errors.ErrorEncryptedFSError(errno.EBADF, `fsync '${fdIndex}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EBADF,
+          syscall: 'fsync'
+        });
       }
     }, callback);
   }
@@ -913,21 +994,33 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (len < 0) {
-        throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EINVAL,
+          syscall: 'ftruncate'
+        });
       }
       let newData;
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `ftruncate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'ftruncate'
+            });
           }
           const iNodeType = (await this.iNodeMgr.get(tran, fd.ino))?.type;
           if (!(iNodeType === 'File')) {
-            throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EINVAL,
+              syscall: 'ftruncate'
+            });
           }
           if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
-            throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EINVAL,
+              syscall: 'ftruncate'
+            });
           }
           let data = Buffer.alloc(0);
           for await (const block of this.iNodeMgr.fileGetBlocks(
@@ -962,19 +1055,17 @@ class EncryptedFS {
             }
           } catch (e) {
             if (e instanceof RangeError) {
-              throw new errors.ErrorEncryptedFSError(errno.EFBIG, `ftruncate '${fdIndex}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EFBIG,
+                syscall: 'ftruncate'
+              });
             }
             throw e;
           }
           const now = new Date();
           await this.iNodeMgr.statSetProp(tran, fd.ino, 'mtime', now);
           await this.iNodeMgr.statSetProp(tran, fd.ino, 'ctime', now);
-          await this.iNodeMgr.statSetProp(
-            tran,
-            fd.ino,
-            'size',
-            newData.length,
-          );
+          await this.iNodeMgr.statSetProp(tran, fd.ino, 'size', newData.length);
           await fd.setPos(tran, Math.min(newData.length, fd.pos));
         },
         fd ? [fd.ino] : [],
@@ -996,7 +1087,10 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!fd) {
-            throw new errors.ErrorEncryptedFSError(errno.EBADF, `futimes '${fdIndex}`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EBADF,
+              syscall: 'futimes'
+            });
           }
           let newAtime;
           let newMtime;
@@ -1037,14 +1131,22 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `lchmod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'lchmod'
+            });
           }
           const targetStat = await this.iNodeMgr.statGet(tran, target);
           if (
             this.uid !== permissions.DEFAULT_ROOT_UID &&
             this.uid !== targetStat.uid
           ) {
-            throw new errors.ErrorEncryptedFSError(errno.EPERM, `lchmod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EPERM,
+              path: path as string,
+              syscall: 'lchmod'
+            });
           }
           await this.iNodeMgr.statSetProp(
             tran,
@@ -1073,17 +1175,29 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `lchown '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'lchown'
+            });
           }
           const targetStat = await this.iNodeMgr.statGet(tran, target);
           if (this.uid !== permissions.DEFAULT_ROOT_UID) {
             // You don't own the file
             if (targetStat.uid !== this.uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `lchown '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                path: path as string,
+                syscall: 'lchown'
+              });
             }
             // You cannot give files to others
             if (this.uid !== uid) {
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `lchown '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                path: path as string,
+                syscall: 'lchown'
+              });
             }
             // Because we don't have user group hierarchies, we allow chowning to any group
           }
@@ -1112,19 +1226,23 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!existingTarget) {
-            throw new errors.ErrorEncryptedFSError(
-              errno.ENOENT,
-              `link '${existingPath}', '${newPath}'`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: existingPath as string,
+              dest: newPath as string,
+              syscall: 'link'
+            });
           }
           const existingTargetType = (
             await this.iNodeMgr.get(tran, existingTarget)
           )?.type;
           if (existingTargetType === 'Directory') {
-            throw new errors.ErrorEncryptedFSError(
-              errno.EPERM,
-              `link '${existingPath}', '${newPath}'`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EPERM,
+              path: existingPath as string,
+              dest: newPath as string,
+              syscall: 'link'
+            });
           }
           if (!navigatedNew.target) {
             const newDirStat = await this.iNodeMgr.statGet(
@@ -1132,16 +1250,20 @@ class EncryptedFS {
               navigatedNew.dir,
             );
             if (newDirStat.nlink < 2) {
-              throw new errors.ErrorEncryptedFSError(
-                errno.ENOENT,
-                `link '${existingPath}', '${newPath}'`,
-              );
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.ENOENT,
+                path: existingPath as string,
+                dest: newPath as string,
+                syscall: 'link'
+              });
             }
             if (!this.checkPermissions(constants.W_OK, newDirStat)) {
-              throw new errors.ErrorEncryptedFSError(
-                errno.EACCES,
-                `link '${existingPath}', '${newPath}'`,
-              );
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EACCES,
+                path: existingPath as string,
+                dest: newPath as string,
+                syscall: 'link'
+              });
             }
             const index = await this.iNodeMgr.dirGetEntry(
               tran,
@@ -1161,10 +1283,12 @@ class EncryptedFS {
               new Date(),
             );
           } else {
-            throw new errors.ErrorEncryptedFSError(
-              errno.EEXIST,
-              `link '${existingPath}', '${newPath}'`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EEXIST,
+              path: existingPath as string,
+              dest: newPath as string,
+              syscall: 'link'
+            });
           }
         },
         existingTarget
@@ -1210,7 +1334,10 @@ class EncryptedFS {
       }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
-        throw new errors.ErrorEncryptedFSError(errno.EBADF, `lseek '${fdIndex}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EBADF,
+          syscall: 'lseek'
+        });
       }
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -1221,7 +1348,10 @@ class EncryptedFS {
               constants.SEEK_END,
             ].indexOf(seekFlags) === -1
           ) {
-            throw new errors.ErrorEncryptedFSError(errno.EINVAL, `lseek '${fdIndex}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EINVAL,
+              syscall: 'lseek'
+            });
           }
           await fd.setPos(tran, position, seekFlags);
         },
@@ -1253,7 +1383,10 @@ class EncryptedFS {
         );
         return new Stat({ ...targetStat });
       } else {
-        throw new errors.ErrorEncryptedFSError(errno.ENOENT, `lstat '${path}'`);
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.ENOENT,
+          syscall: 'lstat'
+        });
       }
     }, callback);
   }
@@ -1284,15 +1417,17 @@ class EncryptedFS {
       path = path.replace(/(.+?)\/+$/, '$1');
       const navigated = await this.navigate(path, true);
       if (navigated.target) {
-        throw new errors.ErrorEncryptedFSError(
-          errno.EEXIST,
-          `mkdir '${path}' already exists`,
-        );
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.EEXIST,
+          path: path as string,
+          syscall: 'mkdir'
+        });
       } else if (!navigated.target && navigated.remaining) {
-        throw new errors.ErrorEncryptedFSError(
-          errno.ENOENT,
-          `mkdir '${path}' does not exist`,
-        );
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.ENOENT,
+          path: path as string,
+          syscall: 'mkdir'
+        });
       } else if (!navigated.target) {
         let navigatedDirStats;
         const dirINode = this.iNodeMgr.inoAllocate();
@@ -1306,16 +1441,18 @@ class EncryptedFS {
               navigated.dir,
             );
             if (navigatedDirStats['nlink'] < 2) {
-              throw new errors.ErrorEncryptedFSError(
-                errno.ENOENT,
-                `mkdir '${path}' does not exist`,
-              );
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.ENOENT,
+                path: path as string,
+                syscall: 'mkdir'
+              });
             }
             if (!this.checkPermissions(constants.W_OK, navigatedDirStats)) {
-              throw new errors.ErrorEncryptedFSError(
-                errno.EACCES,
-                `mkdir '${path}' does not have correct permissions`,
-              );
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EACCES,
+                path: path as string,
+                syscall: 'mkdir'
+              });
             }
             await this.iNodeMgr.dirCreate(
               tran,
@@ -1366,7 +1503,7 @@ class EncryptedFS {
       path = path.replace(/(.+?)\/+$/, '$1');
       let currentDir, navigatedTargetType;
       let navigated = await this.navigate(path, true);
-      for (;;) {
+      while (true) {
         if (!navigated.target) {
           let navigatedDirStat;
           const dirINode = this.iNodeMgr.inoAllocate();
@@ -1380,16 +1517,18 @@ class EncryptedFS {
                 navigated.dir,
               );
               if (navigatedDirStat.nlink < 2) {
-                throw new errors.ErrorEncryptedFSError(
-                  errno.ENOENT,
-                  `mkdirp '${path}' does not exist`,
-                );
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.ENOENT,
+                  path: path as string,
+                  syscall: 'mkdirp'
+                });
               }
               if (!this.checkPermissions(constants.W_OK, navigatedDirStat)) {
-                throw new errors.ErrorEncryptedFSError(
-                  errno.EACCES,
-                  `mkdirp '${path}' does not have correct permissions`,
-                );
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.EACCES,
+                  path: path as string,
+                  syscall: 'mkdirp'
+                });
               }
               await this.iNodeMgr.dirCreate(
                 tran,
@@ -1431,10 +1570,11 @@ class EncryptedFS {
             [navigated.target],
           );
           if (navigatedTargetType !== 'Directory') {
-            throw new errors.ErrorEncryptedFSError(
-              errno.ENOTDIR,
-              `mkdirp '${path}' is not a directory`,
-            );
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOTDIR,
+              path: path as string,
+              syscall: 'mkdirp'
+            });
           }
           break;
         }
@@ -1481,7 +1621,7 @@ class EncryptedFS {
         return possibleChars[Math.floor(Math.random() * possibleChars.length)];
       };
       let pathS;
-      for (;;) {
+      while (true) {
         pathS = pathSPrefix.concat(
           Array.from({ length: 6 }, () => getChar)
             .map((f) => f())
@@ -1551,17 +1691,29 @@ class EncryptedFS {
             this.iNodeMgr.inoDeallocate(iNode);
           });
           if (navigated.target) {
-            throw new errors.ErrorEncryptedFSError(errno.EEXIST, `mknod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EEXIST,
+              path: path as string,
+              syscall: 'mknod'
+            });
           }
           const navigatedDirStat = await this.iNodeMgr.statGet(
             tran,
             navigated.dir,
           );
           if (navigatedDirStat.nlink < 2) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `mknod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'mknod'
+            });
           }
           if (!this.checkPermissions(constants.W_OK, navigatedDirStat)) {
-            throw new errors.ErrorEncryptedFSError(errno.EACCES, `mknod '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EACCES,
+              path: path as string,
+              syscall: 'mknod'
+            });
           }
           switch (type) {
             case constants.S_IFREG:
@@ -1577,7 +1729,11 @@ class EncryptedFS {
               );
               break;
             default:
-              throw new errors.ErrorEncryptedFSError(errno.EPERM, `mknod '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.EPERM,
+                path: path as string,
+                syscall: 'mknod'
+              });
           }
           await this.iNodeMgr.dirSetEntry(
             tran,
@@ -1701,7 +1857,7 @@ class EncryptedFS {
     // loop suits us best. In VFS this was easier as the type checking wasn't as strict
     await this.iNodeMgr.transact(
       async (tran) => {
-        for (;;) {
+        while (true) {
           if (!target) {
             // O_CREAT only applies if there's a left over name without any remaining path
             if (!navigated.remaining && openFlags & constants.O_CREAT) {
@@ -1718,12 +1874,20 @@ class EncryptedFS {
                   );
                   // Cannot create if the current directory has been unlinked from its parent directory
                   if (navigatedDirStat.nlink < 2) {
-                    throw new errors.ErrorEncryptedFSError(errno.ENOENT, `open '${path}'`);
+                    throw new errors.ErrorEncryptedFSError({
+                      errno: errno.ENOENT,
+                      path: path as string,
+                      syscall: 'open'
+                    });
                   }
                   if (
                     !this.checkPermissions(constants.W_OK, navigatedDirStat)
                   ) {
-                    throw new errors.ErrorEncryptedFSError(errno.EACCES, `open '${path}'`);
+                    throw new errors.ErrorEncryptedFSError({
+                      errno: errno.EACCES,
+                      path: path as string,
+                      syscall: 'open'
+                    });
                   }
                   await this.iNodeMgr.fileCreate(
                     tran,
@@ -1747,14 +1911,22 @@ class EncryptedFS {
               target = fileINode;
               break;
             } else {
-              throw new errors.ErrorEncryptedFSError(errno.ENOENT, `open '${path}'`);
+              throw new errors.ErrorEncryptedFSError({
+                errno: errno.ENOENT,
+                path: path as string,
+                syscall: 'open'
+              });
             }
           } else {
             const targetType = (await this.iNodeMgr.get(tran, target))?.type;
             if (targetType === 'Symlink') {
               // Cannot be symlink if O_NOFOLLOW
               if (openFlags & constants.O_NOFOLLOW) {
-                throw new errors.ErrorEncryptedFSError(errno.ELOOP, `open '${path}'`);
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.ELOOP,
+                  path: path as string,
+                  syscall: 'open'
+                });
               }
               navigated = await this.navigateFrom(
                 navigated.dir,
@@ -1771,7 +1943,11 @@ class EncryptedFS {
                 openFlags & constants.O_CREAT &&
                 openFlags & constants.O_EXCL
               ) {
-                throw new errors.ErrorEncryptedFSError(errno.EEXIST, `open '${path}'`);
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.EEXIST,
+                  path: path as string,
+                  syscall: 'open'
+                });
               }
               // Cannot be directory if write capabilities are requested
               if (
@@ -1781,14 +1957,22 @@ class EncryptedFS {
                     (openFlags &
                       (constants.O_RDWR | (openFlags & constants.O_TRUNC))))
               ) {
-                throw new errors.ErrorEncryptedFSError(errno.EISDIR, `open '${path}'`);
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.EISDIR,
+                  path: path as string,
+                  syscall: 'open'
+                });
               }
               // Must be directory if O_DIRECTORY
               if (
                 openFlags & constants.O_DIRECTORY &&
                 !(targetType === 'Directory')
               ) {
-                throw new errors.ErrorEncryptedFSError(errno.ENOTDIR, `open '${path}'`);
+                throw new errors.ErrorEncryptedFSError({
+                  errno: errno.ENOTDIR,
+                  path: path as string,
+                  syscall: 'open'
+                });
               }
               // Must truncate a file if O_TRUNC
               if (
@@ -1822,13 +2006,21 @@ class EncryptedFS {
         }
         const targetStat = await this.iNodeMgr.statGet(tran, target);
         if (!this.checkPermissions(access, targetStat)) {
-          throw new errors.ErrorEncryptedFSError(errno.EACCES, `open '${path}'`);
+          throw new errors.ErrorEncryptedFSError({
+            errno: errno.EACCES,
+            path: path as string,
+            syscall: 'open'
+          });
         }
         try {
           openRet = await this.fdMgr.createFd(target, openFlags);
         } catch (e) {
           if (e instanceof errors.ErrorEncryptedFSError) {
-            throw new errors.ErrorEncryptedFSError(errno.EACCES, `open '${path}'`);
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EACCES,
+              path: path as string,
+              syscall: 'open'
+            });
           }
           throw e;
         }
@@ -2108,11 +2300,17 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `readlink '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.ENOENT,
+              `readlink '${path}'`,
+            );
           }
           const targetType = (await this.iNodeMgr.get(tran, target))?.type;
           if (!(targetType === 'Symlink')) {
-            throw new errors.ErrorEncryptedFSError(errno.EINVAL, `readlink '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.EINVAL,
+              `readlink '${path}'`,
+            );
           }
           link = await this.iNodeMgr.symlinkGetLink(tran, target);
         },
@@ -2159,7 +2357,10 @@ class EncryptedFS {
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       if (!navigated.target) {
-        throw new errors.ErrorEncryptedFSError(errno.ENOENT, `realpath '${path}'`);
+        throw new errors.ErrorEncryptedFSError(
+          errno.ENOENT,
+          `realpath '${path}'`,
+        );
       }
       if (options.encoding === 'binary') {
         return Buffer.from('/' + navigated.pathStack.join('/'));
@@ -2193,9 +2394,8 @@ class EncryptedFS {
             );
           }
           const sourceTarget = navigatedSource.target;
-          const sourceTargetType = (
-            await this.iNodeMgr.get(tran, sourceTarget)
-          )?.type;
+          const sourceTargetType = (await this.iNodeMgr.get(tran, sourceTarget))
+            ?.type;
           if (sourceTargetType === 'Directory') {
             // If oldPath is a directory, target must be a directory (if it exists)
             if (navigatedTarget.target) {
@@ -2404,10 +2604,16 @@ class EncryptedFS {
         async (tran) => {
           // This is for if the path resolved to root
           if (!navigated.name) {
-            throw new errors.ErrorEncryptedFSError(errno.EBUSY, `rmdir '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.EBUSY,
+              `rmdir '${path}'`,
+            );
           }
           if (!navigated.target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `rmdir'${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.ENOENT,
+              `rmdir'${path}'`,
+            );
           }
           const target = navigated.target;
           const dir = navigated.dir;
@@ -2418,13 +2624,22 @@ class EncryptedFS {
             targetEntries.push(entry);
           }
           if (!(targetType === 'Directory')) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOTDIR, `rmdir'${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.ENOTDIR,
+              `rmdir'${path}'`,
+            );
           }
           if (targetEntries.length - 2) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOTEMPTY, `rmdir'${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.ENOTEMPTY,
+              `rmdir'${path}'`,
+            );
           }
           if (!this.checkPermissions(constants.W_OK, dirStat)) {
-            throw new errors.ErrorEncryptedFSError(errno.EACCES, `rmdir '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.EACCES,
+              `rmdir '${path}'`,
+            );
           }
           await this.iNodeMgr.dirUnsetEntry(tran, dir, navigated.name);
         },
@@ -2560,7 +2775,10 @@ class EncryptedFS {
         throw new errors.ErrorEncryptedFSNotRunning();
       }
       if (len < 0) {
-        throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${file}'`);
+        throw new errors.ErrorEncryptedFSError(
+          errno.EINVAL,
+          `ftruncate '${file}'`,
+        );
       }
       if (typeof file === 'number') {
         await this.ftruncate(file, len);
@@ -2585,7 +2803,10 @@ class EncryptedFS {
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
       if (!navigated.target) {
-        throw new errors.ErrorEncryptedFSError(errno.ENOENT, `unlink '${path}'`);
+        throw new errors.ErrorEncryptedFSError(
+          errno.ENOENT,
+          `unlink '${path}'`,
+        );
       }
       const target = navigated.target;
       await this.iNodeMgr.transact(
@@ -2593,10 +2814,16 @@ class EncryptedFS {
           const dirStat = await this.iNodeMgr.statGet(tran, navigated.dir);
           const targetType = (await this.iNodeMgr.get(tran, target))?.type;
           if (!this.checkPermissions(constants.W_OK, dirStat)) {
-            throw new errors.ErrorEncryptedFSError(errno.EACCES, `unlink '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.EACCES,
+              `unlink '${path}'`,
+            );
           }
           if (targetType === 'Directory') {
-            throw new errors.ErrorEncryptedFSError(errno.EISDIR, `unlink '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.EISDIR,
+              `unlink '${path}'`,
+            );
           }
           const now = new Date();
           await this.iNodeMgr.statSetProp(tran, target, 'ctime', now);
@@ -2628,7 +2855,10 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           if (!target) {
-            throw new errors.ErrorEncryptedFSError(errno.ENOENT, `utimes '${path}'`);
+            throw new errors.ErrorEncryptedFSError(
+              errno.ENOENT,
+              `utimes '${path}'`,
+            );
           }
           let newAtime;
           let newMtime;
@@ -3041,7 +3271,7 @@ class EncryptedFS {
         rest: rest,
       };
     } else {
-      // this should not happen
+      // This should not happen
       throw new Error(`Could not parse pathS: ${pathS}`);
     }
   }
