@@ -244,6 +244,9 @@ class EncryptedFS {
   }
 
   public async chdir(path: string): Promise<void> {
+    if (!this._running) {
+      throw new errors.ErrorEncryptedFSNotRunning();
+    }
     path = this.getPath(path);
     const navigated = await this.navigate(path, true);
     const target = navigated.target;
@@ -282,6 +285,9 @@ class EncryptedFS {
       typeof modeOrCallback !== 'function' ? modeOrCallback : constants.F_OK;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(async (tran) => {
@@ -347,6 +353,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       options.flag = 'a';
       data = this.getBuffer(data, options.encoding);
       let fdIndex;
@@ -393,6 +402,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -426,6 +438,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -460,6 +475,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       await this.chown(path, uid, gid);
       let children;
@@ -481,6 +499,9 @@ class EncryptedFS {
 
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, `close '${fdIndex}'`);
       }
@@ -514,6 +535,9 @@ class EncryptedFS {
     callback =
       typeof flagsOrCallback === 'function' ? flagsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       srcPath = this.getPath(srcPath);
       dstPath = this.getPath(dstPath);
       let srcFd, srcFdIndex, dstFd, dstFdIndex;
@@ -607,6 +631,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       if (options.start !== undefined) {
         if (options.start > (options.end ?? Infinity)) {
@@ -649,6 +676,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       if (options.start !== undefined) {
         if (options.start < 0) {
@@ -664,6 +694,9 @@ class EncryptedFS {
     callback?: Callback<[boolean]>,
   ): Promise<boolean | void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       try {
         return !!(await this.navigate(path, true)).target;
@@ -680,6 +713,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (offset < 0 || len <= 0) {
         throw new errors.ErrorEncryptedFSError(errno.EINVAL, `fallocate '${fdIndex}'`);
       }
@@ -744,6 +780,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -776,6 +815,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -804,6 +846,9 @@ class EncryptedFS {
 
   public async fdatasync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, `fdatasync '${fdIndex}`);
       }
@@ -820,6 +865,9 @@ class EncryptedFS {
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       let fdStat;
       await this.iNodeMgr.transact(
@@ -837,6 +885,9 @@ class EncryptedFS {
 
   public async fsync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, `fsync '${fdIndex}'`);
       }
@@ -858,6 +909,9 @@ class EncryptedFS {
     const len = typeof lenOrCallback !== 'function' ? lenOrCallback : 0;
     callback = typeof lenOrCallback === 'function' ? lenOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (len < 0) {
         throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${fdIndex}'`);
       }
@@ -935,6 +989,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -972,6 +1029,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       await this.iNodeMgr.transact(
@@ -1005,6 +1065,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       await this.iNodeMgr.transact(
@@ -1038,6 +1101,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       existingPath = this.getPath(existingPath);
       newPath = this.getPath(newPath);
       const navigatedExisting = await this.navigate(existingPath, false);
@@ -1139,6 +1205,9 @@ class EncryptedFS {
         ? seekFlagsOrCallback
         : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, `lseek '${fdIndex}'`);
@@ -1169,6 +1238,9 @@ class EncryptedFS {
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       if (target) {
@@ -1204,6 +1276,9 @@ class EncryptedFS {
         : permissions.DEFAULT_DIRECTORY_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       // We expect a non-existent directory
       path = path.replace(/(.+?)\/+$/, '$1');
@@ -1283,6 +1358,9 @@ class EncryptedFS {
         : permissions.DEFAULT_DIRECTORY_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       // We expect a directory
       path = path.replace(/(.+?)\/+$/, '$1');
@@ -1391,6 +1469,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (!pathSPrefix || typeof pathSPrefix !== 'string') {
         throw new TypeError('filename prefix is required');
       }
@@ -1458,6 +1539,9 @@ class EncryptedFS {
         : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
       const iNode = this.iNodeMgr.inoAllocate();
@@ -1537,6 +1621,9 @@ class EncryptedFS {
         : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       return (await this._open(path, flags, mode))[1];
     }, callback);
   }
@@ -1807,6 +1894,9 @@ class EncryptedFS {
         ? positionOrCallback
         : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, 'read');
@@ -1873,6 +1963,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       let navigatedTargetType, navigatedTargetStat;
@@ -1943,6 +2036,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       options.flag = 'r';
       let fdIndex;
       try {
@@ -2003,6 +2099,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       let link;
@@ -2054,6 +2153,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       if (!navigated.target) {
@@ -2075,6 +2177,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       oldPath = this.getPath(oldPath);
       newPath = this.getPath(newPath);
       const navigatedSource = await this.navigate(oldPath, false);
@@ -2280,6 +2385,9 @@ class EncryptedFS {
 
   public async rmdir(path: Path, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       // If the path has trailing slashes, navigation would traverse into it
       // we must trim off these trailing slashes to allow these directories to be removed
@@ -2332,6 +2440,9 @@ class EncryptedFS {
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       if (target) {
@@ -2373,6 +2484,9 @@ class EncryptedFS {
   ): Promise<void> {
     callback = typeof typeOrCallback === 'function' ? typeOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       dstPath = this.getPath(dstPath);
       srcPath = this.getPath(srcPath);
       if (!dstPath) {
@@ -2442,6 +2556,9 @@ class EncryptedFS {
     const len = typeof lenOrCallback !== 'function' ? lenOrCallback : 0;
     callback = typeof lenOrCallback === 'function' ? lenOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       if (len < 0) {
         throw new errors.ErrorEncryptedFSError(errno.EINVAL, `ftruncate '${file}'`);
       }
@@ -2462,6 +2579,9 @@ class EncryptedFS {
 
   public async unlink(path: Path, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
       if (!navigated.target) {
@@ -2500,6 +2620,9 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -2592,6 +2715,9 @@ class EncryptedFS {
         ? positionOrCallback
         : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError(errno.EBADF, 'write');
@@ -2677,6 +2803,9 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
       let fdIndex;
       options.flag = 'w';
       const buffer = this.getBuffer(data, options.encoding);
