@@ -7,13 +7,14 @@ import type {
   Data,
   File,
 } from './types';
-import type { INodeIndex } from './inodes/types';
-import type { FdIndex } from './fd/types';
-import type { OptionsStream } from './streams/types';
+import type { INodeIndex } from './inodes';
+import type { FdIndex } from './fd';
+import type { OptionsStream } from './streams';
+import type { EFSWorkerManagerInterface } from './workers';
 
+import { code as errno } from 'errno';
 import Logger from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import { code as errno } from 'errno';
 import CurrentDirectory from './CurrentDirectory';
 import Stat from './Stat';
 import { INodeManager, errors as inodesErrors } from './inodes';
@@ -232,6 +233,14 @@ class EncryptedFS {
       this._destroyed = false;
       throw e;
     }
+  }
+
+  public setWorkerManager(workerManager: EFSWorkerManagerInterface) {
+    this.db.setWorkerManager(workerManager);
+  }
+
+  public unsetWorkerManager() {
+    this.db.unsetWorkerManager();
   }
 
   public async chdir(path: string): Promise<void> {

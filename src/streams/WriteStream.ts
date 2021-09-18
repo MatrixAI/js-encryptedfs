@@ -5,7 +5,7 @@ import type { Callback } from '../types';
 
 import { Writable } from 'readable-stream';
 
-import { permissions } from '../constants';
+import * as permissions from '../permissions';
 
 class WriteStream extends Writable {
   protected _bytesWritten: number;

@@ -5,7 +5,7 @@ import type { EncryptedFS } from '../';
 
 import { Readable } from 'readable-stream';
 
-import { permissions } from '../constants';
+import * as permissions from '../permissions';
 
 class ReadStream extends Readable {
   protected _bytesRead: number;

@@ -11,4 +11,4 @@ type OptionsStream = {
   end?: number;
 };
 
-export { OptionsStream };
+export type { OptionsStream };
