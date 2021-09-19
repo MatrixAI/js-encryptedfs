@@ -2,11 +2,11 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DB } from '@/db';
+import { DB } from '@matrixai/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptor } from '@/fd';
 import * as utils from '@/utils';
-import { constants, permissions } from '@/constants';
+import { constants, permissions } from '@';
 
 describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
@@ -24,8 +24,14 @@ describe('File Descriptor', () => {
       path.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
-      dbKey,
       dbPath: `${dataDir}/db`,
+      crypto: {
+        key: dbKey,
+        ops: {
+          encrypt: utils.encrypt,
+          decrypt: utils.decrypt,
+        },
+      },
       logger,
     });
     await db.start();

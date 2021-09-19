@@ -1,6 +1,6 @@
 import path from 'path';
 import { expectError, sleep } from './utils';
-import { EncryptedFS, errno, DB, INodeManager, constants } from '@';
+import { EncryptedFS, constants } from '@';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import * as utils from '@/utils';
 import fs from 'fs';
@@ -8,6 +8,7 @@ import pathNode from 'path';
 import os from 'os';
 import { FdIndex } from '@/fd/types';
 import { WriteStream } from '@/streams';
+import { code as errno } from 'errno';
 
 describe('EncryptedFS Concurrency', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -15,9 +16,7 @@ describe('EncryptedFS Concurrency', () => {
   ]);
   let dataDir: string;
   let dbPath: string;
-  let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
-  let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
   const flags = constants;
   beforeEach(async () => {
@@ -25,28 +24,14 @@ describe('EncryptedFS Concurrency', () => {
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     dbPath = `${dataDir}/db`;
-    db = await DB.createDB({
-      dbKey,
-      dbPath,
-      logger,
-    });
-    await db.start();
-    iNodeMgr = await INodeManager.createINodeManager({
-      db,
-      logger,
-    });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
-      db,
-      iNodeMgr,
       umask: 0o022,
       logger,
     });
   });
   afterEach(async () => {
-    await db.stop();
-    await db.destroy();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,

@@ -50,10 +50,10 @@ describe('utils', () => {
   });
   test('encryption and decryption', async () => {
     const plainText = Buffer.from('hello world', 'utf-8');
-    const cipherText = utils.encryptWithKey(key, plainText);
-    const plainText_ = utils.decryptWithKey(key, cipherText);
+    const cipherText = await utils.encrypt(key, plainText);
+    const plainText_ = await utils.decrypt(key, cipherText);
     expect(plainText_).toBeDefined();
-    expect(plainText.equals(plainText_!)).toBe(true);
+    expect(plainText).toEqual(Buffer.from(plainText_!));
   });
   test('block offset is position % block size', async () => {
     expect(utils.blockOffset(4096, 0)).toBe(0);

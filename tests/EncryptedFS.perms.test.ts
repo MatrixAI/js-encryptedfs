@@ -5,13 +5,11 @@ import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
 import {
   EncryptedFS,
-  errno,
-  DB,
-  INodeManager,
   constants,
   permissions,
 } from '@';
 import { expectError } from './utils';
+import { code as errno } from 'errno';
 
 describe('EncryptedFS Permissions', () => {
   const logger = new Logger('EncryptedFS Permissions', LogLevel.WARN, [
@@ -19,37 +17,21 @@ describe('EncryptedFS Permissions', () => {
   ]);
   let dataDir: string;
   let dbPath: string;
-  let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
-  let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     dbPath = `${dataDir}/db`;
-    db = await DB.createDB({
-      dbKey,
-      dbPath,
-      logger,
-    });
-    await db.start();
-    iNodeMgr = await INodeManager.createINodeManager({
-      db,
-      logger,
-    });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
-      db,
-      iNodeMgr,
       umask: 0o022,
       logger,
     });
   });
   afterEach(async () => {
-    await db.stop();
-    await db.destroy();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,

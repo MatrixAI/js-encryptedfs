@@ -15,27 +15,27 @@ const logger = new Logger('crypto1MiB Bench', LogLevel.WARN, [
 async function main() {
   const cores = os.cpus().length;
   logger.warn(`Cores: ${cores}`);
-  const workerManager = new WorkerManager<EFSWorkerModule>({ logger });
-  await workerManager.start({
+  const workerManager = await WorkerManager.createWorkerManager({
     workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
-    cores,
+    cores: 1,
+    logger,
   });
   const key = utils.generateKeySync(256);
   const plain1MiB = utils.getRandomBytesSync(1024 * 1024);
-  const cipher1MiB = utils.encryptWithKey(key, plain1MiB);
+  const cipher1MiB = await utils.encrypt(key, plain1MiB);
   const summary = await b.suite(
     'crypto1MiB',
     b.add('encrypt 1 MiB of data', async () => {
-      utils.encryptWithKey(key, plain1MiB);
+      utils.encrypt(key, plain1MiB);
     }),
     b.add('decrypt 1 MiB of data', async () => {
-      utils.decryptWithKey(key, cipher1MiB);
+      utils.decrypt(key, cipher1MiB);
     }),
     b.add('encrypt 1 MiB of data with workers', async () => {
       await workerManager.call(async (w) => {
         const keyAB = utils.toArrayBuffer(key);
         const plainTextAB = utils.toArrayBuffer(plain1MiB);
-        const cipherTextAB = await w.efsEncryptWithKey(
+        const cipherTextAB = await w.encrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
           Transfer(plainTextAB),
@@ -46,11 +46,10 @@ async function main() {
     b.add('decrypt 1 MiB of data with workers', async () => {
       await workerManager.call(async (w) => {
         const keyAB = utils.toArrayBuffer(key);
-        const cipherTextAB = utils.toArrayBuffer(cipher1MiB);
-        const decrypted = await w.efsDecryptWithKey(
+        const decrypted = await w.decrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
-          Transfer(cipherTextAB),
+          Transfer(cipher1MiB),
         );
         return decrypted != null ? utils.fromArrayBuffer(decrypted) : decrypted;
       });
@@ -69,7 +68,7 @@ async function main() {
       format: 'chart.html',
     }),
   );
-  await workerManager.stop();
+  await workerManager.destroy();
   return summary;
 }
 

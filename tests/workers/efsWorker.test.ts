@@ -1,31 +1,32 @@
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { spawn, Worker, Transfer } from 'threads';
-import { EFSWorkerModule } from '@/workers';
 import * as utils from '@/utils';
+import type { ModuleMethods } from "threads/dist/types/master";
 
 describe('EFS worker', () => {
   const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  const workerManager = new WorkerManager<EFSWorkerModule>({ logger });
+  let workerManager: WorkerManager<ModuleMethods>;
   let key: Buffer;
   beforeAll(async () => {
     key = await utils.generateKey();
-    await workerManager.start({
+    workerManager = await WorkerManager.createWorkerManager({
       workerFactory: () => spawn(new Worker('../../src/workers/efsWorker')),
       cores: 1,
+      logger,
     });
   });
   afterAll(async () => {
-    await workerManager.stop();
+    await workerManager.destroy();
   });
   test('encryption and decryption', async () => {
     const plainText = Buffer.from('hello world', 'utf-8');
     const cipherText = await workerManager.call(async (w) => {
       const keyAB = utils.toArrayBuffer(key);
       const plainTextAB = utils.toArrayBuffer(plainText);
-      const cipherTextAB = await w.efsEncryptWithKey(
+      const cipherTextAB = await w.encrypt(
         Transfer(keyAB),
         // @ts-ignore: threads.js types are wrong
         Transfer(plainTextAB),
@@ -35,11 +36,11 @@ describe('EFS worker', () => {
       return utils.fromArrayBuffer(cipherTextAB);
     });
     // Sanity check with main thread decryption
-    expect(plainText.equals(utils.decryptWithKey(key, cipherText)!)).toBe(true);
+    expect(plainText).toEqual(Buffer.from((await utils.decrypt(key, cipherText))!));
     const plainText_ = await workerManager.call(async (w) => {
       const keyAB = utils.toArrayBuffer(key);
       const cipherTextAB = utils.toArrayBuffer(cipherText);
-      const decrypted = await w.efsDecryptWithKey(
+      const decrypted = await w.decrypt(
         Transfer(keyAB),
         // @ts-ignore: threads.js types are wrong
         Transfer(cipherTextAB),
@@ -58,7 +59,7 @@ describe('EFS worker', () => {
     const plainText_ = await workerManager.call(async (w) => {
       let keyAB = utils.toArrayBuffer(key);
       const plainTextAB = utils.toArrayBuffer(plainText);
-      const cipherTextAB = await w.efsEncryptWithKey(
+      const cipherTextAB = await w.encrypt(
         Transfer(keyAB),
         // @ts-ignore: threads.js types are wrong
         Transfer(plainTextAB),
@@ -67,7 +68,7 @@ describe('EFS worker', () => {
       expect(plainTextAB.byteLength).toBe(0);
       // Previous keyAB has been detached
       keyAB = utils.toArrayBuffer(key);
-      const decrypted = await w.efsDecryptWithKey(
+      const decrypted = await w.decrypt(
         Transfer(keyAB),
         // @ts-ignore: threads.js types are wrong
         Transfer(cipherTextAB),

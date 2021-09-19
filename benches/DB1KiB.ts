@@ -7,7 +7,7 @@ import b from 'benny';
 import { spawn, Worker } from 'threads';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
-import { DB } from '@/db';
+import { DB } from '@matrixai/db';
 import * as utils from '@/utils';
 import packageJson from '../package.json';
 
@@ -16,10 +16,10 @@ const logger = new Logger('DB1KiB Bench', LogLevel.WARN, [new StreamHandler()]);
 async function main() {
   const cores = os.cpus().length;
   logger.warn(`Cores: ${cores}`);
-  const workerManager = new WorkerManager<EFSWorkerModule>({ logger });
-  await workerManager.start({
+  const workerManager = await WorkerManager.createWorkerManager({
     workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
-    cores,
+    cores: 1,
+    logger,
   });
   const dataDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'encryptedfs-benches-'),
@@ -27,12 +27,33 @@ async function main() {
   const dbKey = await utils.generateKey(256);
   // Db1 doesn't use workers
   const dbPath1 = `${dataDir}/db1`;
-  const db1 = await DB.createDB({ dbKey, dbPath: dbPath1, logger });
+  const db1 = await DB.createDB({
+    crypto: {
+      key: dbKey,
+      ops: {
+        encrypt: utils.encrypt,
+        decrypt: utils.decrypt,
+      }
+    },
+    dbPath: dbPath1,
+    logger
+  });
   await db1.start();
   // Db2 uses workers
   const dbPath2 = `${dataDir}/db2`;
-  const db2 = await DB.createDB({ dbKey, dbPath: dbPath2, logger });
+  const db2 = await DB.createDB({
+    crypto: {
+      key: dbKey,
+      ops: {
+        encrypt: utils.encrypt,
+        decrypt: utils.decrypt,
+      }
+    },
+    dbPath: dbPath2,
+    logger
+  });
   await db2.start();
+  // @ts-ignore: This should be correct, some typing issues.
   db2.setWorkerManager(workerManager);
   const data0 = utils.getRandomBytesSync(0);
   const data1KiB = utils.getRandomBytesSync(1024);
@@ -90,7 +111,7 @@ async function main() {
     force: true,
     recursive: true,
   });
-  await workerManager.stop();
+  await workerManager.destroy();
   return summary;
 }
 

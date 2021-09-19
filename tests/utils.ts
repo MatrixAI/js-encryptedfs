@@ -1,5 +1,5 @@
 import EncryptedFS from '@/EncryptedFS';
-import { constants } from '@/constants';
+import { constants } from '@';
 
 /**
  *

@@ -3,11 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 
-import { DB } from '@/db';
+import { DB } from '@matrixai/db';
 import { INodeManager } from '@/inodes';
 import { FileDescriptorManager } from '@/fd';
 import { FileDescriptor } from '@/fd';
-import { permissions } from '@/constants';
+import { permissions } from '@';
 
 import * as utils from '@/utils';
 
@@ -26,8 +26,14 @@ describe('File Descriptor Manager', () => {
       path.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
-      dbKey,
       dbPath: `${dataDir}/db`,
+      crypto: {
+        key: dbKey,
+        ops: {
+          encrypt: utils.encrypt,
+          decrypt: utils.decrypt,
+        },
+      },
       logger,
     });
     await db.start();

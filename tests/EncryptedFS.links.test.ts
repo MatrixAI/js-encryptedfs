@@ -3,7 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, errno, DB, INodeManager } from '@';
+import { EncryptedFS } from '@';
 import {
   expectError,
   createFile,
@@ -13,6 +13,7 @@ import {
   setId,
 } from './utils';
 import path from 'path';
+import { code as errno } from 'errno';
 
 describe('EncryptedFS Links', () => {
   const logger = new Logger('EncryptedFS Links', LogLevel.WARN, [
@@ -20,9 +21,7 @@ describe('EncryptedFS Links', () => {
   ]);
   let dataDir: string;
   let dbPath: string;
-  let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
-  let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
@@ -37,28 +36,14 @@ describe('EncryptedFS Links', () => {
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     dbPath = `${dataDir}/db`;
-    db = await DB.createDB({
-      dbKey,
-      dbPath,
-      logger,
-    });
-    await db.start();
-    iNodeMgr = await INodeManager.createINodeManager({
-      db,
-      logger,
-    });
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
-      db,
-      iNodeMgr,
       umask: 0o022,
       logger,
     });
   });
   afterEach(async () => {
-    await db.stop();
-    await db.destroy();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,

@@ -3,8 +3,9 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import { EncryptedFS, constants, errno, DB, INodeManager } from '@';
+import { EncryptedFS, constants } from '@';
 import { expectError } from './utils';
+import { code as errno } from 'errno';
 
 describe('EncryptedFS Navigation', () => {
   const logger = new Logger('EncryptedFS Navigation', LogLevel.WARN, [
@@ -12,37 +13,22 @@ describe('EncryptedFS Navigation', () => {
   ]);
   let dataDir: string;
   let dbPath: string;
-  let db: DB;
   const dbKey: Buffer = utils.generateKeySync(256);
-  let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     dbPath = `${dataDir}/db`;
-    db = await DB.createDB({
-      dbKey,
-      dbPath,
-      logger,
-    });
-    await db.start();
-    iNodeMgr = await INodeManager.createINodeManager({
-      db,
-      logger,
-    });
+
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
-      db,
-      iNodeMgr,
       umask: 0o022,
       logger,
     });
   });
   afterEach(async () => {
-    await db.stop();
-    await db.destroy();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
