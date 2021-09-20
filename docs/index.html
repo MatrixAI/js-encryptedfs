@@ -61,7 +61,15 @@
 				<a href="#js-encryptedfs" id="js-encryptedfs" style="color: inherit; text-decoration: none;">
 					<h1>js-encryptedfs</h1>
 				</a>
-				<p>This library provides an Encrypted File System (EFS)</p>
+				<p>Encrypted filesystem library for TypeScript/JavaScript applications</p>
+				<ul>
+					<li>Virtualised - permissions and current directory are virtual constructs</li>
+					<li>Orthogonally Persistent - all writes automatially persisted</li>
+					<li>Encrypted-At-Rest - all persistence is encrypted</li>
+					<li>Random Read &amp; Write</li>
+					<li>Streamable</li>
+				</ul>
+				<p>Based on js-virtualfs.</p>
 				<p><a href="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master"><img src="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg" alt="pipeline status"></a></p>
 				<a href="#installation" id="installation" style="color: inherit; text-decoration: none;">
 					<h2>Installation</h2>
@@ -71,9 +79,24 @@
 				<a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
 					<h2>Usage</h2>
 				</a>
-				<pre><code class="language-ts"><span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@/EncryptedFS&#039;</span><span style="color: #000000">;</span>
+				<pre><code class="language-ts"><span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #AF00DB">type</span><span style="color: #000000"> { </span><span style="color: #001080">EFSWorkerModule</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;encryptedfs&#039;</span><span style="color: #000000">;</span>
 
-<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">efs</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000">.</span><span style="color: #795E26">createEncryptedFS</span><span style="color: #000000">({</span><span style="color: #001080">key</span><span style="color: #000000">, </span><span style="color: #001080">path</span><span style="color: #000000">});</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">WorkerManager</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@matrixai/workers&#039;</span><span style="color: #000000">;</span>
+<span style="color: #AF00DB">import</span><span style="color: #000000"> { </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000">, </span><span style="color: #001080">utils</span><span style="color: #000000"> } </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;encryptedfs&#039;</span><span style="color: #000000">;</span>
+
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">key</span><span style="color: #000000"> = </span><span style="color: #001080">utils</span><span style="color: #000000">.</span><span style="color: #795E26">generateKeySync</span><span style="color: #000000">(</span><span style="color: #098658">256</span><span style="color: #000000">);</span>
+
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">efs</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000">.</span><span style="color: #795E26">createEncryptedFS</span><span style="color: #000000">({</span>
+<span style="color: #000000">  </span><span style="color: #001080">dbPath:</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;/tmp/efs&#039;</span><span style="color: #000000">,</span>
+<span style="color: #000000">  </span><span style="color: #001080">dbKey:</span><span style="color: #000000"> </span><span style="color: #001080">key</span><span style="color: #000000">,</span>
+<span style="color: #000000">});</span>
+
+<span style="color: #008000">// optionally set up the worker manager for multi-threaded encryption/decryption</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">workerManager</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">WorkerManager</span><span style="color: #000000">.</span><span style="color: #795E26">createWorkerManager</span><span style="color: #000000">&lt;</span><span style="color: #267F99">EFSWorkerModule</span><span style="color: #000000">&gt;({</span>
+<span style="color: #000000">  </span><span style="color: #795E26">workerFactory</span><span style="color: #001080">:</span><span style="color: #000000"> () </span><span style="color: #0000FF">=&gt;</span><span style="color: #000000"> </span><span style="color: #795E26">spawn</span><span style="color: #000000">(</span><span style="color: #0000FF">new</span><span style="color: #000000"> </span><span style="color: #795E26">Worker</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;./src/workers/efsWorker&#039;</span><span style="color: #000000">))</span>
+<span style="color: #000000">});</span>
+
+<span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">setWorkerManager</span><span style="color: #000000">(</span><span style="color: #001080">workerManager</span><span style="color: #000000">);</span>
 
 <span style="color: #008000">// create a new directory</span>
 <span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">newDir</span><span style="color: #000000"> = </span><span style="color: #A31515">`test`</span><span style="color: #000000">;</span>
@@ -84,13 +107,53 @@
 
 <span style="color: #008000">// read in the file (contents = &#039;output&#039;)</span>
 <span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">contents</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">readFile</span><span style="color: #000000">(</span><span style="color: #A31515">`</span><span style="color: #0000FF">${</span><span style="color: #001080">newDir</span><span style="color: #0000FF">}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">);</span>
+
+<span style="color: #008000">// closes the EFS</span>
+<span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">stop</span><span style="color: #000000">();</span>
+
+<span style="color: #008000">// destroys the EFS state</span>
+<span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">destroy</span><span style="color: #000000">();</span>
 </code></pre>
+				<a href="#encryption-amp-decryption-protocol" id="encryption-amp-decryption-protocol" style="color: inherit; text-decoration: none;">
+					<h3>Encryption &amp; Decryption Protocol</h3>
+				</a>
+				<p>Encryption &amp; Decryption implemented using the <code>node-forge</code> library. However it is possible to plug in your own <code>encrypt</code> and <code>decrypt</code> functions.</p>
+				<p>Internally we use the AES-GCM symmetric encryption using a master <code>dbKey</code> that can be 128, 192 or 256 bits long.</p>
+				<p>The <code>dbKey</code> can be generated from several methods:</p>
+				<ul>
+					<li><code>generateKey</code> - random asynchronous</li>
+					<li><code>generateKeySync</code> - random synchronous</li>
+					<li><code>generateKeyFromPass</code> - derived from user-provided &quot;password&quot; asynchronous</li>
+					<li><code>generateKeyFromPassSync</code> - derived from user-provided &quot;password&quot; synchronous</li>
+				</ul>
+				<p>For example:</p>
+				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">);</span>
+</code></pre>
+				<p>This uses PBKDF2 to derive a symmetric key. The default key length will be 256 bits. For deterministic key generation, make sure to specify the <code>salt</code> parameter.</p>
+				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;salt&#039;</span><span style="color: #000000">);</span>
+</code></pre>
+				<p>Construction of <code>EncryptedFS</code> relies on an optional <code>blockSize</code> parameter. This is by default set to 4 KiB. All files are broken up into 4 KiB plaintext blocks. When encrypted, they are persisted as ciphertext blocks.</p>
+				<p>The ciphertext blocks contain an initialization vector plus an authorisation tag. Here is an example of the structure:</p>
+				<pre><code><span style="color: #000000">| </span><span style="color: #795E26">iv</span><span style="color: #000000"> (</span><span style="color: #098658">16</span><span style="color: #000000"> </span><span style="color: #001080">bytes</span><span style="color: #000000">) | </span><span style="color: #795E26">authTag</span><span style="color: #000000"> (</span><span style="color: #098658">16</span><span style="color: #000000"> </span><span style="color: #001080">bytes</span><span style="color: #000000">) | </span><span style="color: #001080">ciphertext</span><span style="color: #000000"> </span><span style="color: #795E26">data</span><span style="color: #000000"> (</span><span style="color: #001080">x</span><span style="color: #000000"> </span><span style="color: #001080">bytes</span><span style="color: #000000">) |</span>
+</code></pre>
+				<p>The ciphertext data length is equal to the plaintext block length.</p>
+				<a href="#differences-with-node-filesystem" id="differences-with-node-filesystem" style="color: inherit; text-decoration: none;">
+					<h3>Differences with Node Filesystem</h3>
+				</a>
+				<p>There are some differences between EFS and Node FS:</p>
+				<ul>
+					<li>User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.</li>
+					<li>Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.</li>
+					<li>Character Devices: Node FS contains Character Devices which can be written to and read from. However, in EFS Character Devices are not supported yet.</li>
+				</ul>
 				<a href="#development" id="development" style="color: inherit; text-decoration: none;">
 					<h2>Development</h2>
 				</a>
 				<p>Run <code>nix-shell</code>, and once you&#39;re inside, you can use:</p>
 				<pre><code class="language-sh"><span style="color: #008000"># install (or reinstall packages from package.json)</span>
 <span style="color: #000000">npm install</span>
+<span style="color: #008000"># build the dist</span>
+<span style="color: #000000">npm run build</span>
 <span style="color: #008000"># run the repl (this allows you to import from ./src)</span>
 <span style="color: #000000">npm run ts-node</span>
 <span style="color: #008000"># run the tests</span>
@@ -99,75 +162,29 @@
 <span style="color: #000000">npm run lint</span>
 <span style="color: #008000"># automatically fix the source</span>
 <span style="color: #000000">npm run lintfix</span>
-<span style="color: #008000"># build the docs</span>
-<span style="color: #000000">npm run docs</span>
 </code></pre>
+				<a href="#benchmarks" id="benchmarks" style="color: inherit; text-decoration: none;">
+					<h2>Benchmarks</h2>
+				</a>
+				<pre><code class="language-sh"><span style="color: #000000">npm run bench</span>
+</code></pre>
+				<p>View benchmarks here: <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/benches/results">https://github.com/MatrixAI/js-encryptedfs/blob/master/benches/results</a> with <a href="https://raw.githack.com/">https://raw.githack.com/</a></p>
+				<a href="#docs-generation" id="docs-generation" style="color: inherit; text-decoration: none;">
+					<h3>Docs Generation</h3>
+				</a>
+				<pre><code class="language-sh"><span style="color: #000000">npm run docs</span>
+</code></pre>
+				<p>See the docs at: <a href="https://matrixai.github.io/js-encryptedfs/">https://matrixai.github.io/js-encryptedfs/</a></p>
 				<a href="#publishing" id="publishing" style="color: inherit; text-decoration: none;">
 					<h3>Publishing</h3>
 				</a>
-				<pre><code class="language-sh"><span style="color: #000000">npm login</span>
+				<pre><code class="language-sh"><span style="color: #008000"># npm login</span>
 <span style="color: #000000">npm version patch </span><span style="color: #008000"># major/minor/patch</span>
 <span style="color: #000000">npm run build</span>
 <span style="color: #000000">npm publish --access public</span>
 <span style="color: #000000">git push</span>
 <span style="color: #000000">git push --tags</span>
 </code></pre>
-				<a href="#chunks" id="chunks" style="color: inherit; text-decoration: none;">
-					<h2>Chunks</h2>
-				</a>
-				<p>Chunks consist of a an acutal data &#39;block&#39; that is encrypted. It is also prepended with the initialization vector and authorisation tag used to encrypt the data.</p>
-				<p>Below is a diagram showing the layout of the encrypted chunks.</p>
-				<pre style="white-space:pre !important; overflow-x:scroll !important">
-||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-||                       ||                   ||                        ||
-|| Initialization Vector || Authorisation Tag || Encrypted Block ... -> ||
-||                       ||                   ||                        ||
-||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-</pre>
-				<a href="#blocks" id="blocks" style="color: inherit; text-decoration: none;">
-					<h2>Blocks</h2>
-				</a>
-				<p>This is a constant sized amount (optionally user-specified) of business data.
-					A large file is split into several blocks of <em>block_size</em> (generall 4k).
-					This is to to allow random access reads and writes.
-					For example to read a small section of a file, the entire file does not need to be decrpted
-					Only the block(s) that contains the section you want to read.
-					This does mean however, that there needs to be an IV for each block.
-				This is because reusing IVs, or having predictable IVs is a security threat.</p>
-				<a href="#segments" id="segments" style="color: inherit; text-decoration: none;">
-					<h2>Segments</h2>
-				</a>
-				<p>Some amount of data equal or smaller than a block.</p>
-				<a href="#encryption-scheme" id="encryption-scheme" style="color: inherit; text-decoration: none;">
-					<h2>Encryption scheme</h2>
-				</a>
-				<p>EFS uses AES-GCM symmetric encryption with a master key that is 16 bytes. This master key can be provided or can be generated using an internal function:</p>
-				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">);</span>
-</code></pre>
-				<p>This function derives a symmetric encryption key using <code>pbkdf</code> from <code>node-forge</code>. The default key length will be 256 bits.</p>
-				<p>The second return value is the salt used for the key. This can also be specified by the user.</p>
-				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;salt&#039;</span><span style="color: #000000">);</span>
-</code></pre>
-				<p> The number of bits can be set as 128, 192 or 256 bits.</p>
-				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;salt&#039;</span><span style="color: #000000">, </span><span style="color: #098658">128</span><span style="color: #000000">);</span>
-</code></pre>
-				<p>An authorisation tag based on chunk encryption is stored along side the init vector. This provides a basic chunk level integrity gurantee that can be verified upon decryption in accordance with the AES-GCM algorithm.</p>
-				<a href="#functionality" id="functionality" style="color: inherit; text-decoration: none;">
-					<h2>Functionality</h2>
-				</a>
-				<ul>
-					<li>Keys are never decrypted on disk, they are in fact decrypted in an in-memory file system</li>
-					<li>Uses Symmetric Encryption</li>
-					<li>Encryption keys are transparent to the user</li>
-				</ul>
-				<a href="#incongruency-with-node-fs" id="incongruency-with-node-fs" style="color: inherit; text-decoration: none;">
-					<h2>Incongruency with Node FS</h2>
-				</a>
-				<p>There are some differences between EFS and Node FS:</p>
-				<ul>
-					<li>User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.</li>
-					<li>Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.</li>
-				</ul>
 			</div>
 		</div>
 		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
@@ -183,64 +200,13 @@
 						<a href="modules/EncryptedFS.html">EncryptedFS</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/EncryptedFSError.html">EncryptedFSError</a>
-					</li>
-					<li class=" tsd-kind-module">
 						<a href="modules/Stat.html">Stat</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/constants.html">constants</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/constants_constants.html">constants/constants</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/constants_devices.html">constants/devices</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/constants_permissions.html">constants/permissions</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db.html">db</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db_DB.html">db/DB</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db_Transaction.html">db/<wbr>Transaction</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db_errors.html">db/errors</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db_types.html">db/types</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/db_utils.html">db/utils</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices.html">devices</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_DeviceManager.html">devices/<wbr>Device<wbr>Manager</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_errors.html">devices/errors</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_full.html">devices/full</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_null.html">devices/null</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_random.html">devices/random</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_tty.html">devices/tty</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/devices_zero.html">devices/zero</a>
+						<a href="modules/errors.html">errors</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/fd.html">fd</a>
@@ -274,6 +240,9 @@
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/inodes_utils.html">inodes/utils</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/permissions.html">permissions</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/streams.html">streams</a>
