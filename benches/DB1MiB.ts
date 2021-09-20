@@ -11,16 +11,19 @@ import { DB } from '@matrixai/db';
 import * as utils from '@/utils';
 import packageJson from '../package.json';
 
-const logger = new Logger('DB1MiB Bench', LogLevel.WARN, [new StreamHandler()]);
+const logger = new Logger('Encrypted DB1MiB Bench', LogLevel.WARN, [
+  new StreamHandler(),
+]);
 
 async function main() {
   const cores = os.cpus().length;
   logger.warn(`Cores: ${cores}`);
-  const workerManager = await WorkerManager.createWorkerManager({
-    workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
-    cores: 1,
-    logger,
-  });
+  const workerManager =
+    await WorkerManager.createWorkerManager<EFSWorkerModule>({
+      workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
+      cores: 1,
+      logger,
+    });
   const dataDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'encryptedfs-benches-'),
   );
@@ -33,12 +36,11 @@ async function main() {
       ops: {
         encrypt: utils.encrypt,
         decrypt: utils.decrypt,
-      }
+      },
     },
     dbPath: dbPath1,
-    logger
+    logger,
   });
-  await db1.start();
   // Db2 uses workers
   const dbPath2 = `${dataDir}/db2`;
   const db2 = await DB.createDB({
@@ -47,17 +49,15 @@ async function main() {
       ops: {
         encrypt: utils.encrypt,
         decrypt: utils.decrypt,
-      }
+      },
     },
     dbPath: dbPath2,
-    logger
+    logger,
   });
-  await db2.start();
-  // @ts-ignore: This should be correct, some typing issues.
-  // db2.setWorkerManager(workerManager);  //This was missing?
+  db2.setWorkerManager(workerManager);
   const data1MiB = utils.getRandomBytesSync(1024 * 1024);
   const summary = await b.suite(
-    'DB1MiB',
+    'Encrypted DB1MiB',
     b.add('get 1 MiB of data', async () => {
       await db1.put([], '1mib', data1MiB, true);
       return async () => {
@@ -79,13 +79,13 @@ async function main() {
     b.cycle(),
     b.complete(),
     b.save({
-      file: 'DB1MiB',
+      file: 'Encrypted DB1MiB',
       folder: 'benches/results',
       version: packageJson.version,
       details: true,
     }),
     b.save({
-      file: 'DB1MiB',
+      file: 'Encrypted DB1MiB',
       folder: 'benches/results',
       format: 'chart.html',
     }),

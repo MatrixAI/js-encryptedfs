@@ -15,11 +15,12 @@ const logger = new Logger('crypto32KiB Bench', LogLevel.WARN, [
 async function main() {
   const cores = os.cpus().length;
   logger.warn(`Cores: ${cores}`);
-  const workerManager = await WorkerManager.createWorkerManager({
-    workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
-    cores: 1,
-    logger,
-  });
+  const workerManager =
+    await WorkerManager.createWorkerManager<EFSWorkerModule>({
+      workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
+      cores: 1,
+      logger,
+    });
   const key = utils.generateKeySync(256);
   const plain32KiB = utils.getRandomBytesSync(1024 * 32);
   const cipher32KiB = await utils.encrypt(key, plain32KiB);
@@ -32,27 +33,30 @@ async function main() {
       await utils.decrypt(key, cipher32KiB);
     }),
     b.add('encrypt 32 KiB of data with workers', async () => {
-      await workerManager.call(async (w) => {
-        const keyAB = utils.toArrayBuffer(key);
-        const plainTextAB = utils.toArrayBuffer(plain32KiB);
-        const cipherTextAB = await w.encrypt(
+      const keyAB = utils.toArrayBuffer(key);
+      const plainTextAB = utils.toArrayBuffer(plain32KiB);
+      const cipherTextAB = await workerManager.call(async (w) => {
+        return await w.encrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
           Transfer(plainTextAB),
         );
-        return utils.fromArrayBuffer(cipherTextAB);
       });
+      utils.fromArrayBuffer(cipherTextAB);
     }),
     b.add('decrypt 32 KiB of data with workers', async () => {
-      await workerManager.call(async (w) => {
-        const keyAB = utils.toArrayBuffer(key);
-        const decrypted = await w.decrypt(
+      const keyAB = utils.toArrayBuffer(key);
+      const cipherTextAB = cipher32KiB.slice(0);
+      const decrypted = await workerManager.call(async (w) => {
+        return await w.decrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
-          Transfer(cipher32KiB),
+          Transfer(cipherTextAB),
         );
-        return decrypted != null ? utils.fromArrayBuffer(decrypted) : decrypted;
       });
+      if (decrypted != null) {
+        utils.fromArrayBuffer(decrypted);
+      }
     }),
     b.cycle(),
     b.complete(),

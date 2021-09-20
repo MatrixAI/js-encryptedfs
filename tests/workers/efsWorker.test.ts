@@ -2,7 +2,7 @@ import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { spawn, Worker, Transfer } from 'threads';
 import * as utils from '@/utils';
-import type { ModuleMethods } from "threads/dist/types/master";
+import type { ModuleMethods } from 'threads/dist/types/master';
 
 describe('EFS worker', () => {
   const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
@@ -36,7 +36,9 @@ describe('EFS worker', () => {
       return utils.fromArrayBuffer(cipherTextAB);
     });
     // Sanity check with main thread decryption
-    expect(plainText).toEqual(Buffer.from((await utils.decrypt(key, cipherText))!));
+    expect(plainText).toEqual(
+      Buffer.from((await utils.decrypt(key, cipherText))!),
+    );
     const plainText_ = await workerManager.call(async (w) => {
       const keyAB = utils.toArrayBuffer(key);
       const cipherTextAB = utils.toArrayBuffer(cipherText);

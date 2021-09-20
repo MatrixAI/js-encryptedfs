@@ -2833,7 +2833,7 @@ class EncryptedFS {
       if (len < 0) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EINVAL,
-          syscall: 'ftruncate'
+          syscall: 'ftruncate',
         });
       }
       if (typeof file === 'number') {

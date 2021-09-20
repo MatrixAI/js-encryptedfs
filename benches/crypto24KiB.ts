@@ -8,7 +8,7 @@ import { WorkerManager } from '@matrixai/workers';
 import * as utils from '@/utils';
 import packageJson from '../package.json';
 
-const logger = new Logger('crypto10KiB Bench', LogLevel.WARN, [
+const logger = new Logger('crypto24KiB Bench', LogLevel.WARN, [
   new StreamHandler(),
 ]);
 
@@ -22,19 +22,19 @@ async function main() {
       logger,
     });
   const key = utils.generateKeySync(256);
-  const plain10KiB = utils.getRandomBytesSync(1024 * 10);
-  const cipher10KiB = await utils.encrypt(key, plain10KiB);
+  const plain24KiB = utils.getRandomBytesSync(1024 * 24);
+  const cipher24KiB = await utils.encrypt(key, plain24KiB);
   const summary = await b.suite(
-    'crypto10KiB',
-    b.add('encrypt 10 KiB of data', async () => {
-      await utils.encrypt(key, plain10KiB);
+    'crypto24KiB',
+    b.add('encrypt 24 KiB of data', async () => {
+      await utils.encrypt(key, plain24KiB);
     }),
-    b.add('decrypt 10 KiB of data', async () => {
-      await utils.decrypt(key, cipher10KiB);
+    b.add('decrypt 24 KiB of data', async () => {
+      await utils.decrypt(key, cipher24KiB);
     }),
-    b.add('encrypt 10 KiB of data with workers', async () => {
+    b.add('encrypt 24 KiB of data with workers', async () => {
       const keyAB = utils.toArrayBuffer(key);
-      const plainTextAB = utils.toArrayBuffer(plain10KiB);
+      const plainTextAB = utils.toArrayBuffer(plain24KiB);
       const cipherTextAB = await workerManager.call(async (w) => {
         return await w.encrypt(
           Transfer(keyAB),
@@ -44,9 +44,9 @@ async function main() {
       });
       utils.fromArrayBuffer(cipherTextAB);
     }),
-    b.add('decrypt 10 KiB of data with workers', async () => {
+    b.add('decrypt 24 KiB of data with workers', async () => {
       const keyAB = utils.toArrayBuffer(key);
-      const cipherTextAB = cipher10KiB.slice(0);
+      const cipherTextAB = cipher24KiB.slice(0);
       const decrypted = await workerManager.call(async (w) => {
         return await w.decrypt(
           Transfer(keyAB),
@@ -61,13 +61,13 @@ async function main() {
     b.cycle(),
     b.complete(),
     b.save({
-      file: 'crypto10KiB',
+      file: 'crypto24KiB',
       folder: 'benches/results',
       version: packageJson.version,
       details: true,
     }),
     b.save({
-      file: 'crypto10KiB',
+      file: 'crypto24KiB',
       folder: 'benches/results',
       format: 'chart.html',
     }),

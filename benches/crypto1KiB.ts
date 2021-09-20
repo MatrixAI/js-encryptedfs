@@ -1,10 +1,12 @@
-import os from "os";
-import b from "benny";
-import { spawn, Transfer, Worker } from "threads";
-import Logger, { LogLevel, StreamHandler } from "@matrixai/logger";
-import { WorkerManager } from "@matrixai/workers";
-import * as utils from "@/utils";
-import packageJson from "../package.json";
+import type { EFSWorkerModule } from '@/workers';
+
+import os from 'os';
+import b from 'benny';
+import { spawn, Transfer, Worker } from 'threads';
+import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
+import { WorkerManager } from '@matrixai/workers';
+import * as utils from '@/utils';
+import packageJson from '../package.json';
 
 const logger = new Logger('crypto1KiB Bench', LogLevel.WARN, [
   new StreamHandler(),
@@ -13,11 +15,12 @@ const logger = new Logger('crypto1KiB Bench', LogLevel.WARN, [
 async function main() {
   const cores = os.cpus().length;
   logger.warn(`Cores: ${cores}`);
-  const workerManager = await WorkerManager.createWorkerManager({
-    workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
-    cores: 1,
-    logger,
-  });
+  const workerManager =
+    await WorkerManager.createWorkerManager<EFSWorkerModule>({
+      workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
+      cores,
+      logger,
+    });
   const key = utils.generateKeySync(256);
   const plain1KiB = utils.getRandomBytesSync(1024);
   const cipher1KiB = await utils.encrypt(key, plain1KiB);
@@ -30,27 +33,30 @@ async function main() {
       await utils.decrypt(key, cipher1KiB);
     }),
     b.add('encrypt 1 KiB of data with workers', async () => {
-      await workerManager.call(async (w) => {
-        const keyAB = utils.toArrayBuffer(key);
-        const plainTextAB = utils.toArrayBuffer(plain1KiB);
-        const cipherTextAB = await w.encrypt(
+      const keyAB = utils.toArrayBuffer(key);
+      const plainTextAB = utils.toArrayBuffer(plain1KiB);
+      const cipherTextAB = await workerManager.call(async (w) => {
+        return await w.encrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
           Transfer(plainTextAB),
         );
-        return utils.fromArrayBuffer(cipherTextAB);
       });
+      utils.fromArrayBuffer(cipherTextAB);
     }),
     b.add('decrypt 1 KiB of data with workers', async () => {
-      await workerManager.call(async (w) => {
-        const keyAB = utils.toArrayBuffer(key);
-        const decrypted = await w.decrypt(
+      const keyAB = utils.toArrayBuffer(key);
+      const cipherTextAB = cipher1KiB.slice(0);
+      const decrypted = await workerManager.call(async (w) => {
+        return await w.decrypt(
           Transfer(keyAB),
           // @ts-ignore: threads.js types are wrong
-          Transfer(cipher1KiB),
+          Transfer(cipherTextAB),
         );
-        return decrypted != null ? utils.fromArrayBuffer(decrypted) : decrypted;
       });
+      if (decrypted != null) {
+        utils.fromArrayBuffer(decrypted);
+      }
     }),
     b.cycle(),
     b.complete(),

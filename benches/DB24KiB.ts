@@ -11,7 +11,7 @@ import { DB } from '@matrixai/db';
 import * as utils from '@/utils';
 import packageJson from '../package.json';
 
-const logger = new Logger('Encrypted DB1KiB Bench', LogLevel.WARN, [
+const logger = new Logger('Encrypted DB24KiB Bench', LogLevel.WARN, [
   new StreamHandler(),
 ]);
 
@@ -55,52 +55,37 @@ async function main() {
     logger,
   });
   db2.setWorkerManager(workerManager);
-  const data0 = utils.getRandomBytesSync(0);
-  const data1KiB = utils.getRandomBytesSync(1024);
+  const data24KiB = utils.getRandomBytesSync(1024 * 24);
   const summary = await b.suite(
-    'Encrypted DB1KiB',
-    b.add('get 1 KiB of data', async () => {
-      await db1.put([], '1kib', data1KiB, true);
+    'Encrypted DB24KiB',
+    b.add('get 24 KiB of data', async () => {
+      await db1.put([], '1mib', data24KiB, true);
       return async () => {
-        await db1.get([], '1kib', true);
+        await db1.get([], '1mib', true);
       };
     }),
-    b.add('put 1 KiB of data', async () => {
-      await db1.put([], '1kib', data1KiB, true);
+    b.add('put 24 KiB of data', async () => {
+      await db1.put([], '1mib', data24KiB, true);
     }),
-    b.add('put zero data', async () => {
-      await db1.put([], '0', data0, true);
-    }),
-    b.add('put zero data then del', async () => {
-      await db1.put([], '0', data0, true);
-      await db1.del([], '0');
-    }),
-    b.add('get 1 KiB of data with workers', async () => {
-      await db2.put([], '1kib', data1KiB, true);
+    b.add('get 24 KiB of data with workers', async () => {
+      await db2.put([], '1mib', data24KiB, true);
       return async () => {
-        await db2.get([], '1kib', true);
+        await db2.get([], '1mib', true);
       };
     }),
-    b.add('put 1 KiB of data with workers', async () => {
-      await db2.put([], '1kib', data1KiB, true);
-    }),
-    b.add('put zero data with workers', async () => {
-      await db2.put([], '0', data0, true);
-    }),
-    b.add('put zero data then del with workers', async () => {
-      await db2.put([], '0', data0, true);
-      await db2.del([], '0');
+    b.add('put 24 KiB of data with workers', async () => {
+      await db2.put([], '1mib', data24KiB, true);
     }),
     b.cycle(),
     b.complete(),
     b.save({
-      file: 'Encrypted DB1KiB',
+      file: 'Encrypted DB24KiB',
       folder: 'benches/results',
       version: packageJson.version,
       details: true,
     }),
     b.save({
-      file: 'Encrypted DB1KiB',
+      file: 'Encrypted DB24KiB',
       folder: 'benches/results',
       format: 'chart.html',
     }),

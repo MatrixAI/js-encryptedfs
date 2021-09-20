@@ -3,11 +3,7 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import * as utils from '@/utils';
-import {
-  EncryptedFS,
-  constants,
-  permissions,
-} from '@';
+import { EncryptedFS, constants, permissions } from '@';
 import { expectError } from './utils';
 import { code as errno } from 'errno';
 
