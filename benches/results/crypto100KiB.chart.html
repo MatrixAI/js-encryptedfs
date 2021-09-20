@@ -12,11 +12,11 @@
         order: row;
       }
     </style>
-    <title>crypto1MiB</title>
+    <title>crypto100KiB</title>
   </head>
   <body>
     <div style="max-width: 800px">
-      <canvas id="chart1632117379179" width="16" height="9"></canvas>
+      <canvas id="chart1632117354391" width="16" height="9"></canvas>
     </div>
     <script>
       const format = (num) => {
@@ -34,21 +34,21 @@
 
         return chunked.map((chunk) => chunk.join("")).join(" ");
       };
-      const ctx1632117379179 = document
-        .getElementById("chart1632117379179")
+      const ctx1632117354391 = document
+        .getElementById("chart1632117354391")
         .getContext("2d");
-      const chart1632117379179 = new Chart(ctx1632117379179, {
+      const chart1632117354391 = new Chart(ctx1632117354391, {
         type: "bar",
         data: {
           labels: [
-            "encrypt 1 MiB of data",
-            "decrypt 1 MiB of data",
-            "encrypt 1 MiB of data with workers",
-            "decrypt 1 MiB of data with workers",
+            "encrypt 100 KiB of data",
+            "decrypt 100 KiB of data",
+            "encrypt 100 KiB of data with workers",
+            "decrypt 100 KiB of data with workers",
           ],
           datasets: [
             {
-              data: [11, 10.8, 4.9, 10.3],
+              data: [149, 156, 108, 116],
               backgroundColor: [
                 "rgba(63, 142, 252, 0.8)",
                 "rgba(116, 165, 127, 0.8)",
@@ -71,7 +71,7 @@
           },
           title: {
             display: true,
-            text: "crypto1MiB",
+            text: "crypto100KiB",
             fontSize: 16,
             padding: 20,
           },
