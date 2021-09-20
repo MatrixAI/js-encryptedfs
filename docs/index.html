@@ -71,20 +71,19 @@
 				<a href="#usage" id="usage" style="color: inherit; text-decoration: none;">
 					<h2>Usage</h2>
 				</a>
-				<pre><code class="language-sh"><span style="color: #000000">const vfs = require(</span><span style="color: #A31515">&#039;virtualfs&#039;</span><span style="color: #000000">);</span>
+				<pre><code class="language-ts"><span style="color: #AF00DB">import</span><span style="color: #000000"> </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000"> </span><span style="color: #AF00DB">from</span><span style="color: #000000"> </span><span style="color: #A31515">&#039;@/EncryptedFS&#039;</span><span style="color: #000000">;</span>
 
-<span style="color: #000000">const vfsInstance = new </span><span style="color: #795E26">vfs.VirtualFS</span><span style="color: #000000">();</span>
-<span style="color: #000000">const efs = new EncryptedFS(key, vfsInstance, fs, </span><span style="color: #A31515">&#039;/&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">`./tmp`</span><span style="color: #000000">);</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">efs</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">EncryptedFS</span><span style="color: #000000">.</span><span style="color: #795E26">createEncryptedFS</span><span style="color: #000000">({</span><span style="color: #001080">key</span><span style="color: #000000">, </span><span style="color: #001080">path</span><span style="color: #000000">});</span>
 
-<span style="color: #008000"># create a new directory</span>
-<span style="color: #000000">newDir = </span><span style="color: #A31515">`test`</span><span style="color: #000000">;</span>
-<span style="color: #000000">efs.mkdirSync(newDir);</span>
+<span style="color: #008000">// create a new directory</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">newDir</span><span style="color: #000000"> = </span><span style="color: #A31515">`test`</span><span style="color: #000000">;</span>
+<span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">mkdir</span><span style="color: #000000">(</span><span style="color: #001080">newDir</span><span style="color: #000000">);</span>
 
-<span style="color: #008000"># write out to a file</span>
-<span style="color: #000000">efs.writeFileSync(</span><span style="color: #A31515">`</span><span style="color: #001080">${newDir}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;output&#039;</span><span style="color: #000000">);</span>
+<span style="color: #008000">// write out to a file</span>
+<span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">writeFile</span><span style="color: #000000">(</span><span style="color: #A31515">`</span><span style="color: #0000FF">${</span><span style="color: #001080">newDir</span><span style="color: #0000FF">}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;output&#039;</span><span style="color: #000000">);</span>
 
-<span style="color: #008000"># read in the file (contents = &#039;output&#039;)</span>
-<span style="color: #000000">const conentes = efs.readFileSync(</span><span style="color: #A31515">`</span><span style="color: #001080">${newDir}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">);</span>
+<span style="color: #008000">// read in the file (contents = &#039;output&#039;)</span>
+<span style="color: #0000FF">const</span><span style="color: #000000"> </span><span style="color: #0070C1">contents</span><span style="color: #000000"> = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #001080">efs</span><span style="color: #000000">.</span><span style="color: #795E26">readFile</span><span style="color: #000000">(</span><span style="color: #A31515">`</span><span style="color: #0000FF">${</span><span style="color: #001080">newDir</span><span style="color: #0000FF">}</span><span style="color: #A31515">/testFile`</span><span style="color: #000000">);</span>
 </code></pre>
 				<a href="#development" id="development" style="color: inherit; text-decoration: none;">
 					<h2>Development</h2>
@@ -130,9 +129,9 @@
 				</a>
 				<p>This is a constant sized amount (optionally user-specified) of business data.
 					A large file is split into several blocks of <em>block_size</em> (generall 4k).
-					This is to to allow random access reads and writies.
+					This is to to allow random access reads and writes.
 					For example to read a small section of a file, the entire file does not need to be decrpted
-					Only the block(s) that contain the section you want to read.
+					Only the block(s) that contains the section you want to read.
 					This does mean however, that there needs to be an IV for each block.
 				This is because reusing IVs, or having predictable IVs is a security threat.</p>
 				<a href="#segments" id="segments" style="color: inherit; text-decoration: none;">
@@ -143,9 +142,15 @@
 					<h2>Encryption scheme</h2>
 				</a>
 				<p>EFS uses AES-GCM symmetric encryption with a master key that is 16 bytes. This master key can be provided or can be generated using an internal function:</p>
-				<pre><code class="language-sh"><span style="color: #000000">const masterKey = generateMasterKey(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">)</span>
+				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">);</span>
 </code></pre>
-				<p>This function derives a symmetric encryption key using <code>pbkdf</code> from <code>node-forge</code>. The key generated from this function will be 16 bytes.</p>
+				<p>This function derives a symmetric encryption key using <code>pbkdf</code> from <code>node-forge</code>. The default key length will be 256 bits.</p>
+				<p>The second return value is the salt used for the key. This can also be specified by the user.</p>
+				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;salt&#039;</span><span style="color: #000000">);</span>
+</code></pre>
+				<p> The number of bits can be set as 128, 192 or 256 bits.</p>
+				<pre><code class="language-ts"><span style="color: #0000FF">const</span><span style="color: #000000"> [</span><span style="color: #0070C1">key</span><span style="color: #000000">, </span><span style="color: #0070C1">salt</span><span style="color: #000000">] = </span><span style="color: #AF00DB">await</span><span style="color: #000000"> </span><span style="color: #795E26">generateKeyFromPass</span><span style="color: #000000">(</span><span style="color: #A31515">&#039;secure password&#039;</span><span style="color: #000000">, </span><span style="color: #A31515">&#039;salt&#039;</span><span style="color: #000000">, </span><span style="color: #098658">128</span><span style="color: #000000">);</span>
+</code></pre>
 				<p>An authorisation tag based on chunk encryption is stored along side the init vector. This provides a basic chunk level integrity gurantee that can be verified upon decryption in accordance with the AES-GCM algorithm.</p>
 				<a href="#functionality" id="functionality" style="color: inherit; text-decoration: none;">
 					<h2>Functionality</h2>
@@ -155,58 +160,147 @@
 					<li>Uses Symmetric Encryption</li>
 					<li>Encryption keys are transparent to the user</li>
 				</ul>
+				<a href="#incongruency-with-node-fs" id="incongruency-with-node-fs" style="color: inherit; text-decoration: none;">
+					<h2>Incongruency with Node FS</h2>
+				</a>
+				<p>There are some differences between EFS and Node FS:</p>
+				<ul>
+					<li>User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.</li>
+					<li>Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.</li>
+				</ul>
 			</div>
 		</div>
 		<div class="col-4 col-menu menu-sticky-wrap menu-highlight">
 			<nav class="tsd-navigation primary">
 				<ul>
 					<li class=" ">
-						<a href="modules.html">Exports</a>
+						<a href="modules.html">Modules</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/encryptedfs.html">EncryptedFS</a>
+						<a href="modules/CurrentDirectory.html">Current<wbr>Directory</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/encryptedfserror.html">EncryptedFSError</a>
+						<a href="modules/EncryptedFS.html">EncryptedFS</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/filedescriptor.html">File<wbr>Descriptor</a>
+						<a href="modules/EncryptedFSError.html">EncryptedFSError</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/streams.html">Streams</a>
+						<a href="modules/Stat.html">Stat</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/constants.html">constants</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/crypto.html">crypto</a>
+						<a href="modules/constants_constants.html">constants/constants</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/constants_devices.html">constants/devices</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/constants_permissions.html">constants/permissions</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db.html">db</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db_DB.html">db/DB</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db_Transaction.html">db/<wbr>Transaction</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db_errors.html">db/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db_types.html">db/types</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/db_utils.html">db/utils</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices.html">devices</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_DeviceManager.html">devices/<wbr>Device<wbr>Manager</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_errors.html">devices/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_full.html">devices/full</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_null.html">devices/null</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_random.html">devices/random</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_tty.html">devices/tty</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/devices_zero.html">devices/zero</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/fd.html">fd</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/fd_FileDescriptor.html">fd/<wbr>File<wbr>Descriptor</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/fd_FileDescriptorManager.html">fd/<wbr>File<wbr>Descriptor<wbr>Manager</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/fd_errors.html">fd/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/fd_types.html">fd/types</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/index.html">index</a>
 					</li>
 					<li class=" tsd-kind-module">
+						<a href="modules/inodes.html">inodes</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/inodes_INodeManager.html">inodes/INode<wbr>Manager</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/inodes_errors.html">inodes/errors</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/inodes_types.html">inodes/types</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/inodes_utils.html">inodes/utils</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/streams.html">streams</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/streams_ReadStream.html">streams/<wbr>Read<wbr>Stream</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/streams_WriteStream.html">streams/<wbr>Write<wbr>Stream</a>
+					</li>
+					<li class=" tsd-kind-module">
+						<a href="modules/streams_types.html">streams/types</a>
+					</li>
+					<li class=" tsd-kind-module">
 						<a href="modules/types.html">types</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/util.html">util</a>
+						<a href="modules/utils.html">utils</a>
 					</li>
 					<li class=" tsd-kind-module">
 						<a href="modules/workers.html">workers</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/workers_workermanager.html">workers/<wbr>Worker<wbr>Manager</a>
+						<a href="modules/workers_efsWorker.html">workers/efs<wbr>Worker</a>
 					</li>
 					<li class=" tsd-kind-module">
-						<a href="modules/workers_efsworker.html">workers/efs<wbr>Worker</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/workers_efsworkermodule.html">workers/efs<wbr>Worker<wbr>Module</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/workers_errors.html">workers/errors</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="modules/workers_types.html">workers/types</a>
+						<a href="modules/workers_efsWorkerModule.html">workers/efs<wbr>Worker<wbr>Module</a>
 					</li>
 				</ul>
 			</nav>
@@ -226,12 +320,10 @@
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
 				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
-			</ul>
-			<ul class="tsd-legend">
-				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>

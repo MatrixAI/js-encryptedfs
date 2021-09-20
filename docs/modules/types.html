@@ -70,10 +70,26 @@
 				<section class="tsd-panel tsd-index-panel">
 					<div class="tsd-index-content">
 						<section class="tsd-index-section ">
+							<h3>Interfaces</h3>
+							<ul class="tsd-index-list">
+								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/types.FileSystem.html" class="tsd-kind-icon">File<wbr>System</a></li>
+								<li class="tsd-kind-interface tsd-parent-kind-module"><a href="../interfaces/types.ToString.html" class="tsd-kind-icon">To<wbr>String</a></li>
+							</ul>
+						</section>
+						<section class="tsd-index-section ">
 							<h3>Type aliases</h3>
 							<ul class="tsd-index-list">
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#bufferencoding" class="tsd-kind-icon">Buffer<wbr>Encoding</a></li>
-								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#upperdirectorymetadata" class="tsd-kind-icon">Upper<wbr>Directory<wbr>Metadata</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter"><a href="types.html#Callback" class="tsd-kind-icon">Callback</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#Data" class="tsd-kind-icon">Data</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#File" class="tsd-kind-icon">File</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter"><a href="types.html#FunctionProperties" class="tsd-kind-icon">Function<wbr>Properties</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#Navigated" class="tsd-kind-icon">Navigated</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter"><a href="types.html#NonFunctionProperties" class="tsd-kind-icon">Non<wbr>Function<wbr>Properties</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter"><a href="types.html#Opaque" class="tsd-kind-icon">Opaque</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#Options" class="tsd-kind-icon">Options</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#POJO" class="tsd-kind-icon">POJO</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#ParsedPath" class="tsd-kind-icon">Parsed<wbr>Path</a></li>
+								<li class="tsd-kind-type-alias tsd-parent-kind-module"><a href="types.html#Path" class="tsd-kind-icon">Path</a></li>
 							</ul>
 						</section>
 					</div>
@@ -81,36 +97,269 @@
 			</section>
 			<section class="tsd-panel-group tsd-member-group ">
 				<h2>Type aliases</h2>
-				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="bufferencoding" class="tsd-anchor"></a>
-					<h3>Buffer<wbr>Encoding</h3>
-					<div class="tsd-signature tsd-kind-icon">Buffer<wbr>Encoding<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">&quot;ascii&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;utf8&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;utf-8&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;utf16le&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;ucs2&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;ucs-2&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;base64&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;latin1&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;binary&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;hex&quot;</span></div>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="Callback" class="tsd-anchor"></a>
+					<h3>Callback</h3>
+					<div class="tsd-signature tsd-kind-icon">Callback&lt;P, R, E&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span><span class="tsd-signature-symbol">(</span>e<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">E</span>, <span class="tsd-signature-symbol">...</span>params<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">R</span><span class="tsd-signature-symbol">; </span><span class="tsd-signature-symbol">(</span>e<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span>, <span class="tsd-signature-symbol">...</span>params<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">R</span><span class="tsd-signature-symbol"> }</span></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in src/types.ts:6</li>
+							<li>Defined in src/types.ts:26</li>
+						</ul>
+					</aside>
+					<h4 class="tsd-type-parameters-title">Type parameters</h4>
+					<ul class="tsd-type-parameters">
+						<li>
+							<h4>P<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span> = <span class="tsd-signature-symbol">[</span><span class="tsd-signature-symbol">]</span></h4>
+						</li>
+						<li>
+							<h4>R = <span class="tsd-signature-type">any</span></h4>
+						</li>
+						<li>
+							<h4>E<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Error</span> = <span class="tsd-signature-type">Error</span></h4>
+						</li>
+					</ul>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-signature">
+								<ul class="tsd-signatures tsd-kind-type-literal tsd-parent-kind-type-alias">
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>e<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">E</span>, <span class="tsd-signature-symbol">...</span>params<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">R</span></li>
+									<li class="tsd-signature tsd-kind-icon"><span class="tsd-signature-symbol">(</span>e<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span>, <span class="tsd-signature-symbol">...</span>params<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">R</span></li>
+								</ul>
+								<ul class="tsd-descriptions">
+									<li class="tsd-description">
+										<div class="tsd-comment tsd-typography">
+											<div class="lead">
+												<p>Generic callback</p>
+											</div>
+										</div>
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>e: <span class="tsd-signature-type">E</span></h5>
+											</li>
+											<li>
+												<h5><span class="tsd-flag ts-flagRest">Rest</span> <span class="tsd-signature-symbol">...</span>params: <span class="tsd-signature-type">Partial</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">P</span><span class="tsd-signature-symbol">&gt;</span></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">R</span></h4>
+									</li>
+									<li class="tsd-description">
+										<div class="tsd-comment tsd-typography">
+											<div class="lead">
+												<p>Generic callback</p>
+											</div>
+										</div>
+										<h4 class="tsd-parameters-title">Parameters</h4>
+										<ul class="tsd-parameters">
+											<li>
+												<h5>e: <span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">null</span></h5>
+											</li>
+											<li>
+												<h5><span class="tsd-flag ts-flagRest">Rest</span> <span class="tsd-signature-symbol">...</span>params: <span class="tsd-signature-type">P</span></h5>
+											</li>
+										</ul>
+										<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">R</span></h4>
+									</li>
+								</ul>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="Data" class="tsd-anchor"></a>
+					<h3>Data</h3>
+					<div class="tsd-signature tsd-kind-icon">Data<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Buffer</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Uint8Array</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:70</li>
 						</ul>
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
-					<a name="upperdirectorymetadata" class="tsd-anchor"></a>
-					<h3>Upper<wbr>Directory<wbr>Metadata</h3>
-					<div class="tsd-signature tsd-kind-icon">Upper<wbr>Directory<wbr>Metadata<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>keyHash<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Buffer</span><span class="tsd-signature-symbol">; </span>size<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span></div>
+					<a name="File" class="tsd-anchor"></a>
+					<h3>File</h3>
+					<div class="tsd-signature tsd-kind-icon">File<span class="tsd-signature-symbol">:</span> <a href="fd_types.html#FdIndex" class="tsd-signature-type" data-tsd-kind="Type alias">FdIndex</a><span class="tsd-signature-symbol"> | </span><a href="types.html#Path" class="tsd-signature-type" data-tsd-kind="Type alias">Path</a></div>
 					<aside class="tsd-sources">
 						<ul>
-							<li>Defined in src/types.ts:1</li>
+							<li>Defined in src/types.ts:72</li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="FunctionProperties" class="tsd-anchor"></a>
+					<h3>Function<wbr>Properties</h3>
+					<div class="tsd-signature tsd-kind-icon">Function<wbr>Properties&lt;T&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Pick</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">FunctionPropertyNames</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:38</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Functional properties of an object</p>
+						</div>
+					</div>
+					<h4 class="tsd-type-parameters-title">Type parameters</h4>
+					<ul class="tsd-type-parameters">
+						<li>
+							<h4>T</h4>
+						</li>
+					</ul>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="Navigated" class="tsd-anchor"></a>
+					<h3>Navigated</h3>
+					<div class="tsd-signature tsd-kind-icon">Navigated<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>dir<span class="tsd-signature-symbol">: </span><a href="inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol">; </span>name<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>pathStack<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">; </span>remaining<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>target<span class="tsd-signature-symbol">: </span><a href="inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">undefined</span><span class="tsd-signature-symbol"> }</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:49</li>
 						</ul>
 					</aside>
 					<div class="tsd-type-declaration">
 						<h4>Type declaration</h4>
 						<ul class="tsd-parameters">
 							<li class="tsd-parameter">
-								<h5>key<wbr>Hash<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Buffer</span></h5>
+								<h5>dir<span class="tsd-signature-symbol">: </span><a href="inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a></h5>
 							</li>
 							<li class="tsd-parameter">
-								<h5>size<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span></h5>
+								<h5>name<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5>path<wbr>Stack<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5>remaining<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5>target<span class="tsd-signature-symbol">: </span><a href="inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">undefined</span></h5>
 							</li>
 						</ul>
 					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="NonFunctionProperties" class="tsd-anchor"></a>
+					<h3>Non<wbr>Function<wbr>Properties</h3>
+					<div class="tsd-signature tsd-kind-icon">Non<wbr>Function<wbr>Properties&lt;T&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Pick</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">NonFunctionPropertyNames</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">T</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:47</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Non-functional properties of an object</p>
+						</div>
+					</div>
+					<h4 class="tsd-type-parameters-title">Type parameters</h4>
+					<ul class="tsd-type-parameters">
+						<li>
+							<h4>T</h4>
+						</li>
+					</ul>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+					<a name="Opaque" class="tsd-anchor"></a>
+					<h3>Opaque</h3>
+					<div class="tsd-signature tsd-kind-icon">Opaque&lt;K, T&gt;<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">T</span><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-symbol">{ </span>__TYPE__<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">K</span><span class="tsd-signature-symbol"> }</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:14</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Opaque types are wrappers of existing types
+							that require smart constructors</p>
+						</div>
+					</div>
+					<h4 class="tsd-type-parameters-title">Type parameters</h4>
+					<ul class="tsd-type-parameters">
+						<li>
+							<h4>K</h4>
+						</li>
+						<li>
+							<h4>T</h4>
+						</li>
+					</ul>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="Options" class="tsd-anchor"></a>
+					<h3>Options</h3>
+					<div class="tsd-signature tsd-kind-icon">Options<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>encoding<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">BufferEncoding</span><span class="tsd-signature-symbol">; </span>flag<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>mode<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:64</li>
+						</ul>
+					</aside>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter">
+								<h5><span class="tsd-flag ts-flagOptional">Optional</span> encoding<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">BufferEncoding</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5><span class="tsd-flag ts-flagOptional">Optional</span> flag<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5><span class="tsd-flag ts-flagOptional">Optional</span> mode<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">number</span></h5>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="POJO" class="tsd-anchor"></a>
+					<h3>POJO</h3>
+					<div class="tsd-signature tsd-kind-icon">POJO<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{}</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:8</li>
+						</ul>
+					</aside>
+					<div class="tsd-comment tsd-typography">
+						<div class="lead">
+							<p>Plain data dictionary</p>
+						</div>
+					</div>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter-index-signature">
+								<h5><span class="tsd-signature-symbol">[</span>key: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">]: </span><span class="tsd-signature-type">any</span></h5>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="ParsedPath" class="tsd-anchor"></a>
+					<h3>Parsed<wbr>Path</h3>
+					<div class="tsd-signature tsd-kind-icon">Parsed<wbr>Path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-symbol">{ </span>rest<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span>segment<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> }</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:57</li>
+						</ul>
+					</aside>
+					<div class="tsd-type-declaration">
+						<h4>Type declaration</h4>
+						<ul class="tsd-parameters">
+							<li class="tsd-parameter">
+								<h5>rest<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+							<li class="tsd-parameter">
+								<h5>segment<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span></h5>
+							</li>
+						</ul>
+					</div>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-type-alias tsd-parent-kind-module">
+					<a name="Path" class="tsd-anchor"></a>
+					<h3>Path</h3>
+					<div class="tsd-signature tsd-kind-icon">Path<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">Buffer</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">URL</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in src/types.ts:62</li>
+						</ul>
+					</aside>
 				</section>
 			</section>
 		</div>
@@ -118,62 +367,53 @@
 			<nav class="tsd-navigation primary">
 				<ul>
 					<li class=" ">
-						<a href="../modules.html">Exports</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="encryptedfs.html">EncryptedFS</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="encryptedfserror.html">EncryptedFSError</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="filedescriptor.html">File<wbr>Descriptor</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="streams.html">Streams</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="constants.html">constants</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="crypto.html">crypto</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="index.html">index</a>
+						<a href="../modules.html">Modules</a>
 					</li>
 					<li class="current tsd-kind-module">
 						<a href="types.html">types</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="util.html">util</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers.html">workers</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers_workermanager.html">workers/<wbr>Worker<wbr>Manager</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers_efsworker.html">workers/efs<wbr>Worker</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers_efsworkermodule.html">workers/efs<wbr>Worker<wbr>Module</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers_errors.html">workers/errors</a>
-					</li>
-					<li class=" tsd-kind-module">
-						<a href="workers_types.html">workers/types</a>
 					</li>
 				</ul>
 			</nav>
 			<nav class="tsd-navigation secondary menu-sticky">
 				<ul class="before-current">
-					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="types.html#bufferencoding" class="tsd-kind-icon">Buffer<wbr>Encoding</a>
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
+						<a href="../interfaces/types.FileSystem.html" class="tsd-kind-icon">File<wbr>System</a>
+					</li>
+					<li class=" tsd-kind-interface tsd-parent-kind-module">
+						<a href="../interfaces/types.ToString.html" class="tsd-kind-icon">To<wbr>String</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="types.html#Callback" class="tsd-kind-icon">Callback</a>
 					</li>
 					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
-						<a href="types.html#upperdirectorymetadata" class="tsd-kind-icon">Upper<wbr>Directory<wbr>Metadata</a>
+						<a href="types.html#Data" class="tsd-kind-icon">Data</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#File" class="tsd-kind-icon">File</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="types.html#FunctionProperties" class="tsd-kind-icon">Function<wbr>Properties</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#Navigated" class="tsd-kind-icon">Navigated</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="types.html#NonFunctionProperties" class="tsd-kind-icon">Non<wbr>Function<wbr>Properties</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module tsd-has-type-parameter">
+						<a href="types.html#Opaque" class="tsd-kind-icon">Opaque</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#Options" class="tsd-kind-icon">Options</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#POJO" class="tsd-kind-icon">POJO</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#ParsedPath" class="tsd-kind-icon">Parsed<wbr>Path</a>
+					</li>
+					<li class=" tsd-kind-type-alias tsd-parent-kind-module">
+						<a href="types.html#Path" class="tsd-kind-icon">Path</a>
 					</li>
 				</ul>
 			</nav>
@@ -189,12 +429,10 @@
 				<li class="tsd-kind-function"><span class="tsd-kind-icon">Function</span></li>
 				<li class="tsd-kind-function tsd-has-type-parameter"><span class="tsd-kind-icon">Function with type parameter</span></li>
 				<li class="tsd-kind-type-alias"><span class="tsd-kind-icon">Type alias</span></li>
+				<li class="tsd-kind-type-alias tsd-has-type-parameter"><span class="tsd-kind-icon">Type alias with type parameter</span></li>
 			</ul>
 			<ul class="tsd-legend">
-				<li class="tsd-kind-enum"><span class="tsd-kind-icon">Enumeration</span></li>
-			</ul>
-			<ul class="tsd-legend">
-				<li class="tsd-kind-interface tsd-has-type-parameter"><span class="tsd-kind-icon">Interface with type parameter</span></li>
+				<li class="tsd-kind-interface"><span class="tsd-kind-icon">Interface</span></li>
 			</ul>
 			<ul class="tsd-legend">
 				<li class="tsd-kind-class"><span class="tsd-kind-icon">Class</span></li>

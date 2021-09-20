@@ -1,8 +1,8 @@
-import type { EFSWorker } from './efsWorkerModule';
+import type { EFSWorkerModule } from './efsWorkerModule';
 import { expose } from 'threads/worker';
 
 import efsWorker from './efsWorkerModule';
 
 expose(efsWorker);
 
-export type { EFSWorker };
+export type { EFSWorkerModule };

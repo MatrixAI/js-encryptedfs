@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "./tests/**/*",
+    "./benches/**/*"
+  ],
+  "compilerOptions": {
+    "noEmit": false
+  }
+}

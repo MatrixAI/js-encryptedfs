@@ -2,18 +2,22 @@ const { pathsToModuleNameMapper } = require('ts-jest/utils');
 const { compilerOptions } = require('./tsconfig');
 
 module.exports = {
-  "verbose": true,
-  "roots": [
+  testEnvironment: "node",
+  verbose: true,
+  roots: [
     "<rootDir>/tests"
   ],
-  "testMatch": [
-    "**/?(*.)+(spec|test|.test).+(ts|tsx|js)"
+  testMatch: [
+    "**/?(*.)+(spec|test|unit.test).+(ts|tsx|js)"
   ],
-  "transform": {
+  transform: {
     "^.+\\.tsx?$": "ts-jest"
   },
   setupFiles: [
     "<rootDir>/tests/setup.ts"
+  ],
+  setupFilesAfterEnv: [
+    "<rootDir>/tests/setupAfterEnv.ts"
   ],
   globalSetup: "<rootDir>/tests/globalSetup.ts",
   globalTeardown: "<rootDir>/tests/globalTeardown.ts",
