@@ -1,5 +1,7 @@
+import type { WorkerManagerInterface } from '@matrixai/workers';
 import type { INodeIndex } from './inodes/types';
 import type { FdIndex } from './fd/types';
+import type { EFSWorkerModule } from './workers/efsWorkerModule';
 
 /**
  * Plain data dictionary
@@ -70,6 +72,8 @@ type Data = string | Buffer | Uint8Array;
 
 type File = FdIndex | Path;
 
+type EFSWorkerManagerInterface = WorkerManagerInterface<EFSWorkerModule>;
+
 export type {
   POJO,
   Opaque,
@@ -83,4 +87,6 @@ export type {
   Options,
   Data,
   File,
+  EFSWorkerManagerInterface,
+  EFSWorkerModule,
 };

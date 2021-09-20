@@ -1,18 +1,19 @@
+import type { EFSWorkerManagerInterface, EFSWorkerModule } from '@/types';
+
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { spawn, Worker, Transfer } from 'threads';
 import * as utils from '@/utils';
-import type { ModuleMethods } from 'threads/dist/types/master';
 
 describe('EFS worker', () => {
   const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  let workerManager: WorkerManager<ModuleMethods>;
+  let workerManager: EFSWorkerManagerInterface;
   let key: Buffer;
   beforeAll(async () => {
     key = await utils.generateKey();
-    workerManager = await WorkerManager.createWorkerManager({
+    workerManager = await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../../src/workers/efsWorker')),
       cores: 1,
       logger,

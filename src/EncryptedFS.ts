@@ -6,11 +6,11 @@ import type {
   Options,
   Data,
   File,
+  EFSWorkerManagerInterface,
 } from './types';
 import type { INodeIndex } from './inodes';
 import type { FdIndex } from './fd';
 import type { OptionsStream } from './streams';
-import type { EFSWorkerManagerInterface } from './workers';
 
 import { code as errno } from 'errno';
 import Logger from '@matrixai/logger';
