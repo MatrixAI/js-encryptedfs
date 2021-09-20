@@ -34,20 +34,6 @@ class FileDescriptorManager {
   ): Promise<[FileDescriptor, FdIndex]> {
     const index = this._counter.allocate();
     const fd = new FileDescriptor(this._iNodeMgr, ino, flags);
-    const type = await tran.get<INodeType>(
-      this._iNodeMgr.iNodesDomain,
-      inodesUtils.iNodeId(ino),
-    );
-    if (type === 'CharacterDev') {
-      const fops = await this._iNodeMgr.charDevGetFileDesOps(tran, ino);
-      if (!fops) {
-        throw new errorsFd.ErrorFileDescriptorMissingINode(
-          'INode does not exist',
-        );
-      } else {
-        // Fops.open(fd);
-      }
-    }
 
     // Set the file descriptor into the map
     this._fds.set(index, fd);
