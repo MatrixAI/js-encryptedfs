@@ -59,22 +59,22 @@ async function main() {
   const summary = await b.suite(
     'Encrypted DB24KiB',
     b.add('get 24 KiB of data', async () => {
-      await db1.put([], '1mib', data24KiB, true);
+      await db1.put([], '24kib', data24KiB, true);
       return async () => {
-        await db1.get([], '1mib', true);
+        await db1.get([], '24kib', true);
       };
     }),
     b.add('put 24 KiB of data', async () => {
-      await db1.put([], '1mib', data24KiB, true);
+      await db1.put([], '24kib', data24KiB, true);
     }),
     b.add('get 24 KiB of data with workers', async () => {
-      await db2.put([], '1mib', data24KiB, true);
+      await db2.put([], '24kib', data24KiB, true);
       return async () => {
-        await db2.get([], '1mib', true);
+        await db2.get([], '24kib', true);
       };
     }),
     b.add('put 24 KiB of data with workers', async () => {
-      await db2.put([], '1mib', data24KiB, true);
+      await db2.put([], '24kib', data24KiB, true);
     }),
     b.cycle(),
     b.complete(),
