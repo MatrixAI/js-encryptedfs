@@ -746,11 +746,11 @@ class INodeManager {
       while (inodesUtils.unbufferId((data as any).key) !== blockCount) {
         yield Buffer.alloc(blockSize);
       }
-      const plainTextData = await this.db.deserializeDecrypt<string>(
+      const plainTextData = await this.db.deserializeDecrypt(
         (data as any).value as Buffer,
-        false,
+        true,
       );
-      yield Buffer.from(plainTextData);
+      yield plainTextData;
       blockCount++;
     }
   }
@@ -769,15 +769,15 @@ class INodeManager {
     let key, value;
     for await (const data of dataDb.createReadStream(options)) {
       key = inodesUtils.unbufferId((data as any).key);
-      value = await this.db.deserializeDecrypt<string>(
+      value = await this.db.deserializeDecrypt(
         (data as any).value as Buffer,
-        false,
+        true,
       );
     }
     if (value == null || key == null) {
       return [0, Buffer.alloc(0)];
     }
-    return [key, Buffer.from(value)];
+    return [key, value];
   }
 
   /**
@@ -791,11 +791,11 @@ class INodeManager {
   ): Promise<Buffer | undefined> {
     const dataDomain = [...this.dataDomain, ino.toString()];
     const key = inodesUtils.bufferId(idx);
-    const buffer = await tran.get<Buffer>(dataDomain, key);
+    const buffer = await tran.get(dataDomain, key, true);
     if (!buffer) {
       return undefined;
     }
-    return Buffer.from(buffer);
+    return buffer;
   }
 
   /**
@@ -833,17 +833,15 @@ class INodeManager {
     const key = inodesUtils.bufferId(idx);
     let bytesWritten;
     if (!block) {
-      const value = data.toString();
-      await tran.put(dataDomain, key, value);
+      await tran.put(dataDomain, key, data, true);
       bytesWritten = data.length;
     } else {
       if (offset >= block.length) {
         // In this case we are not overwriting the data but appending
         const newBlock = Buffer.alloc(offset + data.length);
-        newBlock.write(block.toString());
-        bytesWritten = newBlock.write(data.toString(), offset);
-        const value = newBlock.toString();
-        await tran.put(dataDomain, key, value);
+        block.copy(newBlock);
+        bytesWritten = data.copy(newBlock, offset);
+        await tran.put(dataDomain, key, newBlock, true);
       } else {
         // In this case we are overwriting
         if (offset + data.length > block.length) {
@@ -852,9 +850,8 @@ class INodeManager {
             Buffer.alloc(offset + data.length - block.length),
           ]);
         }
-        bytesWritten = block.write(data.toString(), offset);
-        const value = block.toString();
-        await tran.put(dataDomain, key, value);
+        bytesWritten = data.copy(block, offset);
+        await tran.put(dataDomain, key, block, true);
       }
     }
     return bytesWritten;
