@@ -243,6 +243,59 @@ class EncryptedFS {
     this.db.unsetWorkerManager();
   }
 
+  public async chroot(path: string): Promise<EncryptedFS>;
+  public async chroot(
+    path: string,
+    callback: Callback<[EncryptedFS]>,
+  ): Promise<void>;
+  public async chroot(
+    path: string,
+    callback?: Callback<[EncryptedFS]>,
+  ): Promise<EncryptedFS | void> {
+    return utils.maybeCallback(async () => {
+      if (!this._running) {
+        throw new errors.ErrorEncryptedFSNotRunning();
+      }
+      path = this.getPath(path);
+      const navigated = await this.navigate(path, true);
+      const target = navigated.target;
+      if (!target) {
+        throw new errors.ErrorEncryptedFSError({
+          errno: errno.ENOENT,
+          path: path as string,
+        });
+      }
+      await this.iNodeMgr.transact(
+        async (tran) => {
+          const targetType = (await this.iNodeMgr.get(tran, target))?.type;
+          const targetStat = await this.iNodeMgr.statGet(tran, target);
+          if (!(targetType === 'Directory')) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOTDIR,
+              path: path as string,
+            });
+          }
+          if (!this.checkPermissions(constants.X_OK, targetStat)) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EACCES,
+              path: path as string,
+            });
+          }
+        },
+        target ? [target] : [],
+      );
+      return new EncryptedFS({
+        db: this.db,
+        iNodeMgr: this.iNodeMgr,
+        fdMgr: this.fdMgr,
+        rootIno: target,
+        blockSize: this.blockSize,
+        umask: this.umask,
+        logger: this.logger,
+      });
+    }, callback);
+  }
+
   public async chdir(path: string): Promise<void>;
   public async chdir(path: string, callback: Callback): Promise<void>;
   public async chdir(path: string, callback?: Callback): Promise<void> {
@@ -3228,7 +3281,11 @@ class EncryptedFS {
     let nextDir, nextPath, target, targetType;
     await this.iNodeMgr.transact(
       async (tran) => {
-        target = await this.iNodeMgr.dirGetEntry(tran, curdir, parse.segment);
+        if (parse.segment === '..' && curdir === this.rootIno) {
+          target = curdir;
+        } else {
+          target = await this.iNodeMgr.dirGetEntry(tran, curdir, parse.segment);
+        }
       },
       [curdir],
     );
