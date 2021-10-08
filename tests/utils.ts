@@ -31,7 +31,7 @@ async function createFile(
       await efs.writeFile(name, '', { mode: 0o0644 });
       break;
     case 'dir':
-      await efs.mkdir(name, 0o0755);
+      await efs.mkdir(name, { mode: 0o0755 });
       break;
     case 'block':
       await efs.mknod(name, constants.S_IFREG, 0o0644, 1, 2);

@@ -467,7 +467,7 @@ describe('EncryptedFS Files', () => {
     });
     test("updates parent directory ctime/mtime if file didn't exist", async () => {
       const PUT = path.join(n1, n0);
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       const time = (await efs.stat(n1)).ctime.getTime();
       await sleep(10);
       await efs.open(PUT, 'w', 0o0644);
@@ -484,7 +484,7 @@ describe('EncryptedFS Files', () => {
     });
     test("doesn't update parent directory ctime/mtime if file existed", async () => {
       const PUT = path.join(n1, n0);
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
 
       await createFile(efs, 'regular', PUT);
       const dmtime = (await efs.stat(n1)).mtime.getTime();
@@ -508,7 +508,7 @@ describe('EncryptedFS Files', () => {
       },
     );
     test('returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await expectError(
         efs.open(path.join(n0, n1, 'test'), flags.O_CREAT, 0o0644),
         errno.ENOENT,
@@ -519,7 +519,7 @@ describe('EncryptedFS Files', () => {
       );
     });
     test('returns EACCES when search permission is denied for a component of the path prefix', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n2));
@@ -535,7 +535,7 @@ describe('EncryptedFS Files', () => {
       await efs.close(fd);
     });
     test('returns EACCES when the required permissions are denied for a regular file', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await efs.chown(n0, tuid, tuid);
       await efs.chdir(n0);
       setId(efs, tuid);
@@ -632,11 +632,11 @@ describe('EncryptedFS Files', () => {
       }
     });
     test('returns EACCES when the required permissions are denied for adirectory', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await efs.chown(n0, tuid, tuid);
       await efs.chdir(n0);
       setId(efs, tuid);
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
 
       let fd;
       let modes = [0o0600, 0o0060, 0o0006];
@@ -717,7 +717,7 @@ describe('EncryptedFS Files', () => {
       }
     });
     test('returns EACCES when O_TRUNC is specified and write permission is denied', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await efs.chown(n0, tuid, tuid);
       await efs.chdir(n0);
       setId(efs, tuid);
@@ -756,7 +756,7 @@ describe('EncryptedFS Files', () => {
       );
     });
     test('returns EISDIR when trying to open a directory for writing', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       const fd = await efs.open(n0, flags.O_RDONLY);
       await efs.close(fd);
       await expectError(efs.open(n0, flags.O_WRONLY), errno.EISDIR);
