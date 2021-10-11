@@ -66,6 +66,7 @@ type Options = {
   encoding?: BufferEncoding | undefined;
   mode?: number;
   flag?: string;
+  recursive?: boolean;
 };
 
 type Data = string | Buffer | Uint8Array;

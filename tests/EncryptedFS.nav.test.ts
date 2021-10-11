@@ -72,6 +72,20 @@ describe('EncryptedFS Navigation', () => {
       });
     });
   });
+  test('should be able to restore state', async () => {
+    const buffer = Buffer.from('Hello World');
+    await efs.writeFile(`hello-world`, buffer);
+    await efs.stop();
+    const efsReloaded = await EncryptedFS.createEncryptedFS({
+      dbPath,
+      dbKey,
+      umask: 0o022,
+      logger,
+    });
+    await efsReloaded.start();
+    await expect(efsReloaded.readFile('hello-world')).resolves.toEqual(buffer);
+    await efsReloaded.stop();
+  });
   test('should be able to navigate before root', async () => {
     const buffer = Buffer.from('Hello World');
     await efs.mkdir(`first`);
@@ -101,9 +115,9 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.mkdir(`abc/.`), errno.EEXIST);
   });
   test('navigating invalid paths', async () => {
-    await efs.mkdirp('/test/a/b/c');
-    await efs.mkdirp('/test/a/bc');
-    await efs.mkdirp('/test/abc');
+    await efs.mkdir('/test/a/b/c', { recursive: true });
+    await efs.mkdir('/test/a/bc', { recursive: true });
+    await efs.mkdir('/test/abc', { recursive: true });
     await expectError(efs.readdir('/test/abc/a/b/c'), errno.ENOENT);
     await expectError(efs.readdir('/abc'), errno.ENOENT);
     await expectError(efs.stat('/test/abc/a/b/c'), errno.ENOENT);
@@ -118,8 +132,11 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.stat('/test/abcd'), errno.ENOENT);
   });
   test('various failure situations', async () => {
-    await efs.mkdirp('/test/dir');
-    await efs.mkdirp('/test/dir');
+    await efs.mkdir('/test/dir', { recursive: true });
+    await expectError(
+      efs.mkdir('/test/dir', { recursive: true }),
+      errno.EEXIST,
+    );
     await efs.writeFile('/test/file', 'Hello');
     await expectError(efs.writeFile('/test/dir', 'Hello'), errno.EISDIR);
     await expectError(efs.writeFile('/', 'Hello'), errno.EISDIR);
@@ -127,13 +144,16 @@ describe('EncryptedFS Navigation', () => {
     await expectError(efs.unlink('/'), errno.EISDIR);
     await expectError(efs.mkdir('/test/dir'), errno.EEXIST);
     await expectError(efs.mkdir('/test/file'), errno.EEXIST);
-    await expectError(efs.mkdirp('/test/file'), errno.ENOTDIR);
+    await expectError(
+      efs.mkdir('/test/file', { recursive: true }),
+      errno.EEXIST,
+    );
     await expectError(efs.readdir('/test/file'), errno.ENOTDIR);
     await expectError(efs.readlink('/test/dir'), errno.EINVAL);
     await expectError(efs.readlink('/test/file'), errno.EINVAL);
   });
   test('cwd returns the absolute fully resolved path', async () => {
-    await efs.mkdirp('/a/b');
+    await efs.mkdir('/a/b', { recursive: true });
     await efs.symlink('/a/b', '/c');
     await efs.chdir('/c');
     const cwd = efs.cwd;
@@ -165,7 +185,7 @@ describe('EncryptedFS Navigation', () => {
     expect(dentryParent).toEqual([]);
   });
   test('can still chdir when both current and parent directories are deleted', async () => {
-    await efs.mkdirp('/removeda/removedb');
+    await efs.mkdir('/removeda/removedb', { recursive: true });
     await efs.chdir('/removeda/removedb');
     await efs.rmdir('../removedb');
     await efs.rmdir('../../removeda');
@@ -188,7 +208,7 @@ describe('EncryptedFS Navigation', () => {
     await expect(
       efs2.readFile('../../../file', { encoding: 'utf8' }),
     ).resolves.toBe('test');
-    await efs2.mkdirp('dir1/dir2/dir3');
+    await efs2.mkdir('dir1/dir2/dir3', { recursive: true });
     await efs2.writeFile('dir1/dir2/dir3/test-file', 'test');
     await expect(
       efs.readFile('dir/dir1/dir2/dir3/test-file', { encoding: 'utf8' }),

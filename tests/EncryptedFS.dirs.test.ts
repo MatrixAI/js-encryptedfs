@@ -123,7 +123,7 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rmdir('.'), errno.EINVAL);
     });
     test('cannot delete parent directory using .. even when current directory is deleted', async () => {
-      await efs.mkdirp('/removeda/removedb');
+      await efs.mkdir('/removeda/removedb', { recursive: true });
       await efs.chdir('/removeda/removedb');
       await efs.rmdir('../removedb');
       await efs.rmdir('../../removeda');
@@ -154,7 +154,7 @@ describe('EncryptedFS Directories', () => {
       await efs.unlink(n1);
     });
     test.each(supportedTypes)(
-      "returns ENOTEMPTY if the named directory contains files other than '.' and '..' in itfor %s",
+      "returns ENOTEMPTY if the named directory contains files other than '.' and '..' in it for %s",
       async (type) => {
         await efs.mkdir(n0, 0o0755);
         await createFile(efs, type as FileTypes, path.join(n0, n1));
@@ -173,18 +173,41 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
     });
     test('returns EACCES when write permission is denied on the directory containing the link to be removed', async () => {
-      await efs.mkdir(n0, 0o0755);
-      await efs.mkdir(path.join(n0, n1), 0o0755);
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
       await efs.chown(path.join(n0, n1), 0o65534, 0o65534);
-      await efs.mkdir(path.join(n0, n1, n2), 0o0755);
+      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
       await efs.chown(path.join(n0, n1, n2), 0o65534, 0o65534);
       await efs.chmod(path.join(n0, n1), 0o0555);
       efs.gid = 0o65543;
       efs.uid = 0o65543;
       await expectError(efs.rmdir(path.join(n0, n1, n2)), errno.EACCES);
     });
+    test.each(supportedTypes)(
+      'recursively deletes the directory if it contains %s',
+      async (type) => {
+        await efs.mkdir(n0, { mode: 0o0755 });
+        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await efs.rmdir(n0, { recursive: true });
+        await expect(efs.readdir('.')).resolves.toEqual([]);
+      },
+    );
+    test('recursively deletes a deep directory', async () => {
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(path.join(n0, n2), 'test');
+      await efs.writeFile(path.join(n0, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      await efs.rmdir(n0, { recursive: true });
+      await expect(efs.readdir('.')).resolves.toEqual([]);
+    });
   });
-  describe('mkdir, mkdtemp & mkdirp', () => {
+  describe('mkdir & mkdtemp', () => {
     test('is able to make directories', async () => {
       await efs.mkdir(`first`);
       await expect(efs.exists('first')).resolves.toBe(true);
@@ -198,7 +221,7 @@ describe('EncryptedFS Directories', () => {
       expect((await efs.readdir(`first/`)).sort()).toStrictEqual(
         ['sub', 'sub2'].sort(),
       );
-      await efs.mkdirp(`a/depth/sub/dir`);
+      await efs.mkdir(`a/depth/sub/dir`, { recursive: true });
       await expect(efs.exists(`a/depth/sub`)).resolves.toBe(true);
       const stat = await efs.stat(`a/depth/sub`);
       expect(stat.isFile()).toStrictEqual(false);
@@ -217,27 +240,33 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.mkdir('/'), errno.EEXIST);
     });
     test("trailing '/.' should not result in any errors", async () => {
-      await expect(efs.mkdirp('one/two')).resolves.not.toThrow();
-      await expect(efs.mkdirp('three/four')).resolves.not.toThrow();
-      await expect(efs.mkdirp('five/six/.')).resolves.not.toThrow();
+      await expect(
+        efs.mkdir('one/two', { recursive: true }),
+      ).resolves.not.toThrow();
+      await expect(
+        efs.mkdir('three/four', { recursive: true }),
+      ).resolves.not.toThrow();
+      await expect(
+        efs.mkdir('five/six/.', { recursive: true }),
+      ).resolves.not.toThrow();
     });
     test('returns EACCES when write permission is denied on the parent directory of the directory to be created', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
-      await efs.mkdir(path.join(n1, n2), dp);
+      await efs.mkdir(path.join(n1, n2), { mode: dp });
       await efs.rmdir(path.join(n1, n2));
       await efs.chmod(n1, 0o0555);
       await expectError(efs.mkdir(path.join(n1, n2)), errno.EACCES);
       await efs.chmod(n1, dp);
-      await efs.mkdir(path.join(n1, n2), dp);
+      await efs.mkdir(path.join(n1, n2), { mode: dp });
     });
     test.each(supportedTypes)(
       'returns EEXIST if the named %s exists',
       async (type) => {
         await efs.mkdir('test');
         await createFile(efs, type, n0);
-        await expectError(efs.mkdir(n0, dp), errno.EEXIST);
+        await expectError(efs.mkdir(n0, { mode: dp }), errno.EEXIST);
       },
     );
   });
@@ -257,7 +286,7 @@ describe('EncryptedFS Directories', () => {
       await expectError(efs.rename('..', 'subdir'), errno.EBUSY);
     });
     test('cannot rename where the old path is a strict prefix of the new path', async () => {
-      await efs.mkdirp('/cwd1/cwd2');
+      await efs.mkdir('/cwd1/cwd2', { recursive: true });
       await efs.chdir('/cwd1/cwd2');
       await expectError(efs.rename('../cwd2', 'subdir'), errno.EINVAL);
       await efs.mkdir('/cwd1/cwd2/cwd3');
@@ -297,7 +326,7 @@ describe('EncryptedFS Directories', () => {
       },
     );
     test('changes name for dir', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       //Expect dir,0755 lstat ${n0} type,mode
       const inode = (await efs.lstat(n0)).ino;
       await efs.rename(n0, n1);
@@ -336,7 +365,7 @@ describe('EncryptedFS Directories', () => {
       },
     );
     test("returns ENOENT if a component of the 'from' path does not exist, or a path prefix of 'to' does not exist", async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await expectError(
         efs.rename(path.join(n0, n1, 'test'), n2),
         errno.ENOENT,
@@ -348,9 +377,9 @@ describe('EncryptedFS Directories', () => {
       );
     });
     test('returns EACCES when a component of either path prefix denies search permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
-      await efs.mkdir(n2, dp);
+      await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n3));
@@ -376,9 +405,9 @@ describe('EncryptedFS Directories', () => {
       );
     });
     test('returns EACCES when the requested link requires writing in a directory with a mode that denies write permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
-      await efs.mkdir(n2, dp);
+      await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n3));
@@ -410,7 +439,7 @@ describe('EncryptedFS Directories', () => {
     test.each(types)(
       'returns ENOTDIR if a component of either path prefix is a %s',
       async (type) => {
-        await efs.mkdir(n0, dp);
+        await efs.mkdir(n0, { mode: dp });
         await createFile(efs, type as FileTypes, path.join(n0, n1));
         await expectError(
           efs.rename(path.join(n0, n1, 'test'), path.join(n0, n2)),
@@ -427,7 +456,7 @@ describe('EncryptedFS Directories', () => {
     test.each(types)(
       "returns ENOTDIR when the 'from' argument is a directory, but 'to' is a %s",
       async (type) => {
-        await efs.mkdir(n0, dp);
+        await efs.mkdir(n0, { mode: dp });
         await createFile(efs, type as FileTypes, n1);
         await expectError(efs.rename(n0, n1), errno.ENOTDIR);
       },
@@ -435,14 +464,14 @@ describe('EncryptedFS Directories', () => {
     test.each(types)(
       "returns EISDIR when the 'to' argument is a directory, but 'from' is a %s",
       async (type) => {
-        await efs.mkdir(n0, dp);
+        await efs.mkdir(n0, { mode: dp });
         await createFile(efs, type as FileTypes, n1);
         await expectError(efs.rename(n1, n0), errno.EISDIR);
       },
     );
     test("returns EINVAL when the 'from' argument is a parent directory of 'to'", async () => {
-      await efs.mkdir(n0, dp);
-      await efs.mkdir(path.join(n0, n1), dp);
+      await efs.mkdir(n0, { mode: dp });
+      await efs.mkdir(path.join(n0, n1), { mode: dp });
 
       await expectError(efs.rename(n0, path.join(n0, n1)), errno.EINVAL);
       await expectError(efs.rename(n0, path.join(n0, n1, n2)), errno.EINVAL);
@@ -450,8 +479,8 @@ describe('EncryptedFS Directories', () => {
     test.each(supportedTypes)(
       "returns ENOTEMPTY if the 'to' argument is a directory and contains %s",
       async (type) => {
-        await efs.mkdir(n0, dp);
-        await efs.mkdir(n1, dp);
+        await efs.mkdir(n0, { mode: dp });
+        await efs.mkdir(n1, { mode: dp });
         await createFile(efs, type, path.join(n1, n2));
         await expectError(efs.rename(n0, n1), errno.ENOTEMPTY);
       },

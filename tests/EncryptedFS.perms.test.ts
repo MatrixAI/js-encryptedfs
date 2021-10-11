@@ -49,7 +49,7 @@ describe('EncryptedFS Permissions', () => {
   });
 
   test('mkdir and chmod affects the mode', async () => {
-    await efs.mkdir(`test`, 0o644);
+    await efs.mkdir(`test`, { mode: 0o644 });
     await efs.access(`test`, constants.F_OK | constants.R_OK | constants.W_OK);
     await efs.chmod(`test`, 0o444);
     await efs.access(`test`, constants.F_OK | constants.R_OK);
@@ -95,7 +95,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.chmod('file', 0o777), errno.EPERM);
   });
   test('permissions are checked in stages of user, group then other', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -127,7 +127,7 @@ describe('EncryptedFS Permissions', () => {
     );
   });
   test('permissions are checked in stages of user, group then other (using chown)', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -187,7 +187,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.access(`dir`, constants.X_OK);
   });
   test('file permissions ---', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -202,7 +202,7 @@ describe('EncryptedFS Permissions', () => {
   });
 
   test('file permissions r--', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -217,7 +217,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.open(`file`, 'w'), errno.EACCES);
   });
   test('file permissions rw-', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -232,7 +232,7 @@ describe('EncryptedFS Permissions', () => {
     );
   });
   test('file permissions rwx', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -247,7 +247,7 @@ describe('EncryptedFS Permissions', () => {
     );
   });
   test('file permissions r-x', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -261,7 +261,7 @@ describe('EncryptedFS Permissions', () => {
     );
   });
   test('file permissions -w-', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -274,7 +274,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
   test('file permissions -wx', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -287,7 +287,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
   test('file permissions --x', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -299,7 +299,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.open(`file`, 'r'), errno.EACCES);
   });
   test('directory permissions ---', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -313,7 +313,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.readdir(`---`), errno.EACCES);
   });
   test('directory permissions r--', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -329,7 +329,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.stat(`r--/a`), errno.EACCES);
   });
   test('directory permissions rw-', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -349,7 +349,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.stat(`rw-/a`), errno.EACCES);
   });
   test('directory permissions rwx', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -367,7 +367,7 @@ describe('EncryptedFS Permissions', () => {
     expect(stat.isFile()).toStrictEqual(true);
   });
   test('directory permissions r-x', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -398,7 +398,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.rmdir(`dir`), errno.EACCES);
   });
   test('directory permissions -w-', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -410,7 +410,7 @@ describe('EncryptedFS Permissions', () => {
     await expectError(efs.readdir(`-w-`), errno.EACCES);
   });
   test('directory permissions -wx', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -430,7 +430,7 @@ describe('EncryptedFS Permissions', () => {
     expect(stat.isDirectory()).toStrictEqual(true);
   });
   test('directory permissions --x', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -448,7 +448,7 @@ describe('EncryptedFS Permissions', () => {
     );
   });
   test('permissions dont affect already opened fd', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;
@@ -493,7 +493,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.chown('file', 1000, 2000);
   });
   test('--x-w-r-- do not provide read write and execute to the user due to permission staging', async () => {
-    await efs.mkdirp('/home/1000');
+    await efs.mkdir('/home/1000', { recursive: true });
     await efs.chown('/home/1000', 1000, 1000);
     await efs.chdir('/home/1000');
     efs.uid = 1000;

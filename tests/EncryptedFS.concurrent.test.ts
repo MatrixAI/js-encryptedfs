@@ -80,12 +80,10 @@ describe('EncryptedFS Concurrency', () => {
     expect(results1[0]).toEqual([]);
     await expectError(efs.readdir('dir'), errno.ENOENT);
 
-    // If after the rmdir readdir just fails.
+    // If after rmdir still completes after readdir
     await efs.mkdir('dir');
-    await expectError(
-      Promise.all([efs.rmdir('dir'), efs.readdir('dir')]),
-      errno.ENOTDIR,
-    );
+    const results2 = await Promise.all([efs.rmdir('dir'), efs.readdir('dir')]);
+    expect(results2[1]).toEqual([]);
   });
   test('Reading a directory while renaming entries', async () => {
     await efs.mkdir('dir');

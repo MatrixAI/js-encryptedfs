@@ -73,7 +73,7 @@ describe('EncryptedFS Links', () => {
       await expectError(efs.stat(n1), errno.ENOENT);
       await efs.unlink(n1);
 
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       let stat2 = await efs.stat(n0);
       const time = stat2.birthtime.getTime();
       await sleep(100);
@@ -142,7 +142,7 @@ describe('EncryptedFS Links', () => {
       ).resolves.toBe('Hello World');
     });
     test('returns EACCES when a component of the 2nd name path prefix denies search permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
 
       await efs.symlink('test', path.join(n1, n2));
@@ -156,7 +156,7 @@ describe('EncryptedFS Links', () => {
       await efs.unlink(path.join(n1, n2));
     });
     test('returns EACCES if the parent directory of the file to be created denies write permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
 
       setId(efs, tuid);
@@ -233,7 +233,7 @@ describe('EncryptedFS Links', () => {
       await expect(efs.readdir(`test`)).resolves.toContain('hello-world.txt');
     });
     test('returns ENOTDIR if a component of the path prefix is not a directory', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await createFile(efs, 'regular', path.join(n0, n1));
       await expectError(efs.unlink(path.join(n0, n1, 'test')), errno.ENOTDIR);
     });
@@ -244,7 +244,7 @@ describe('EncryptedFS Links', () => {
       await expectError(efs.unlink(n1), errno.ENOENT);
     });
     test('returns EACCES when search permission is denied for a component of the path prefix', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n2));
@@ -252,7 +252,7 @@ describe('EncryptedFS Links', () => {
       await expectError(efs.unlink(path.join(n1, n2)), errno.EACCES);
     });
     test('returns EACCES when write permission is denied on the directory containing the link to be removed', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n2));
@@ -266,7 +266,7 @@ describe('EncryptedFS Links', () => {
       await expectError(efs.unlink(path.join(n1, 'test')), errno.ELOOP);
     });
     test('returns EISDIR if the named file is a directory', async () => {
-      await efs.mkdir(n0, dp);
+      await efs.mkdir(n0, { mode: dp });
       await expectError(efs.unlink(n0), errno.EISDIR);
     });
     test('will not immeadiately free a file', async () => {
@@ -402,7 +402,7 @@ describe('EncryptedFS Links', () => {
       'returns ENOTDIR if a component of either path prefix is a %s',
       async (type) => {
         if (type !== 'dir' && type !== 'symlink') {
-          await efs.mkdir(n0, dp);
+          await efs.mkdir(n0, { mode: dp });
           await createFile(efs, type as FileTypes, path.join(n0, n1));
           await expectError(
             efs.link(path.join(n0, n1, 'test'), path.join(n0, n2)),
@@ -417,9 +417,9 @@ describe('EncryptedFS Links', () => {
       },
     );
     test('returns EACCES when a component of either path prefix denies search permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
-      await efs.mkdir(n2, dp);
+      await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n3));
@@ -442,9 +442,9 @@ describe('EncryptedFS Links', () => {
       );
     });
     test('returns EACCES when the requested link requires writing in a directory with a mode that denies write permission', async () => {
-      await efs.mkdir(n1, dp);
+      await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
-      await efs.mkdir(n2, dp);
+      await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n3));
@@ -491,7 +491,7 @@ describe('EncryptedFS Links', () => {
       await efs.mkdir(n0);
       await expectError(efs.link(n0, n1), errno.EPERM);
 
-      await efs.mkdir(n2, dp);
+      await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
       await expectError(efs.link(n2, n3), errno.EPERM);
