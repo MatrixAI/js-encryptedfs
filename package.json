@@ -19,7 +19,7 @@
       "name": "Brian Botha"
     }
   ],
-  "description": "In-memory encrypted filesystem",
+  "description": "Virtualised persistent encrypted filesystem",
   "keywords": [
     "filesystem",
     "encryption"
@@ -27,7 +27,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/MatrixAI/js-polykey.git"
+    "url": "https://github.com/MatrixAI/js-encryptedfs.git"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -44,18 +44,12 @@
     "@matrixai/db": "^1.0.1",
     "@matrixai/logger": "^2.0.1",
     "@matrixai/workers": "^1.2.3",
-    "abstract-leveldown": "^7.0.0",
     "async-mutex": "^0.3.1",
-    "canonicalize": "^1.0.5",
     "errno": "^0.1.7",
-    "level": "^6.0.1",
-    "levelup": "^5.0.1",
     "lexicographic-integer": "^1.1.0",
     "node-forge": "^0.10.0",
     "readable-stream": "^3.6.0",
     "resource-counter": "^1.2.4",
-    "sublevel-prefixer": "^1.0.0",
-    "subleveldown": "^5.0.1",
     "threads": "^1.6.5",
     "ts-custom-error": "^3.2.0",
     "util-callbackify": "^1.0.0"
