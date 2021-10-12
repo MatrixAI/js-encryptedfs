@@ -1,16 +1,16 @@
 # js-encryptedfs
 
+[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master)
+
 Encrypted filesystem library for TypeScript/JavaScript applications
 
-* Virtualised - permissions and current directory are virtual constructs
-* Orthogonally Persistent - all writes automatially persisted
+* Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems
+* Orthogonally Persistent - all writes automatically persisted
 * Encrypted-At-Rest - all persistence is encrypted
-* Random Read & Write
-* Streamable
+* Random Read & Write - encryption and decryption operates over fixed-block sizes
+* Streamable - files do not need to loaded fully in-memory
 
-Based on js-virtualfs.
-
-[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master)
+Development based on js-virtualfs: https://github.com/MatrixAI/js-virtualfs
 
 ## Installation
 
