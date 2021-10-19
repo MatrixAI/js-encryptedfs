@@ -26,7 +26,7 @@ interface ToString {
  */
 type Callback<P extends Array<any> = [], R = any, E extends Error = Error> = {
   (e: E, ...params: Partial<P>): R;
-  (e: null | undefined, ...params: P): R;
+  (e?: null | undefined, ...params: P): R;
 };
 
 type FunctionPropertyNames<T> = {
