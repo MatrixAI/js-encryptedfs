@@ -8,6 +8,8 @@ class ErrorEncryptedFSNotRunning extends ErrorEncryptedFS {}
 
 class ErrorEncryptedFSDestroyed extends ErrorEncryptedFS {}
 
+class ErrorEncryptedFSKey extends ErrorEncryptedFS {}
+
 class ErrorEncryptedFSError extends ErrorEncryptedFS {
   protected _errno: number;
   protected _code: string;
@@ -73,5 +75,6 @@ export {
   ErrorEncryptedFSRunning,
   ErrorEncryptedFSNotRunning,
   ErrorEncryptedFSDestroyed,
+  ErrorEncryptedFSKey,
   ErrorEncryptedFSError,
 };
