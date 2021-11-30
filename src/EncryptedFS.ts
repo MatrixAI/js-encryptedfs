@@ -14,7 +14,7 @@ import type { OptionsStream } from './streams';
 
 import { code as errno } from 'errno';
 import Logger from '@matrixai/logger';
-import { DB } from '@matrixai/db';
+import { DB, errors as dbErrors } from '@matrixai/db';
 import CurrentDirectory from './CurrentDirectory';
 import Stat from './Stat';
 import { INodeManager, errors as inodesErrors } from './inodes';
@@ -90,6 +90,7 @@ class EncryptedFS {
         logger: logger.getChild(DB.name),
       });
     }
+    await EncryptedFS.setupCanary(db);
     iNodeMgr =
       iNodeMgr ??
       (await INodeManager.createINodeManager({
@@ -3569,6 +3570,38 @@ class EncryptedFS {
       return Buffer.from(data, encoding);
     }
     throw new TypeError('data must be Buffer or Uint8Array or string');
+  }
+
+  /**
+   * Performs validation of the database key
+   */
+  protected static async setupCanary(db: DB) {
+    // Uses the root level that's already available
+    try {
+      const deadbeefData: Buffer = await db.db.get('canary');
+      try {
+        const deadbeef = await db.deserializeDecrypt<string>(
+          deadbeefData,
+          false,
+        );
+        if (deadbeef !== 'deadbeef') throw new errors.ErrorEncryptedFSKey();
+      } catch (e) {
+        if (e instanceof dbErrors.ErrorDBDecrypt) {
+          throw new errors.ErrorEncryptedFSKey();
+        }
+        throw e;
+      }
+    } catch (e) {
+      if (e.notFound) {
+        // If the stored value didn't exist, its a new db and so store and proceed
+        await db.put([], 'canary', 'deadbeef');
+      } else {
+        // Db must be stopped otherwise the lock will persist and
+        // other efs instances cannot be created
+        await db.stop();
+        throw e;
+      }
+    }
   }
 }
 

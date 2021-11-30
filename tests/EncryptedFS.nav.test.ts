@@ -6,6 +6,7 @@ import * as utils from '@/utils';
 import { EncryptedFS, constants } from '@';
 import { expectError } from './utils';
 import { code as errno } from 'errno';
+import * as errors from '@/errors';
 
 describe('EncryptedFS Navigation', () => {
   const logger = new Logger('EncryptedFS Navigation', LogLevel.WARN, [
@@ -29,6 +30,7 @@ describe('EncryptedFS Navigation', () => {
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -36,6 +38,24 @@ describe('EncryptedFS Navigation', () => {
   });
   test('creation of EFS', async () => {
     expect(efs).toBeInstanceOf(EncryptedFS);
+  });
+  test('Validation of keys', async () => {
+    await efs.stop();
+    const falseDbKey = await utils.generateKey(256);
+    await expect(
+      EncryptedFS.createEncryptedFS({
+        dbKey: falseDbKey,
+        dbPath,
+        umask: 0o022,
+        logger,
+      }),
+    ).rejects.toThrow(errors.ErrorEncryptedFSKey);
+    efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath,
+      umask: 0o022,
+      logger,
+    });
   });
   test('EFS using callback style functions', (done) => {
     const str = 'callback';
