@@ -61,16 +61,16 @@
 				<a href="#js-encryptedfs" id="js-encryptedfs" style="color: inherit; text-decoration: none;">
 					<h1>js-encryptedfs</h1>
 				</a>
+				<p><a href="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master"><img src="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg" alt="pipeline status"></a></p>
 				<p>Encrypted filesystem library for TypeScript/JavaScript applications</p>
 				<ul>
-					<li>Virtualised - permissions and current directory are virtual constructs</li>
-					<li>Orthogonally Persistent - all writes automatially persisted</li>
+					<li>Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems</li>
+					<li>Orthogonally Persistent - all writes automatically persisted</li>
 					<li>Encrypted-At-Rest - all persistence is encrypted</li>
-					<li>Random Read &amp; Write</li>
-					<li>Streamable</li>
+					<li>Random Read &amp; Write - encryption and decryption operates over fixed-block sizes</li>
+					<li>Streamable - files do not need to loaded fully in-memory</li>
 				</ul>
-				<p>Based on js-virtualfs.</p>
-				<p><a href="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master"><img src="https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg" alt="pipeline status"></a></p>
+				<p>Development based on js-virtualfs: <a href="https://github.com/MatrixAI/js-virtualfs">https://github.com/MatrixAI/js-virtualfs</a></p>
 				<a href="#installation" id="installation" style="color: inherit; text-decoration: none;">
 					<h2>Installation</h2>
 				</a>
