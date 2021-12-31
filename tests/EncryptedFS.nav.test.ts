@@ -258,7 +258,7 @@ describe('EncryptedFS Navigation', () => {
   });
   test('can sustain a current directory inside a chroot', async () => {
     await efs.mkdir('dir');
-    const efs2 = await efs.chroot('dir');
+    await efs.chroot('dir');
     await efs.chdir('dir');
     await expect(efs.readdir('.')).resolves.toEqual([]);
   });
