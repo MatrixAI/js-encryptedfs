@@ -224,7 +224,6 @@ describe('EncryptedFS Navigation', () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
     await efs.writeFile('dir/file', 'test');
-    await efs2.start();
     await expect(
       efs2.readFile('../../../file', { encoding: 'utf8' }),
     ).resolves.toBe('test');
@@ -238,7 +237,6 @@ describe('EncryptedFS Navigation', () => {
     await efs.mkdir(`dir`);
     await efs.writeFile('file', 'test');
     const efs2 = await efs.chroot('dir');
-    await efs2.start();
     await efs.exists('/../../../file');
     await expect(efs2.exists('/../../../file')).resolves.toBeFalsy();
     await expectError(efs2.readFile('../../../file'), errno.ENOENT);
@@ -248,14 +246,12 @@ describe('EncryptedFS Navigation', () => {
     await efs.writeFile('file', 'test');
     await efs.symlink('file', 'dir/link');
     const efs2 = await efs.chroot('dir');
-    await efs2.start();
     await expectError(efs2.readFile('link'), errno.ENOENT);
   });
   test('prevents users from changing current directory above the chroot', async () => {
     await efs.mkdir('dir');
     await efs.mkdir('dir1');
     const efs2 = await efs.chroot('dir');
-    await efs2.start();
     await efs2.chdir('/../');
     await expect(efs2.readdir('.')).resolves.toEqual([]);
     await expectError(efs2.chdir('/../dir1'), errno.ENOENT);
@@ -263,17 +259,19 @@ describe('EncryptedFS Navigation', () => {
   test('can sustain a current directory inside a chroot', async () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
-    await efs2.start();
     await efs.chdir('dir');
     await expect(efs.readdir('.')).resolves.toEqual([]);
   });
   test('can chroot, and then chroot again', async () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
-    await efs2.start();
     await efs2.mkdir('dir2');
     const efs3 = await efs2.chroot('dir2');
-    await efs3.start();
     await expect(efs3.readdir('.')).resolves.toEqual([]);
+  });
+  test('chroot returns a running efs instance', async () => {
+    await efs.mkdir('dir');
+    const efs2 = await efs.chroot('dir');
+    expect(efs2.running).toBeTruthy();
   });
 });

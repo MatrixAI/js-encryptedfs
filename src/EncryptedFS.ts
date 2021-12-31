@@ -295,7 +295,7 @@ class EncryptedFS {
         },
         target ? [target] : [],
       );
-      return new EncryptedFS({
+      const newEFS = new EncryptedFS({
         db: this.db,
         iNodeMgr: this.iNodeMgr,
         fdMgr: this.fdMgr,
@@ -304,6 +304,8 @@ class EncryptedFS {
         umask: this.umask,
         logger: this.logger,
       });
+      await newEFS.start();
+      return newEFS;
     }, callback);
   }
 
