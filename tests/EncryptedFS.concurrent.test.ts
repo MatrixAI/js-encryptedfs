@@ -1,14 +1,14 @@
+import type { FdIndex } from '@/fd/types';
+import type { WriteStream } from '@/streams';
 import path from 'path';
-import { expectError, sleep } from './utils';
-import { EncryptedFS, constants } from '@';
-import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import * as utils from '@/utils';
 import fs from 'fs';
 import pathNode from 'path';
 import os from 'os';
-import { FdIndex } from '@/fd/types';
-import { WriteStream } from '@/streams';
+import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { code as errno } from 'errno';
+import * as utils from '@/utils';
+import { EncryptedFS, constants } from '@';
+import { expectError, sleep } from './utils';
 
 describe('EncryptedFS Concurrency', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -189,7 +189,7 @@ describe('EncryptedFS Concurrency', () => {
         expect(fileContent).toContain(letter);
       }
 
-      //Now reverse order.
+      // Now reverse order.
       await efs.unlink('test');
       for (const fd of fds) {
         await efs.close(fd);
@@ -516,7 +516,7 @@ describe('EncryptedFS Concurrency', () => {
     const writeStream = await efs.createWriteStream('file', { flags: 'w+' });
     const contents = 'A'.repeat(4096);
 
-    //Write two blocks.
+    // Write two blocks.
     writeStream.write(Buffer.from(contents));
     // WriteStream.end();
     await sleep(1000);

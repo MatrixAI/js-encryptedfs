@@ -77,7 +77,9 @@ async function main() {
 }
 
 if (require.main === module) {
-  main();
+  (async () => {
+    await main();
+  })();
 }
 
 export default main;

@@ -1,11 +1,11 @@
 import type { INodeType, INodeIndex } from '../inodes/types';
 import type { DBTransaction } from '@matrixai/db';
 
-import { INodeManager } from '../inodes';
+import type { INodeManager } from '../inodes';
+import * as errorsFd from './errors';
 import * as constants from '../constants';
 import * as utils from '../utils';
 import * as inodesUtils from '../inodes/utils';
-import * as errorsFd from './errors';
 
 class FileDescriptor {
   protected _iNodeMgr: INodeManager;
@@ -116,14 +116,12 @@ class FileDescriptor {
       },
       [this._ino],
     );
-
     // Determine the starting position within the data
     let currentPos = this._pos;
     if (position != null) {
       currentPos = position;
     }
     let bytesRead = buffer.byteLength;
-
     switch (type) {
       case 'File':
         {
@@ -139,18 +137,15 @@ class FileDescriptor {
           );
           // Get the ending block index
           const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
-
           // Get the cursor offset for the start and end blocks
           const blockCursorStart = utils.blockOffset(blkSize, currentPos);
           const blockCursorEnd = utils.blockOffset(
             blkSize,
             currentPos + bytesRead - 1,
           );
-
           // Initialise counters for the read buffer and block position
           let retBufferPos = 0;
           let blockCounter = blockStartIdx;
-
           await this._iNodeMgr.transact(
             async (tran) => {
               // Iterate over the blocks in the database

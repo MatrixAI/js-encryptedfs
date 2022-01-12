@@ -1,8 +1,8 @@
 import type { INodeIndex } from '../inodes/types';
 import type { FdIndex } from './types';
 
+import type { INodeManager } from '../inodes';
 import Counter from 'resource-counter';
-import { INodeManager } from '../inodes';
 import FileDescriptor from './FileDescriptor';
 
 /**
@@ -34,13 +34,10 @@ class FileDescriptorManager {
   ): Promise<[FileDescriptor, FdIndex]> {
     const index = this._counter.allocate();
     const fd = new FileDescriptor(this._iNodeMgr, ino, flags);
-
     // Set the file descriptor into the map
     this._fds.set(index, fd);
-
     // Create a reference to the INode
     this._iNodeMgr.ref(ino);
-
     return [fd, index];
   }
 

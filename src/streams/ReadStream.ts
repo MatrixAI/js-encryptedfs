@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import type { OptionsStream } from './types';
 import type { Callback } from '../types';
 import type { FdIndex } from '../fd/types';

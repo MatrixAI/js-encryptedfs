@@ -3,15 +3,18 @@ import type { INodeIndex, INodeId, INodeType, INodeData } from './types';
 import type { DB, DBDomain, DBLevel, DBTransaction } from '@matrixai/db';
 import type { StatProps } from '../Stat';
 
-import Logger from '@matrixai/logger';
 import { Mutex } from 'async-mutex';
 import Counter from 'resource-counter';
-
+import Logger from '@matrixai/logger';
+import {
+  CreateDestroyStartStop,
+  ready,
+} from '@matrixai/async-init/dist/CreateDestroyStartStop';
+import * as inodesUtils from './utils';
+import * as inodesErrors from './errors';
 import Stat from '../Stat';
 import * as constants from '../constants';
 import * as permissions from '../permissions';
-import * as inodesUtils from './utils';
-import * as inodesErrors from './errors';
 import * as utils from '../utils';
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
@@ -19,58 +22,29 @@ type FileParams = Partial<Omit<INodeParams, 'ino'>>;
 type DirectoryParams = Partial<Omit<INodeParams, 'ino'>>;
 type SymlinkParams = Partial<Omit<INodeParams, 'ino'>>;
 
+interface INodeManager extends CreateDestroyStartStop {}
+@CreateDestroyStartStop(
+  new inodesErrors.ErrorINodesRunning(),
+  new inodesErrors.ErrorINodesDestroyed(),
+)
 class INodeManager {
   public static async createINodeManager({
     db,
-    counter = new Counter(1),
-    logger = new Logger(INodeManager.name),
+    logger = new Logger(this.name),
+    fresh = false,
   }: {
     db: DB;
     counter?: Counter;
     logger?: Logger;
+    fresh?: boolean;
   }): Promise<INodeManager> {
-    const mgrDomain: DBDomain = [INodeManager.name];
-    const iNodesDomain: DBDomain = [mgrDomain[0], 'inodes'];
-    const statsDomain: DBDomain = [mgrDomain[0], 'stat'];
-    const dataDomain: DBDomain = [mgrDomain[0], 'data'];
-    const dirsDomain: DBDomain = [mgrDomain[0], 'dir'];
-    const linkDomain: DBDomain = [mgrDomain[0], 'link'];
-    const gcDomain: DBDomain = [mgrDomain[0], 'gc'];
-    const mgrDb = await db.level(mgrDomain[0]);
-    const iNodesDb = await db.level(iNodesDomain[1], mgrDb);
-    const statsDb = await db.level(statsDomain[1], mgrDb);
-    const dataDb = await db.level(dataDomain[1], mgrDb);
-    const dirsDb = await db.level(dirsDomain[1], mgrDb);
-    const linkDb = await db.level(linkDomain[1], mgrDb);
-    const gcDb = await db.level(gcDomain[1], mgrDb);
-    for await (const k of iNodesDb.createKeyStream()) {
-      counter.allocate(inodesUtils.uniNodeId(k as INodeId));
-    }
+    logger.info(`Creating ${this.name}`);
     const iNodeMgr = new INodeManager({
       db,
-      counter,
       logger,
-      mgrDomain,
-      mgrDb,
-      iNodesDomain,
-      iNodesDb,
-      statsDomain,
-      statsDb,
-      dataDomain,
-      dataDb,
-      dirsDomain,
-      dirsDb,
-      linkDomain,
-      linkDb,
-      gcDomain,
-      gcDb,
     });
-    // Clean up any dangling inodes
-    for await (const k of gcDb.createKeyStream()) {
-      await db.transact(async (tran) => {
-        await iNodeMgr.destroy(tran, inodesUtils.uniNodeId(k as INodeId));
-      });
-    }
+    await iNodeMgr.start({ fresh });
+    logger.info(`Created ${this.name}`);
     return iNodeMgr;
   }
 
@@ -81,74 +55,127 @@ class INodeManager {
   public dirsDomain: DBDomain;
   public linkDomain: DBDomain;
   public gcDomain: DBDomain;
+
   protected logger: Logger;
   protected _db: DB;
-  protected counter: Counter;
-
-  public mgrDb: DBLevel;
-  public iNodesDb: DBLevel;
-  public statsDb: DBLevel;
-  public dataDb: DBLevel;
-  public dirsDb: DBLevel;
-  public linkDb: DBLevel;
-  public gcDb: DBLevel;
+  protected mgrDb: DBLevel;
+  protected iNodesDb: DBLevel;
+  protected statsDb: DBLevel;
+  protected dataDb: DBLevel;
+  protected dirsDb: DBLevel;
+  protected linkDb: DBLevel;
+  protected gcDb: DBLevel;
+  protected counter: Counter = new Counter(1);
   protected refs: Map<INodeIndex, number> = new Map();
   protected locks: Map<INodeIndex, MutexInterface> = new Map();
 
-  protected constructor({
-    db,
-    counter,
-    logger,
-    mgrDomain,
-    mgrDb,
-    iNodesDomain,
-    iNodesDb,
-    statsDomain,
-    statsDb,
-    dataDomain,
-    dataDb,
-    dirsDomain,
-    dirsDb,
-    linkDomain,
-    linkDb,
-    gcDomain,
-    gcDb,
-  }: {
-    db: DB;
-    counter: number;
-    logger: Logger;
-    mgrDomain: DBDomain;
-    mgrDb: DBLevel;
-    iNodesDomain: DBDomain;
-    iNodesDb: DBLevel;
-    statsDomain: DBDomain;
-    statsDb: DBLevel;
-    dataDomain: DBDomain;
-    dataDb: DBLevel;
-    dirsDomain: DBDomain;
-    dirsDb: DBLevel;
-    linkDomain: DBDomain;
-    linkDb: DBLevel;
-    gcDomain: DBDomain;
-    gcDb: DBLevel;
-  }) {
+  constructor({ db, logger }: { db: DB; logger: Logger }) {
     this.logger = logger;
     this._db = db;
-    this.counter = counter;
+  }
+
+  public async start({ fresh = false }: { fresh?: boolean }): Promise<void> {
+    this.logger.info(`Starting ${this.constructor.name}`);
+    const mgrDomain: DBDomain = [INodeManager.name];
+    const iNodesDomain: DBDomain = [mgrDomain[0], 'inodes'];
+    const statsDomain: DBDomain = [mgrDomain[0], 'stat'];
+    const dataDomain: DBDomain = [mgrDomain[0], 'data'];
+    const dirsDomain: DBDomain = [mgrDomain[0], 'dir'];
+    const linkDomain: DBDomain = [mgrDomain[0], 'link'];
+    const gcDomain: DBDomain = [mgrDomain[0], 'gc'];
+    const mgrDb = await this.db.level(mgrDomain[0]);
+    const iNodesDb = await this.db.level(iNodesDomain[1], mgrDb);
+    const statsDb = await this.db.level(statsDomain[1], mgrDb);
+    const dataDb = await this.db.level(dataDomain[1], mgrDb);
+    const dirsDb = await this.db.level(dirsDomain[1], mgrDb);
+    const linkDb = await this.db.level(linkDomain[1], mgrDb);
+    const gcDb = await this.db.level(gcDomain[1], mgrDb);
+    if (fresh) {
+      await mgrDb.clear();
+    }
+    // Populate the inode counter with pre-existing inodes
+    for await (const k of iNodesDb.createKeyStream()) {
+      this.counter.allocate(inodesUtils.uniNodeId(k as INodeId));
+    }
     this.mgrDomain = mgrDomain;
-    this.mgrDb = mgrDb;
     this.iNodesDomain = iNodesDomain;
-    this.iNodesDb = iNodesDb;
     this.statsDomain = statsDomain;
-    this.statsDb = statsDb;
     this.dataDomain = dataDomain;
-    this.dataDb = dataDb;
     this.dirsDomain = dirsDomain;
-    this.dirsDb = dirsDb;
     this.linkDomain = linkDomain;
-    this.linkDb = linkDb;
     this.gcDomain = gcDomain;
+    this.mgrDb = mgrDb;
+    this.iNodesDb = iNodesDb;
+    this.statsDb = statsDb;
+    this.dataDb = dataDb;
+    this.dirsDb = dirsDb;
+    this.linkDb = linkDb;
     this.gcDb = gcDb;
+    // Clean up all dangling inodes that could not be removed due to references
+    // This only has effect when `this.stop` was not called during a prior instance
+    await this.gcAll();
+    this.logger.info(`Started ${this.constructor.name}`);
+  }
+
+  /**
+   * It is expected that all references and locks are no longer active
+   * This means users of INodeManager must be stopped before calling this
+   */
+  public async stop(): Promise<void> {
+    this.logger.info(`Stopping ${this.constructor.name}`);
+    // Clean up all dangling inodes that could not be removed due to references
+    await this.gcAll();
+    // Reset the inode counter, it will be repopulated on start
+    this.counter = new Counter(1);
+    // Reset the references
+    this.refs.clear();
+    // Reset the locks
+    this.locks.clear();
+    this.logger.info(`Stopped ${this.constructor.name}`);
+  }
+
+  public async destroy(): Promise<void> {
+    this.logger.info(`Destroying ${this.constructor.name}`);
+    // If the DB was stopped, the existing sublevel `this.mgrDb` will not be valid
+    // Therefore we recreate the sublevel here
+    const mgrDb = await this.db.level(this.mgrDomain[0]);
+    await mgrDb.clear();
+    this.logger.info(`Destroyed ${this.constructor.name}`);
+  }
+
+  /**
+   * Delete iNodes that were scheduled for deletion
+   * These iNodes could not be deleted because of an existing reference
+   * This is used during `this.start` and `this.stop`
+   * This must only be called when there are no active `this.refs` or `this.locks`
+   */
+  protected async gcAll(): Promise<void> {
+    for await (const k of this.gcDb.createKeyStream()) {
+      await this.db.transact(async (tran) => {
+        const ino = inodesUtils.uniNodeId(k as INodeId);
+        const type = (await tran.get<INodeType>(
+          this.iNodesDomain,
+          inodesUtils.iNodeId(ino),
+        ))!;
+        // Delete the on-disk state
+        switch (type) {
+          case 'File':
+            await this._fileDestroy(tran, ino);
+            break;
+          case 'Directory':
+            await this._dirDestroy(tran, ino);
+            break;
+          case 'Symlink':
+            await this._symlinkDestroy(tran, ino);
+            break;
+        }
+        tran.queueSuccess(() => {
+          this.refs.delete(ino);
+          this.locks.delete(ino);
+          this.inoDeallocate(ino);
+        });
+      });
+    }
   }
 
   get db(): DB {
@@ -166,6 +193,7 @@ class INodeManager {
   /**
    * By default will not lock anything
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async transact<T>(
     f: (t: DBTransaction) => Promise<T>,
     inos: Array<INodeIndex> = [],
@@ -182,6 +210,7 @@ class INodeManager {
     return lock;
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async fileCreate(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -204,6 +233,7 @@ class INodeManager {
     }
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirCreate(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -214,7 +244,7 @@ class INodeManager {
     const dirDomain = [...this.dirsDomain, ino.toString()];
     let nlink: number;
     if (parent == null) {
-      // Root cannot never be garbage collected
+      // Root can never be garbage collected
       nlink = 2;
       parent = ino;
       if ((await this.dirGetRoot(tran)) != null) {
@@ -240,6 +270,7 @@ class INodeManager {
     await tran.put(dirDomain, '..', parent);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async symlinkCreate(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -303,33 +334,15 @@ class INodeManager {
     }
   }
 
-  public async destroy(tran: DBTransaction, ino: INodeIndex): Promise<void> {
-    const type = await tran.get<INodeType>(
-      this.iNodesDomain,
-      inodesUtils.iNodeId(ino),
-    );
-    if (type == null) {
-      return;
-    }
-    switch (type) {
-      case 'File':
-        await this.fileDestroy(tran, ino);
-        break;
-      case 'Directory':
-        await this.dirDestroy(tran, ino);
-        break;
-      case 'Symlink':
-        await this.symlinkDestroy(tran, ino);
-        break;
-    }
-    tran.queueSuccess(() => {
-      this.refs.delete(ino);
-      this.locks.delete(ino);
-      this.inoDeallocate(ino);
-    });
+  @ready(new inodesErrors.ErrorINodesNotRunning())
+  public async fileDestroy(
+    tran: DBTransaction,
+    ino: INodeIndex,
+  ): Promise<void> {
+    return this._fileDestroy(tran, ino);
   }
 
-  public async fileDestroy(
+  protected async _fileDestroy(
     tran: DBTransaction,
     ino: INodeIndex,
   ): Promise<void> {
@@ -341,12 +354,20 @@ class INodeManager {
     await this.iNodeDestroy(tran, ino);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirDestroy(tran: DBTransaction, ino: INodeIndex): Promise<void> {
+    return this._dirDestroy(tran, ino);
+  }
+
+  protected async _dirDestroy(
+    tran: DBTransaction,
+    ino: INodeIndex,
+  ): Promise<void> {
     const dirDomain = [...this.dirsDomain, ino.toString()];
     const dirDb = await this.db.level(ino.toString(), this.dirsDb);
     const parent = (await tran.get<INodeIndex>(dirDomain, '..'))!;
     if (parent !== ino) {
-      await this.unlink(tran, parent);
+      await this._unlink(tran, parent);
     } else {
       await this.dirUnsetRoot(tran);
     }
@@ -356,7 +377,15 @@ class INodeManager {
     await this.iNodeDestroy(tran, ino);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async symlinkDestroy(
+    tran: DBTransaction,
+    ino: INodeIndex,
+  ): Promise<void> {
+    return this._symlinkDestroy(tran, ino);
+  }
+
+  protected async _symlinkDestroy(
     tran: DBTransaction,
     ino: INodeIndex,
   ): Promise<void> {
@@ -397,6 +426,7 @@ class INodeManager {
    * Use this to test if an ino number exists
    * You can use the returned ino for subsequent operations
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async get(
     tran: DBTransaction,
     ino: number,
@@ -419,22 +449,30 @@ class INodeManager {
     };
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async link(tran: DBTransaction, ino: INodeIndex): Promise<void> {
     const nlink = await this.statGetProp(tran, ino, 'nlink');
     await this.statSetProp(tran, ino, 'nlink', nlink + 1);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async unlink(tran: DBTransaction, ino: INodeIndex): Promise<void> {
-    const nlink = await this.statGetProp(tran, ino, 'nlink');
-    await this.statSetProp(tran, ino, 'nlink', Math.max(nlink - 1, 0));
+    return this._unlink(tran, ino);
+  }
+
+  protected async _unlink(tran: DBTransaction, ino: INodeIndex): Promise<void> {
+    const nlink = await this._statGetProp(tran, ino, 'nlink');
+    await this._statSetProp(tran, ino, 'nlink', Math.max(nlink - 1, 0));
     await this.gc(tran, ino);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public ref(ino: INodeIndex) {
     const refCount = this.refs.get(ino) ?? 0;
     this.refs.set(ino, refCount + 1);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async unref(tran: DBTransaction, ino: INodeIndex) {
     const refCount = this.refs.get(ino);
     if (refCount == null) {
@@ -446,7 +484,7 @@ class INodeManager {
 
   protected async gc(tran: DBTransaction, ino: INodeIndex): Promise<void> {
     const refs = this.refs.get(ino) ?? 0;
-    const nlink = await this.statGetProp(tran, ino, 'nlink');
+    const nlink = await this._statGetProp(tran, ino, 'nlink');
     const type = (await tran.get<INodeType>(
       this.iNodesDomain,
       inodesUtils.iNodeId(ino),
@@ -454,7 +492,23 @@ class INodeManager {
     // The root directory will never be deleted
     if (nlink === 0 || (nlink === 1 && type === 'Directory')) {
       if (refs === 0) {
-        await this.destroy(tran, ino);
+        // Delete the on-disk and in-memory state
+        switch (type) {
+          case 'File':
+            await this._fileDestroy(tran, ino);
+            break;
+          case 'Directory':
+            await this._dirDestroy(tran, ino);
+            break;
+          case 'Symlink':
+            await this._symlinkDestroy(tran, ino);
+            break;
+        }
+        tran.queueSuccess(() => {
+          this.refs.delete(ino);
+          this.locks.delete(ino);
+          this.inoDeallocate(ino);
+        });
       } else {
         // Schedule for deletion
         // when scheduled for deletion
@@ -464,6 +518,7 @@ class INodeManager {
     }
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async statGet(tran: DBTransaction, ino: INodeIndex): Promise<Stat> {
     const statDomain = [...this.statsDomain, ino.toString()];
     const props: Array<any> = await Promise.all([
@@ -514,7 +569,16 @@ class INodeManager {
     });
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async statGetProp<Key extends keyof StatProps>(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    key: Key,
+  ): Promise<StatProps[Key]> {
+    return this._statGetProp(tran, ino, key);
+  }
+
+  protected async _statGetProp<Key extends keyof StatProps>(
     tran: DBTransaction,
     ino: INodeIndex,
     key: Key,
@@ -544,7 +608,17 @@ class INodeManager {
     return value;
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async statSetProp<Key extends keyof StatProps>(
+    tran: DBTransaction,
+    ino: INodeIndex,
+    key: Key,
+    value: StatProps[Key],
+  ): Promise<void> {
+    return this._statSetProp(tran, ino, key, value);
+  }
+
+  protected async _statSetProp<Key extends keyof StatProps>(
     tran: DBTransaction,
     ino: INodeIndex,
     key: Key,
@@ -573,6 +647,7 @@ class INodeManager {
     }
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async statUnsetProp<Key extends keyof StatProps>(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -582,6 +657,7 @@ class INodeManager {
     await tran.del(statDomain, key);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirGetRoot(
     tran: DBTransaction,
   ): Promise<INodeIndex | undefined> {
@@ -602,6 +678,7 @@ class INodeManager {
   /**
    * Iterators are not part of our snapshot yet
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async *dirGet(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -617,6 +694,7 @@ class INodeManager {
     }
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirGetEntry(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -626,6 +704,7 @@ class INodeManager {
     return tran.get<INodeIndex>(dirDomain, name);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirSetEntry(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -650,6 +729,7 @@ class INodeManager {
     }
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirUnsetEntry(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -667,6 +747,7 @@ class INodeManager {
     await this.unlink(tran, existingValue);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async dirResetEntry(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -692,6 +773,7 @@ class INodeManager {
     await this.dirUnsetEntry(tran, ino, nameOld);
   }
 
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async symlinkGetLink(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -707,6 +789,7 @@ class INodeManager {
    * Modified and Change Time are both updated here as this is
    * exposed to the EFS functions to be used
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async fileClearData(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -725,6 +808,7 @@ class INodeManager {
    * Access time not updated here, handled at higher level as this is only
    * accessed by fds and and other INodeMgr functions
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async *fileGetBlocks(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -760,6 +844,7 @@ class INodeManager {
    * Access time not updated here, handled at higher level as this is only
    * accessed by fds and and other INodeMgr functions
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async fileGetLastBlock(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -802,6 +887,7 @@ class INodeManager {
    * Modified and Change time not updated here, handled at higher level as this
    * is only accessed by fds and and other INodeMgr functions
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async fileSetBlocks(
     tran: DBTransaction,
     ino: INodeIndex,
@@ -821,6 +907,7 @@ class INodeManager {
    * Modified and Change time not updated here, handled at higher level as this
    * is only accessed by fds and other INodeMgr functions
    */
+  @ready(new inodesErrors.ErrorINodesNotRunning())
   public async fileWriteBlock(
     tran: DBTransaction,
     ino: INodeIndex,

@@ -27,10 +27,10 @@ async function main() {
   const summary = await b.suite(
     'crypto100KiB',
     b.add('encrypt 100 KiB of data', async () => {
-      utils.encrypt(key, plain100KiB);
+      await utils.encrypt(key, plain100KiB);
     }),
     b.add('decrypt 100 KiB of data', async () => {
-      utils.decrypt(key, cipher100KiB);
+      await utils.decrypt(key, cipher100KiB);
     }),
     b.add('encrypt 100 KiB of data with workers', async () => {
       const keyAB = utils.toArrayBuffer(key);
@@ -77,7 +77,9 @@ async function main() {
 }
 
 if (require.main === module) {
-  main();
+  (async () => {
+    await main();
+  })();
 }
 
 export default main;
