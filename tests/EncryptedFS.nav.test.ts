@@ -2,11 +2,12 @@ import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
+import { running } from '@matrixai/async-init';
+import { code as errno } from 'errno';
 import * as utils from '@/utils';
 import { EncryptedFS, constants } from '@';
-import { expectError } from './utils';
-import { code as errno } from 'errno';
 import * as errors from '@/errors';
+import { expectError } from './utils';
 
 describe('EncryptedFS Navigation', () => {
   const logger = new Logger('EncryptedFS Navigation', LogLevel.WARN, [
@@ -21,7 +22,6 @@ describe('EncryptedFS Navigation', () => {
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     dbPath = `${dataDir}/db`;
-
     efs = await EncryptedFS.createEncryptedFS({
       dbKey,
       dbPath,
@@ -61,6 +61,7 @@ describe('EncryptedFS Navigation', () => {
     const str = 'callback';
     const flags = constants.O_CREAT | constants.O_RDWR;
     const readBuffer = Buffer.alloc(str.length);
+    /* eslint-disable @typescript-eslint/no-floating-promises */
     efs.mkdir('callback', () => {
       efs.open('callback/cb', flags, (err, fdIndex) => {
         expect(err).toBe(null);
@@ -91,6 +92,7 @@ describe('EncryptedFS Navigation', () => {
         });
       });
     });
+    /* eslint-enable @typescript-eslint/no-floating-promises */
   });
   test('should be able to restore state', async () => {
     const buffer = Buffer.from('Hello World');
@@ -181,7 +183,7 @@ describe('EncryptedFS Navigation', () => {
   });
   test('cwd still works if the current directory is deleted', async () => {
     // Nodejs process.cwd() will actually throw ENOENT
-    // but making it work in VFS is harmless
+    // but making it work in EFS is harmless
     await efs.mkdir('/removed');
     await efs.chdir('/removed');
     await efs.rmdir('../removed');
@@ -272,6 +274,6 @@ describe('EncryptedFS Navigation', () => {
   test('chroot returns a running efs instance', async () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
-    expect(efs2.running).toBeTruthy();
+    expect(efs2[running]).toBe(true);
   });
 });

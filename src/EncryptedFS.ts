@@ -9,22 +9,31 @@ import type {
   EFSWorkerManagerInterface,
 } from './types';
 import type { INodeIndex } from './inodes';
-import type { FdIndex } from './fd';
+import type { FdIndex, FileDescriptor } from './fd';
 import type { OptionsStream } from './streams';
 
 import { code as errno } from 'errno';
 import Logger from '@matrixai/logger';
 import { DB, errors as dbErrors } from '@matrixai/db';
+import {
+  CreateDestroyStartStop,
+  ready,
+} from '@matrixai/async-init/dist/CreateDestroyStartStop';
 import CurrentDirectory from './CurrentDirectory';
 import Stat from './Stat';
 import { INodeManager, errors as inodesErrors } from './inodes';
-import { FileDescriptor, FileDescriptorManager } from './fd';
+import { FileDescriptorManager } from './fd';
 import { ReadStream, WriteStream } from './streams';
 import * as constants from './constants';
 import * as permissions from './permissions';
 import * as utils from './utils';
 import * as errors from './errors';
 
+interface EncryptedFS extends CreateDestroyStartStop {}
+@CreateDestroyStartStop(
+  new errors.ErrorEncryptedFSRunning(),
+  new errors.ErrorEncryptedFSDestroyed(),
+)
 class EncryptedFS {
   public static async createEncryptedFS({
     dbPath,
@@ -34,6 +43,7 @@ class EncryptedFS {
     blockSize,
     umask,
     logger,
+    fresh,
   }: {
     dbPath: string;
     dbKey: Buffer;
@@ -42,6 +52,7 @@ class EncryptedFS {
     blockSize?: number;
     umask?: number;
     logger?: Logger;
+    fresh?: boolean;
   }): Promise<EncryptedFS>;
   public static async createEncryptedFS({
     db,
@@ -50,6 +61,7 @@ class EncryptedFS {
     blockSize,
     umask,
     logger,
+    fresh,
   }: {
     db: DB;
     iNodeMgr?: INodeManager;
@@ -57,6 +69,7 @@ class EncryptedFS {
     blockSize?: number;
     umask?: number;
     logger?: Logger;
+    fresh?: boolean;
   }): Promise<EncryptedFS>;
   public static async createEncryptedFS({
     dbPath,
@@ -67,6 +80,7 @@ class EncryptedFS {
     blockSize = 4096,
     umask = 0o022,
     logger = new Logger(EncryptedFS.name),
+    fresh = false,
   }: {
     dbPath?: string;
     dbKey?: Buffer;
@@ -76,6 +90,7 @@ class EncryptedFS {
     blockSize?: number;
     umask?: number;
     logger?: Logger;
+    fresh?: boolean;
   }): Promise<EncryptedFS> {
     if (db == null) {
       db = await DB.createDB({
@@ -88,6 +103,7 @@ class EncryptedFS {
           },
         },
         logger: logger.getChild(DB.name),
+        fresh,
       });
     }
     await EncryptedFS.setupCanary(db);
@@ -96,13 +112,13 @@ class EncryptedFS {
       (await INodeManager.createINodeManager({
         db,
         logger: logger.getChild(INodeManager.name),
+        fresh,
       }));
     let rootIno = iNodeMgr.inoAllocate();
     await iNodeMgr.transact(
       async (tran) => {
         tran.queueFailure(() => {
-          if (!iNodeMgr) throw Error;
-          iNodeMgr.inoDeallocate(rootIno);
+          iNodeMgr!.inoDeallocate(rootIno);
         });
         try {
           await iNodeMgr!.dirCreate(tran, rootIno, {
@@ -112,7 +128,7 @@ class EncryptedFS {
           });
         } catch (err) {
           if (err instanceof inodesErrors.ErrorINodesDuplicateRoot) {
-            const root = await iNodeMgr?.dirGetRoot(tran);
+            const root = await iNodeMgr!.dirGetRoot(tran);
             if (!root) throw new inodesErrors.ErrorINodesIndexMissing();
             rootIno = root;
           } else {
@@ -132,7 +148,7 @@ class EncryptedFS {
       umask,
       logger,
     });
-    await efs.start();
+    await efs.start({ fresh });
     return efs;
   }
 
@@ -147,10 +163,8 @@ class EncryptedFS {
   protected logger: Logger;
   protected rootIno: INodeIndex;
   protected _cwd: CurrentDirectory;
-  protected _running: boolean = false;
-  protected _destroyed: boolean = false;
 
-  protected constructor({
+  constructor({
     db,
     iNodeMgr,
     fdMgr,
@@ -183,67 +197,35 @@ class EncryptedFS {
     return this._cwd.path;
   }
 
-  get running(): boolean {
-    return this._running;
-  }
-
-  get destroyed(): boolean {
-    return this._destroyed;
-  }
-
   get promises() {
     return this;
   }
 
-  public async start(): Promise<void> {
-    try {
-      if (this._running) {
-        return;
-      }
-      if (this._destroyed) {
-        throw new errors.ErrorEncryptedFSDestroyed();
-      }
-      this.logger.info('Starting EncryptedFS');
-      this._running = true;
-      await this.db.start();
-      this.logger.info('Started EncryptedFS');
-    } catch (e) {
-      this._running = false;
-      throw e;
-    }
+  public async start({
+    fresh = false,
+  }: {
+    fresh?: boolean;
+  } = {}): Promise<void> {
+    this.logger.info(`Starting ${this.constructor.name}`);
+    await this.db.start({ fresh });
+    await this.iNodeMgr.start({ fresh });
+    this.logger.info(`Started ${this.constructor.name}`);
   }
 
   public async stop(): Promise<void> {
-    try {
-      if (!this._running) {
-        return;
-      }
-      this.logger.info('Stopping EncryptedFS');
-      this._running = false;
-      await this.db.stop();
-      this.logger.info('Stopped EncryptedFS');
-    } catch (e) {
-      this._running = true;
-      throw e;
-    }
+    this.logger.info(`Stopping ${this.constructor.name}`);
+    await this.iNodeMgr.stop();
+    await this.db.stop();
+    this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
   public async destroy(): Promise<void> {
-    try {
-      if (this._destroyed) {
-        return;
-      }
-      if (this._running) {
-        throw new errors.ErrorEncryptedFSRunning();
-      }
-      this.logger.info('Destroying EncryptedFS');
-      this._destroyed = true;
-      await this.db.destroy();
-      this.logger.info('Destroyed EncryptedFS');
-    } catch (e) {
-      this._destroyed = false;
-      throw e;
-    }
+    this.logger.info(`Destroying ${this.constructor.name}`);
+    // No need to destroy with `this.iNodeMgr.destroy()`
+    // It would require restarting the DB
+    // It is sufficient to only destroy the database
+    await this.db.destroy();
+    this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
   public setWorkerManager(workerManager: EFSWorkerManagerInterface) {
@@ -259,14 +241,12 @@ class EncryptedFS {
     path: string,
     callback: Callback<[EncryptedFS]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async chroot(
     path: string,
     callback?: Callback<[EncryptedFS]>,
   ): Promise<EncryptedFS | void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       const target = navigated.target;
@@ -311,11 +291,9 @@ class EncryptedFS {
 
   public async chdir(path: string): Promise<void>;
   public async chdir(path: string, callback: Callback): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async chdir(path: string, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       const target = navigated.target;
@@ -355,6 +333,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async access(
     path: Path,
     modeOrCallback: number | Callback = constants.F_OK,
@@ -364,9 +343,6 @@ class EncryptedFS {
       typeof modeOrCallback !== 'function' ? modeOrCallback : constants.F_OK;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(async (tran) => {
@@ -408,6 +384,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async appendFile(
     file: Path | FdIndex,
     data: Data = 'undefined',
@@ -434,9 +411,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       options.flag = 'a';
       data = this.getBuffer(data, options.encoding);
       let fdIndex;
@@ -480,15 +454,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async chmod(
     path: Path,
     mode: number,
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -523,6 +495,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async chown(
     path: Path,
     uid: number,
@@ -530,9 +503,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -572,6 +542,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async chownr(
     path: Path,
     uid: number,
@@ -579,9 +550,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       await this.chown(path, uid, gid);
       let children;
@@ -601,11 +569,9 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EBADF,
@@ -632,6 +598,7 @@ class EncryptedFS {
     flags: number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async copyFile(
     srcPath: Path,
     dstPath: Path,
@@ -642,9 +609,6 @@ class EncryptedFS {
     callback =
       typeof flagsOrCallback === 'function' ? flagsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       srcPath = this.getPath(srcPath);
       dstPath = this.getPath(dstPath);
       let srcFd, srcFdIndex, dstFd, dstFdIndex;
@@ -722,6 +686,7 @@ class EncryptedFS {
     options: OptionsStream,
     callback: Callback<[ReadStream]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async createReadStream(
     path: Path,
     optionsOrCallback: OptionsStream | Callback<[ReadStream]> = {},
@@ -742,9 +707,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       if (options.start !== undefined) {
         if (options.start > (options.end ?? Infinity)) {
@@ -768,6 +730,7 @@ class EncryptedFS {
     options: OptionsStream,
     callback: Callback<[WriteStream]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async createWriteStream(
     path: Path,
     optionsOrCallback: OptionsStream | Callback<[WriteStream]> = {},
@@ -787,9 +750,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       if (options.start !== undefined) {
         if (options.start < 0) {
@@ -800,14 +760,12 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async exists(
     path: Path,
     callback?: Callback<[boolean]>,
   ): Promise<boolean | void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       try {
         return !!(await this.navigate(path, true)).target;
@@ -817,6 +775,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fallocate(
     fdIndex: FdIndex,
     offset: number,
@@ -824,9 +783,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (offset < 0 || len <= 0) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EINVAL,
@@ -897,15 +853,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fchmod(
     fdIndex: FdIndex,
     mode: number,
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -937,6 +891,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fchown(
     fdIndex: FdIndex,
     uid: number,
@@ -944,9 +899,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -982,11 +934,9 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fdatasync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EBADF,
@@ -1001,14 +951,12 @@ class EncryptedFS {
     fdIndex: FdIndex,
     callback: Callback<[Stat]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fstat(
     fdIndex: FdIndex,
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       let fdStat;
       await this.iNodeMgr.transact(
@@ -1027,11 +975,9 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async fsync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (!this.fdMgr.getFd(fdIndex)) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EBADF,
@@ -1048,6 +994,7 @@ class EncryptedFS {
     len: number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async ftruncate(
     fdIndex: FdIndex,
     lenOrCallback: number | Callback = 0,
@@ -1056,9 +1003,6 @@ class EncryptedFS {
     const len = typeof lenOrCallback !== 'function' ? lenOrCallback : 0;
     callback = typeof lenOrCallback === 'function' ? lenOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (len < 0) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EINVAL,
@@ -1139,6 +1083,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async futimes(
     fdIndex: FdIndex,
     atime: number | string | Date,
@@ -1146,9 +1091,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -1183,15 +1125,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async lchmod(
     path: Path,
     mode: number,
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       await this.iNodeMgr.transact(
@@ -1226,6 +1166,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async lchown(
     path: Path,
     uid: number,
@@ -1233,9 +1174,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       await this.iNodeMgr.transact(
@@ -1275,15 +1213,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async link(
     existingPath: Path,
     newPath: Path,
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       existingPath = this.getPath(existingPath);
       newPath = this.getPath(newPath);
       const navigatedExisting = await this.navigate(existingPath, false);
@@ -1380,6 +1316,7 @@ class EncryptedFS {
     seekFlags: number,
     callback: Callback<[number]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async lseek(
     fdIndex: FdIndex,
     position: number,
@@ -1395,9 +1332,6 @@ class EncryptedFS {
         ? seekFlagsOrCallback
         : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError({
@@ -1429,14 +1363,12 @@ class EncryptedFS {
 
   public async lstat(path: Path): Promise<Stat>;
   public async lstat(path: Path, callback: Callback<[Stat]>): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async lstat(
     path: Path,
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       if (target) {
@@ -1464,6 +1396,7 @@ class EncryptedFS {
     options: Options | number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async mkdir(
     path: Path,
     optionsOrCallback: Options | number | Callback = {},
@@ -1484,9 +1417,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       // We expect a directory
       path = path.replace(/(.+?)\/+$/, '$1');
@@ -1606,6 +1536,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async mkdtemp(
     pathSPrefix: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -1620,9 +1551,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (!pathSPrefix || typeof pathSPrefix !== 'string') {
         throw new TypeError('filename prefix is required');
       }
@@ -1676,6 +1604,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async mknod(
     path: Path,
     type: number,
@@ -1690,9 +1619,6 @@ class EncryptedFS {
         : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
       const iNode = this.iNodeMgr.inoAllocate();
@@ -1774,6 +1700,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback<[FdIndex]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async open(
     path: Path,
     flags: string | number,
@@ -1788,9 +1715,6 @@ class EncryptedFS {
         : permissions.DEFAULT_FILE_PERM;
     callback = typeof modeOrCallback === 'function' ? modeOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       return (await this._open(path, flags, mode))[1];
     }, callback);
   }
@@ -2071,6 +1995,7 @@ class EncryptedFS {
     position: number,
     callback: Callback<[number]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async read(
     fdIndex: FdIndex,
     buffer: Data,
@@ -2094,9 +2019,6 @@ class EncryptedFS {
         ? positionOrCallback
         : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError({
@@ -2110,6 +2032,7 @@ class EncryptedFS {
           syscall: 'read',
         });
       }
+
       let fdStat;
       await this.iNodeMgr.transact(
         async (tran) => {
@@ -2146,6 +2069,7 @@ class EncryptedFS {
         }
         throw e;
       }
+
       return bytesRead;
     }, callback);
   }
@@ -2163,6 +2087,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[Array<string | Buffer>]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async readdir(
     path: Path,
     optionsOrCallback?: Options | Callback<[Array<string | Buffer>]>,
@@ -2175,9 +2100,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       let navigatedTargetType, navigatedTargetStat;
@@ -2239,6 +2161,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async readFile(
     file: File,
     optionsOrCallback?: Options | Callback<[string | Buffer]>,
@@ -2251,9 +2174,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       options.flag = 'r';
       let fdIndex;
       try {
@@ -2300,6 +2220,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async readlink(
     path: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -2314,9 +2235,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, false)).target;
       let link;
@@ -2362,6 +2280,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async realpath(
     path: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -2376,9 +2295,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, true);
       if (!navigated.target) {
@@ -2398,15 +2314,13 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async rename(
     oldPath: Path,
     newPath: Path,
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       oldPath = this.getPath(oldPath);
       newPath = this.getPath(newPath);
       const navigatedSource = await this.navigate(oldPath, false);
@@ -2636,6 +2550,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async rmdir(
     path: Path,
     optionsOrCallback: Options | Callback = {},
@@ -2648,9 +2563,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       // If the path has trailing slashes, navigation would traverse into it
       // we must trim off these trailing slashes to allow these directories to be removed
@@ -2821,14 +2733,12 @@ class EncryptedFS {
 
   public async stat(path: Path): Promise<Stat>;
   public async stat(path: Path, callback: Callback<[Stat]>): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async stat(
     path: Path,
     callback?: Callback<[Stat]>,
   ): Promise<Stat | void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       if (target) {
@@ -2866,6 +2776,7 @@ class EncryptedFS {
     type: string,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async symlink(
     dstPath: Path,
     srcPath: Path,
@@ -2874,9 +2785,6 @@ class EncryptedFS {
   ): Promise<void> {
     callback = typeof typeOrCallback === 'function' ? typeOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       dstPath = this.getPath(dstPath);
       srcPath = this.getPath(srcPath);
       if (!dstPath) {
@@ -2946,6 +2854,7 @@ class EncryptedFS {
     len: number,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async truncate(
     file: File,
     lenOrCallback: number | Callback = 0,
@@ -2954,9 +2863,6 @@ class EncryptedFS {
     const len = typeof lenOrCallback !== 'function' ? lenOrCallback : 0;
     callback = typeof lenOrCallback === 'function' ? lenOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       if (len < 0) {
         throw new errors.ErrorEncryptedFSError({
           errno: errno.EINVAL,
@@ -2978,11 +2884,9 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async unlink(path: Path, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const navigated = await this.navigate(path, false);
       if (!navigated.target) {
@@ -3026,6 +2930,7 @@ class EncryptedFS {
     }, callback);
   }
 
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async utimes(
     path: Path,
     atime: number | string | Date,
@@ -3033,9 +2938,6 @@ class EncryptedFS {
     callback?: Callback,
   ): Promise<void> {
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       path = this.getPath(path);
       const target = (await this.navigate(path, true)).target;
       await this.iNodeMgr.transact(
@@ -3105,6 +3007,7 @@ class EncryptedFS {
     position: number,
     callback: Callback<[number]>,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async write(
     fdIndex: FdIndex,
     data: Data,
@@ -3132,9 +3035,6 @@ class EncryptedFS {
         ? positionOrCallback
         : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError({
@@ -3209,6 +3109,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
+  @ready(new errors.ErrorEncryptedFSNotRunning())
   public async writeFile(
     file: File,
     data: Data = 'undefined',
@@ -3232,9 +3133,6 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      if (!this._running) {
-        throw new errors.ErrorEncryptedFSNotRunning();
-      }
       let fdIndex;
       options.flag = 'w';
       const buffer = this.getBuffer(data, options.encoding);

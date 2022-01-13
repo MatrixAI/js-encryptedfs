@@ -1,12 +1,13 @@
+import type { FileTypes } from './utils';
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
+import path from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
+import { code as errno } from 'errno';
 import * as utils from '@/utils';
 import { EncryptedFS, constants } from '@';
-import { expectError, createFile, FileTypes, setId, sleep } from './utils';
-import path from 'path';
-import { code as errno } from 'errno';
+import { expectError, createFile, setId, sleep } from './utils';
 
 describe('EncryptedFS Directories', () => {
   const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
@@ -327,7 +328,7 @@ describe('EncryptedFS Directories', () => {
     );
     test('changes name for dir', async () => {
       await efs.mkdir(n0, { mode: dp });
-      //Expect dir,0755 lstat ${n0} type,mode
+      // Expect dir,0755 lstat ${n0} type,mode
       const inode = (await efs.lstat(n0)).ino;
       await efs.rename(n0, n1);
       await expectError(efs.lstat(n0), errno.ENOENT);
@@ -338,7 +339,7 @@ describe('EncryptedFS Directories', () => {
     test('changes name for regular file', async () => {
       await createFile(efs, 'regular', n0);
       const rinode = (await efs.lstat(n0)).ino;
-      //Expect regular,0644 lstat ${n0} type,mode
+      // Expect regular,0644 lstat ${n0} type,mode
       await efs.symlink(n0, n1);
       const sinode = (await efs.lstat(n1)).ino;
       let stat = await efs.stat(n1);

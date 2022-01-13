@@ -2,9 +2,9 @@ import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
+import { Readable, Writable } from 'readable-stream';
 import * as utils from '@/utils';
 import { EncryptedFS } from '@';
-import { Readable, Writable } from 'readable-stream';
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [

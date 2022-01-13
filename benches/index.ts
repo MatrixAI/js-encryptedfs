@@ -35,4 +35,10 @@ async function main(): Promise<void> {
   );
 }
 
-main();
+if (require.main === module) {
+  (async () => {
+    await main();
+  })();
+}
+
+export default main;

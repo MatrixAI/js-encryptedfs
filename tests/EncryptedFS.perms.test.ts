@@ -2,10 +2,10 @@ import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
+import { code as errno } from 'errno';
 import * as utils from '@/utils';
 import { EncryptedFS, constants, permissions } from '@';
 import { expectError } from './utils';
-import { code as errno } from 'errno';
 
 describe('EncryptedFS Permissions', () => {
   const logger = new Logger('EncryptedFS Permissions', LogLevel.WARN, [
