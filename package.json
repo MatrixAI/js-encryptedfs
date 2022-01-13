@@ -32,13 +32,13 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p ./tsconfig.build.json",
+    "build": "rm -r ./dist || true; tsc -p ./tsconfig.build.json",
     "ts-node": "ts-node -r tsconfig-paths/register",
     "test": "jest",
     "lint": "eslint '{src,tests,benches}/**/*.{js,ts}'",
     "lintfix": "eslint '{src,tests,benches}/**/*.{js,ts}' --fix",
-    "docs": "typedoc --tsconfig ./tsconfig.build.json --out ./docs src && touch ./docs/.nojekyll",
-    "bench": "ts-node -r tsconfig-paths/register ./benches"
+    "docs": "rm -r ./docs || true; typedoc --gitRevision master --tsconfig ./tsconfig.build.json --out ./docs src && touch ./docs/.nojekyll",
+    "bench": "rm -r ./benches/results || true; ts-node -r tsconfig-paths/register ./benches"
   },
   "dependencies": {
     "@matrixai/async-init": "^1.6.0",
