@@ -84,4 +84,15 @@ describe('EncryptedFS', () => {
     );
     await efs2.stop();
   });
+  test('efs exposes constants', async () => {
+    const efs = await EncryptedFS.createEncryptedFS({
+      dbPath: dataDir,
+      dbKey,
+      logger,
+    });
+    expect(efs.constants.O_RDONLY).toBeDefined();
+    expect(efs.constants.O_TRUNC).toBeDefined();
+    expect(efs.constants.S_IRWXG).toBeDefined();
+    await efs.stop();
+  });
 });

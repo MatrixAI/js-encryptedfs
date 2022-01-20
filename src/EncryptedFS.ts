@@ -197,6 +197,10 @@ class EncryptedFS {
     return this._cwd.path;
   }
 
+  get constants() {
+    return constants;
+  }
+
   get promises() {
     return this;
   }
