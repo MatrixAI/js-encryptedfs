@@ -45,7 +45,7 @@
     "@matrixai/db": "^1.1.5",
     "@matrixai/logger": "^2.1.0",
     "@matrixai/workers": "^1.2.5",
-    "async-mutex": "^0.3.1",
+    "async-mutex": "^0.3.2",
     "errno": "^0.1.7",
     "lexicographic-integer": "^1.1.0",
     "node-forge": "^0.10.0",
