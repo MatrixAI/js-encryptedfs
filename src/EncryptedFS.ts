@@ -152,8 +152,8 @@ class EncryptedFS {
     return efs;
   }
 
-  public uid: number;
-  public gid: number;
+  public uid: number = permissions.DEFAULT_ROOT_UID;
+  public gid: number = permissions.DEFAULT_ROOT_GID;
   public umask: number;
   public readonly blockSize: number;
 
@@ -164,6 +164,9 @@ class EncryptedFS {
   protected rootIno: INodeIndex;
   protected _cwd: CurrentDirectory;
 
+  protected chroots: Set<EncryptedFS>;
+  protected chrootParent?: EncryptedFS;
+
   constructor({
     db,
     iNodeMgr,
@@ -172,6 +175,8 @@ class EncryptedFS {
     blockSize,
     umask,
     logger,
+    chroots = new Set(),
+    chrootParent,
   }: {
     db: DB;
     iNodeMgr: INodeManager;
@@ -180,16 +185,18 @@ class EncryptedFS {
     blockSize: number;
     umask: number;
     logger: Logger;
+    chroots?: Set<EncryptedFS>;
+    chrootParent?: EncryptedFS;
   }) {
     this.logger = logger;
-    this.uid = permissions.DEFAULT_ROOT_UID;
-    this.gid = permissions.DEFAULT_ROOT_GID;
-    this.umask = umask;
-    this.blockSize = blockSize;
     this.db = db;
     this.iNodeMgr = iNodeMgr;
     this.fdMgr = fdMgr;
     this.rootIno = rootIno;
+    this.blockSize = blockSize;
+    this.umask = umask;
+    this.chroots = chroots;
+    this.chrootParent = chrootParent;
     this._cwd = new CurrentDirectory(iNodeMgr, rootIno);
   }
 
@@ -211,24 +218,40 @@ class EncryptedFS {
     fresh?: boolean;
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
-    await this.db.start({ fresh });
-    await this.iNodeMgr.start({ fresh });
+    if (this.chrootParent == null) {
+      await this.db.start({ fresh });
+      await this.iNodeMgr.start({ fresh });
+    } else {
+      // If chrooted instance, add itself to the chroots set
+      this.chroots.add(this);
+    }
     this.logger.info(`Started ${this.constructor.name}`);
   }
 
   public async stop(): Promise<void> {
     this.logger.info(`Stopping ${this.constructor.name}`);
-    await this.iNodeMgr.stop();
-    await this.db.stop();
+    if (this.chrootParent == null) {
+      for (const efsChrooted of this.chroots) {
+        await efsChrooted.stop();
+      }
+      await this.iNodeMgr.stop();
+      await this.db.stop();
+    } else {
+      // If chrooted instance, delete itself from the chroots set
+      this.chroots.delete(this);
+    }
     this.logger.info(`Stopped ${this.constructor.name}`);
   }
 
   public async destroy(): Promise<void> {
     this.logger.info(`Destroying ${this.constructor.name}`);
-    // No need to destroy with `this.iNodeMgr.destroy()`
-    // It would require restarting the DB
-    // It is sufficient to only destroy the database
-    await this.db.destroy();
+    if (this.chrootParent == null) {
+      // No need to destroy with `this.iNodeMgr.destroy()`
+      // It would require restarting the DB
+      // It is sufficient to only destroy the database
+      await this.db.destroy();
+    }
+    // No destruction procedures for chrooted instances
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
@@ -245,7 +268,7 @@ class EncryptedFS {
     path: string,
     callback: Callback<[EncryptedFS]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @ready(new errors.ErrorEncryptedFSNotRunning(), true)
   public async chroot(
     path: string,
     callback?: Callback<[EncryptedFS]>,
@@ -263,23 +286,18 @@ class EncryptedFS {
       await this.iNodeMgr.transact(
         async (tran) => {
           const targetType = (await this.iNodeMgr.get(tran, target))?.type;
-          const targetStat = await this.iNodeMgr.statGet(tran, target);
           if (!(targetType === 'Directory')) {
             throw new errors.ErrorEncryptedFSError({
               errno: errno.ENOTDIR,
               path: path as string,
             });
           }
-          if (!this.checkPermissions(constants.X_OK, targetStat)) {
-            throw new errors.ErrorEncryptedFSError({
-              errno: errno.EACCES,
-              path: path as string,
-            });
-          }
         },
         target ? [target] : [],
       );
-      const newEFS = new EncryptedFS({
+      // Chrooted EFS shares all of the dependencies
+      // This means the dependencies are already in running state
+      const efsChrooted = new EncryptedFS({
         db: this.db,
         iNodeMgr: this.iNodeMgr,
         fdMgr: this.fdMgr,
@@ -287,9 +305,11 @@ class EncryptedFS {
         blockSize: this.blockSize,
         umask: this.umask,
         logger: this.logger,
+        chroots: this.chroots,
+        chrootParent: this,
       });
-      await newEFS.start();
-      return newEFS;
+      await efsChrooted.start();
+      return efsChrooted;
     }, callback);
   }
 
