@@ -4,8 +4,8 @@ import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { running } from '@matrixai/async-init';
 import { code as errno } from 'errno';
-import * as utils from '@/utils';
 import { EncryptedFS, constants } from '@';
+import * as utils from '@/utils';
 import * as errors from '@/errors';
 import { expectError } from './utils';
 
@@ -222,7 +222,7 @@ describe('EncryptedFS Navigation', () => {
     efs.uid = 1000;
     await expectError(efs.chdir('/dir'), errno.EACCES);
   });
-  test('should be able to access inodes inside the root inode', async () => {
+  test('should be able to access inodes inside chroot', async () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
     await efs.writeFile('dir/file', 'test');
@@ -235,7 +235,7 @@ describe('EncryptedFS Navigation', () => {
       efs.readFile('dir/dir1/dir2/dir3/test-file', { encoding: 'utf8' }),
     ).resolves.toBe('test');
   });
-  test('should not be able to access inodes before root', async () => {
+  test('should not be able to access inodes outside chroot', async () => {
     await efs.mkdir(`dir`);
     await efs.writeFile('file', 'test');
     const efs2 = await efs.chroot('dir');
@@ -243,7 +243,7 @@ describe('EncryptedFS Navigation', () => {
     await expect(efs2.exists('/../../../file')).resolves.toBeFalsy();
     await expectError(efs2.readFile('../../../file'), errno.ENOENT);
   });
-  test('should not be able to access inodes before root using symlink', async () => {
+  test('should not be able to access inodes outside chroot using symlink', async () => {
     await efs.mkdir(`dir`);
     await efs.writeFile('file', 'test');
     await efs.symlink('file', 'dir/link');
@@ -275,5 +275,54 @@ describe('EncryptedFS Navigation', () => {
     await efs.mkdir('dir');
     const efs2 = await efs.chroot('dir');
     expect(efs2[running]).toBe(true);
+  });
+  test('chroot start & stop does not affect other efs instances', async () => {
+    await efs.mkdir('dir1');
+    await efs.mkdir('dir2');
+    await efs.mkdir('dir3');
+    const efs1 = await efs.chroot('dir1');
+    const efs2 = await efs.chroot('dir2');
+    const efs3 = await efs.chroot('dir3');
+    await efs1.stop();
+    expect(efs1[running]).toBe(false);
+    expect(efs2[running]).toBe(true);
+    expect(efs3[running]).toBe(true);
+    expect(efs[running]).toBe(true);
+    await efs1.start();
+    await efs2.stop();
+    await efs3.stop();
+    expect(efs1[running]).toBe(true);
+    expect(efs2[running]).toBe(false);
+    expect(efs3[running]).toBe(false);
+    expect(efs[running]).toBe(true);
+  });
+  test('root efs instance stops all chrooted instances', async () => {
+    await efs.mkdir('dir1');
+    await efs.mkdir('dir2');
+    await efs.mkdir('dir3');
+    const efs1 = await efs.chroot('dir1');
+    const efs2 = await efs.chroot('dir2');
+    const efs3 = await efs.chroot('dir3');
+    expect(efs1[running]).toBe(true);
+    expect(efs2[running]).toBe(true);
+    expect(efs3[running]).toBe(true);
+    await efs.stop();
+    expect(efs1[running]).toBe(false);
+    expect(efs2[running]).toBe(false);
+    expect(efs3[running]).toBe(false);
+    await efs.start();
+    // Chrooted instances are considered to be destroyed
+    expect(efs1[running]).toBe(false);
+    expect(efs2[running]).toBe(false);
+    expect(efs3[running]).toBe(false);
+  });
+  test('destroying chroot is a noop', async () => {
+    await efs.mkdir('dir');
+    const efsChroot1 = await efs.chroot('dir');
+    await efsChroot1.stop();
+    await efsChroot1.destroy();
+    // The underlying state is not destroyed
+    const efsChroot2 = await efs.chroot('dir');
+    await efsChroot2.stop();
   });
 });

@@ -97,6 +97,8 @@
 								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-inherited tsd-is-external"><a href="EncryptedFS.default.html#_initLock_" class="tsd-kind-icon">[init<wbr>Lock]</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><a href="EncryptedFS.default.html#_cwd" class="tsd-kind-icon">_cwd</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-class"><a href="EncryptedFS.default.html#blockSize" class="tsd-kind-icon">block<wbr>Size</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><a href="EncryptedFS.default.html#chrootParent" class="tsd-kind-icon">chroot<wbr>Parent</a></li>
+								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><a href="EncryptedFS.default.html#chroots" class="tsd-kind-icon">chroots</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><a href="EncryptedFS.default.html#db" class="tsd-kind-icon">db</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-class tsd-is-protected"><a href="EncryptedFS.default.html#fdMgr" class="tsd-kind-icon">fd<wbr>Mgr</a></li>
 								<li class="tsd-kind-property tsd-parent-kind-class"><a href="EncryptedFS.default.html#gid" class="tsd-kind-icon">gid</a></li>
@@ -192,23 +194,29 @@
 					<a name="constructor" class="tsd-anchor"></a>
 					<h3>constructor</h3>
 					<ul class="tsd-signatures tsd-kind-constructor tsd-parent-kind-class tsd-is-inherited">
-						<li class="tsd-signature tsd-kind-icon">new default<span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">{ </span>blockSize<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span>db<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DB</span><span class="tsd-signature-symbol">; </span>fdMgr<span class="tsd-signature-symbol">: </span><a href="fd_FileDescriptorManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>iNodeMgr<span class="tsd-signature-symbol">: </span><a href="inodes_INodeManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>logger<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Logger</span><span class="tsd-signature-symbol">; </span>rootIno<span class="tsd-signature-symbol">: </span><a href="../modules/inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol">; </span>umask<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></li>
+						<li class="tsd-signature tsd-kind-icon">new default<span class="tsd-signature-symbol">(</span>__namedParameters<span class="tsd-signature-symbol">: </span><span class="tsd-signature-symbol">{ </span>blockSize<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span>chrootParent<span class="tsd-signature-symbol">?: </span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>chroots<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Set</span><span class="tsd-signature-symbol">&lt;</span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>db<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DB</span><span class="tsd-signature-symbol">; </span>fdMgr<span class="tsd-signature-symbol">: </span><a href="fd_FileDescriptorManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>iNodeMgr<span class="tsd-signature-symbol">: </span><a href="inodes_INodeManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>logger<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Logger</span><span class="tsd-signature-symbol">; </span>rootIno<span class="tsd-signature-symbol">: </span><a href="../modules/inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol">; </span>umask<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol">: </span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></li>
 					</ul>
 					<ul class="tsd-descriptions">
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<p>Inherited from CreateDestroyStartStop.constructor</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L167">src/EncryptedFS.ts:167</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L170">src/EncryptedFS.ts:170</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
 							<ul class="tsd-parameters">
 								<li>
-									<h5>__namedParameters: <span class="tsd-signature-symbol">{ </span>blockSize<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span>db<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DB</span><span class="tsd-signature-symbol">; </span>fdMgr<span class="tsd-signature-symbol">: </span><a href="fd_FileDescriptorManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>iNodeMgr<span class="tsd-signature-symbol">: </span><a href="inodes_INodeManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>logger<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Logger</span><span class="tsd-signature-symbol">; </span>rootIno<span class="tsd-signature-symbol">: </span><a href="../modules/inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol">; </span>umask<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span></h5>
+									<h5>__namedParameters: <span class="tsd-signature-symbol">{ </span>blockSize<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span>chrootParent<span class="tsd-signature-symbol">?: </span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>chroots<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Set</span><span class="tsd-signature-symbol">&lt;</span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">; </span>db<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DB</span><span class="tsd-signature-symbol">; </span>fdMgr<span class="tsd-signature-symbol">: </span><a href="fd_FileDescriptorManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>iNodeMgr<span class="tsd-signature-symbol">: </span><a href="inodes_INodeManager.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">; </span>logger<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">Logger</span><span class="tsd-signature-symbol">; </span>rootIno<span class="tsd-signature-symbol">: </span><a href="../modules/inodes_types.html#INodeIndex" class="tsd-signature-type" data-tsd-kind="Type alias">INodeIndex</a><span class="tsd-signature-symbol">; </span>umask<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> }</span></h5>
 									<ul class="tsd-parameters">
 										<li class="tsd-parameter">
 											<h5>block<wbr>Size<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span></h5>
+										</li>
+										<li class="tsd-parameter">
+											<h5><span class="tsd-flag ts-flagOptional">Optional</span> chroot<wbr>Parent<span class="tsd-signature-symbol">?: </span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></h5>
+										</li>
+										<li class="tsd-parameter">
+											<h5><span class="tsd-flag ts-flagOptional">Optional</span> chroots<span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">Set</span><span class="tsd-signature-symbol">&lt;</span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></h5>
 										</li>
 										<li class="tsd-parameter">
 											<h5>db<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">DB</span></h5>
@@ -270,6 +278,26 @@
 					</aside>
 				</section>
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-protected">
+					<a name="chrootParent" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagProtected">Protected</span> <span class="tsd-flag ts-flagOptional">Optional</span> chroot<wbr>Parent</h3>
+					<div class="tsd-signature tsd-kind-icon">chroot<wbr>Parent<span class="tsd-signature-symbol">:</span> <a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L168">src/EncryptedFS.ts:168</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-protected">
+					<a name="chroots" class="tsd-anchor"></a>
+					<h3><span class="tsd-flag ts-flagProtected">Protected</span> chroots</h3>
+					<div class="tsd-signature tsd-kind-icon">chroots<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">Set</span><span class="tsd-signature-symbol">&lt;</span><a href="EncryptedFS.default.html" class="tsd-signature-type" data-tsd-kind="Class">default</a><span class="tsd-signature-symbol">&gt;</span></div>
+					<aside class="tsd-sources">
+						<ul>
+							<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L167">src/EncryptedFS.ts:167</a></li>
+						</ul>
+					</aside>
+				</section>
+				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class tsd-is-protected">
 					<a name="db" class="tsd-anchor"></a>
 					<h3><span class="tsd-flag ts-flagProtected">Protected</span> db</h3>
 					<div class="tsd-signature tsd-kind-icon">db<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">DB</span></div>
@@ -292,7 +320,7 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
 					<a name="gid" class="tsd-anchor"></a>
 					<h3>gid</h3>
-					<div class="tsd-signature tsd-kind-icon">gid<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
+					<div class="tsd-signature tsd-kind-icon">gid<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> = ...</span></div>
 					<aside class="tsd-sources">
 						<ul>
 							<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L156">src/EncryptedFS.ts:156</a></li>
@@ -332,7 +360,7 @@
 				<section class="tsd-panel tsd-member tsd-kind-property tsd-parent-kind-class">
 					<a name="uid" class="tsd-anchor"></a>
 					<h3>uid</h3>
-					<div class="tsd-signature tsd-kind-icon">uid<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span></div>
+					<div class="tsd-signature tsd-kind-icon">uid<span class="tsd-signature-symbol">:</span> <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> = ...</span></div>
 					<aside class="tsd-sources">
 						<ul>
 							<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L155">src/EncryptedFS.ts:155</a></li>
@@ -413,7 +441,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L200">src/EncryptedFS.ts:200</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L207">src/EncryptedFS.ts:207</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <a href="../modules/constants.html" class="tsd-signature-type" data-tsd-kind="Module">constants</a></h4>
@@ -430,7 +458,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L196">src/EncryptedFS.ts:196</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L203">src/EncryptedFS.ts:203</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">string</span></h4>
@@ -447,7 +475,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L204">src/EncryptedFS.ts:204</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L211">src/EncryptedFS.ts:211</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">this</span></h4>
@@ -467,7 +495,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1726">src/EncryptedFS.ts:1726</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1746">src/EncryptedFS.ts:1746</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -496,7 +524,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2655">src/EncryptedFS.ts:2655</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2675">src/EncryptedFS.ts:2675</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -521,7 +549,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L333">src/EncryptedFS.ts:333</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L353">src/EncryptedFS.ts:353</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -538,7 +566,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L334">src/EncryptedFS.ts:334</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L354">src/EncryptedFS.ts:354</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -555,7 +583,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L335">src/EncryptedFS.ts:335</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L355">src/EncryptedFS.ts:355</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -586,7 +614,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L375">src/EncryptedFS.ts:375</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L395">src/EncryptedFS.ts:395</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -606,7 +634,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L380">src/EncryptedFS.ts:380</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L400">src/EncryptedFS.ts:400</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -626,7 +654,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L385">src/EncryptedFS.ts:385</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L405">src/EncryptedFS.ts:405</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -659,7 +687,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L296">src/EncryptedFS.ts:296</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L316">src/EncryptedFS.ts:316</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -673,7 +701,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L297">src/EncryptedFS.ts:297</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L317">src/EncryptedFS.ts:317</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -699,7 +727,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3394">src/EncryptedFS.ts:3394</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3414">src/EncryptedFS.ts:3414</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -731,7 +759,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L462">src/EncryptedFS.ts:462</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L482">src/EncryptedFS.ts:482</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -760,7 +788,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L503">src/EncryptedFS.ts:503</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L523">src/EncryptedFS.ts:523</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -792,7 +820,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L550">src/EncryptedFS.ts:550</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L570">src/EncryptedFS.ts:570</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -825,7 +853,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L243">src/EncryptedFS.ts:243</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L266">src/EncryptedFS.ts:266</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -839,7 +867,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L244">src/EncryptedFS.ts:244</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L267">src/EncryptedFS.ts:267</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -865,7 +893,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L577">src/EncryptedFS.ts:577</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L597">src/EncryptedFS.ts:597</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -893,7 +921,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L589">src/EncryptedFS.ts:589</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L609">src/EncryptedFS.ts:609</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -913,7 +941,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L594">src/EncryptedFS.ts:594</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L614">src/EncryptedFS.ts:614</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -933,7 +961,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L599">src/EncryptedFS.ts:599</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L619">src/EncryptedFS.ts:619</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -967,7 +995,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L680">src/EncryptedFS.ts:680</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L700">src/EncryptedFS.ts:700</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -984,7 +1012,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L684">src/EncryptedFS.ts:684</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L704">src/EncryptedFS.ts:704</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1001,7 +1029,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L688">src/EncryptedFS.ts:688</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L708">src/EncryptedFS.ts:708</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1032,7 +1060,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L724">src/EncryptedFS.ts:724</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L744">src/EncryptedFS.ts:744</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1049,7 +1077,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L728">src/EncryptedFS.ts:728</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L748">src/EncryptedFS.ts:748</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1066,7 +1094,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L732">src/EncryptedFS.ts:732</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L752">src/EncryptedFS.ts:752</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1096,7 +1124,7 @@
 							<aside class="tsd-sources">
 								<p>Inherited from CreateDestroyStartStop.destroy</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L226">src/EncryptedFS.ts:226</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L246">src/EncryptedFS.ts:246</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
@@ -1113,7 +1141,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L768">src/EncryptedFS.ts:768</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L788">src/EncryptedFS.ts:788</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1139,7 +1167,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L783">src/EncryptedFS.ts:783</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L803">src/EncryptedFS.ts:803</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1171,7 +1199,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L861">src/EncryptedFS.ts:861</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L881">src/EncryptedFS.ts:881</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1200,7 +1228,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L899">src/EncryptedFS.ts:899</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L919">src/EncryptedFS.ts:919</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1232,7 +1260,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L942">src/EncryptedFS.ts:942</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L962">src/EncryptedFS.ts:962</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1259,7 +1287,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L953">src/EncryptedFS.ts:953</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L973">src/EncryptedFS.ts:973</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1273,7 +1301,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L954">src/EncryptedFS.ts:954</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L974">src/EncryptedFS.ts:974</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1299,7 +1327,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L983">src/EncryptedFS.ts:983</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1003">src/EncryptedFS.ts:1003</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1327,7 +1355,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L994">src/EncryptedFS.ts:994</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1014">src/EncryptedFS.ts:1014</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1344,7 +1372,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L995">src/EncryptedFS.ts:995</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1015">src/EncryptedFS.ts:1015</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1361,7 +1389,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L996">src/EncryptedFS.ts:996</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1016">src/EncryptedFS.ts:1016</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1390,7 +1418,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1091">src/EncryptedFS.ts:1091</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1111">src/EncryptedFS.ts:1111</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1422,7 +1450,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3458">src/EncryptedFS.ts:3458</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3478">src/EncryptedFS.ts:3478</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -1454,7 +1482,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3438">src/EncryptedFS.ts:3438</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3458">src/EncryptedFS.ts:3458</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -1500,7 +1528,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3406">src/EncryptedFS.ts:3406</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3426">src/EncryptedFS.ts:3426</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -1529,7 +1557,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3422">src/EncryptedFS.ts:3422</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3442">src/EncryptedFS.ts:3442</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -1557,7 +1585,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1133">src/EncryptedFS.ts:1133</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1153">src/EncryptedFS.ts:1153</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1586,7 +1614,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1174">src/EncryptedFS.ts:1174</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1194">src/EncryptedFS.ts:1194</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1618,7 +1646,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1221">src/EncryptedFS.ts:1221</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1241">src/EncryptedFS.ts:1241</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1649,7 +1677,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1307">src/EncryptedFS.ts:1307</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1327">src/EncryptedFS.ts:1327</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1669,7 +1697,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1312">src/EncryptedFS.ts:1312</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1332">src/EncryptedFS.ts:1332</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1689,7 +1717,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1317">src/EncryptedFS.ts:1317</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1337">src/EncryptedFS.ts:1337</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1722,7 +1750,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1368">src/EncryptedFS.ts:1368</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1388">src/EncryptedFS.ts:1388</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1736,7 +1764,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1369">src/EncryptedFS.ts:1369</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1389">src/EncryptedFS.ts:1389</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1764,7 +1792,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1396">src/EncryptedFS.ts:1396</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1416">src/EncryptedFS.ts:1416</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1781,7 +1809,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1397">src/EncryptedFS.ts:1397</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1417">src/EncryptedFS.ts:1417</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1798,7 +1826,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1398">src/EncryptedFS.ts:1398</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1418">src/EncryptedFS.ts:1418</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1829,7 +1857,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1530">src/EncryptedFS.ts:1530</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1550">src/EncryptedFS.ts:1550</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1846,7 +1874,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1534">src/EncryptedFS.ts:1534</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1554">src/EncryptedFS.ts:1554</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1863,7 +1891,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1538">src/EncryptedFS.ts:1538</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1558">src/EncryptedFS.ts:1558</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1894,7 +1922,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1589">src/EncryptedFS.ts:1589</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1609">src/EncryptedFS.ts:1609</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1920,7 +1948,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1596">src/EncryptedFS.ts:1596</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1616">src/EncryptedFS.ts:1616</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1946,7 +1974,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1603">src/EncryptedFS.ts:1603</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1623">src/EncryptedFS.ts:1623</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -1984,7 +2012,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3166">src/EncryptedFS.ts:3166</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3186">src/EncryptedFS.ts:3186</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -2026,7 +2054,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3221">src/EncryptedFS.ts:3221</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3241">src/EncryptedFS.ts:3241</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -2073,7 +2101,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1691">src/EncryptedFS.ts:1691</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1711">src/EncryptedFS.ts:1711</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2093,7 +2121,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1696">src/EncryptedFS.ts:1696</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1716">src/EncryptedFS.ts:1716</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2113,7 +2141,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1701">src/EncryptedFS.ts:1701</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1721">src/EncryptedFS.ts:1721</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2145,7 +2173,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3375">src/EncryptedFS.ts:3375</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3395">src/EncryptedFS.ts:3395</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -2177,7 +2205,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1969">src/EncryptedFS.ts:1969</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1989">src/EncryptedFS.ts:1989</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2203,7 +2231,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1976">src/EncryptedFS.ts:1976</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1996">src/EncryptedFS.ts:1996</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2223,7 +2251,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1981">src/EncryptedFS.ts:1981</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2001">src/EncryptedFS.ts:2001</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2246,7 +2274,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1987">src/EncryptedFS.ts:1987</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2007">src/EncryptedFS.ts:2007</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2272,7 +2300,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L1994">src/EncryptedFS.ts:1994</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2014">src/EncryptedFS.ts:2014</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2312,7 +2340,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2155">src/EncryptedFS.ts:2155</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2175">src/EncryptedFS.ts:2175</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2329,7 +2357,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2159">src/EncryptedFS.ts:2159</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2179">src/EncryptedFS.ts:2179</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2346,7 +2374,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2163">src/EncryptedFS.ts:2163</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2183">src/EncryptedFS.ts:2183</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2377,7 +2405,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2081">src/EncryptedFS.ts:2081</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2101">src/EncryptedFS.ts:2101</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2394,7 +2422,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2085">src/EncryptedFS.ts:2085</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2105">src/EncryptedFS.ts:2105</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2411,7 +2439,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2089">src/EncryptedFS.ts:2089</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2109">src/EncryptedFS.ts:2109</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2442,7 +2470,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2214">src/EncryptedFS.ts:2214</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2234">src/EncryptedFS.ts:2234</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2459,7 +2487,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2218">src/EncryptedFS.ts:2218</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2238">src/EncryptedFS.ts:2238</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2476,7 +2504,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2222">src/EncryptedFS.ts:2222</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2242">src/EncryptedFS.ts:2242</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2507,7 +2535,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2274">src/EncryptedFS.ts:2274</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2294">src/EncryptedFS.ts:2294</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2524,7 +2552,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2278">src/EncryptedFS.ts:2278</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2298">src/EncryptedFS.ts:2298</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2541,7 +2569,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2282">src/EncryptedFS.ts:2282</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2302">src/EncryptedFS.ts:2302</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2570,7 +2598,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2322">src/EncryptedFS.ts:2322</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2342">src/EncryptedFS.ts:2342</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2601,7 +2629,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2550">src/EncryptedFS.ts:2550</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2570">src/EncryptedFS.ts:2570</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2618,7 +2646,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2551">src/EncryptedFS.ts:2551</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2571">src/EncryptedFS.ts:2571</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2635,7 +2663,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2552">src/EncryptedFS.ts:2552</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2572">src/EncryptedFS.ts:2572</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2664,7 +2692,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L235">src/EncryptedFS.ts:235</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L258">src/EncryptedFS.ts:258</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2688,7 +2716,7 @@
 							<aside class="tsd-sources">
 								<p>Inherited from CreateDestroyStartStop.start</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L208">src/EncryptedFS.ts:208</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L215">src/EncryptedFS.ts:215</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2717,7 +2745,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2738">src/EncryptedFS.ts:2738</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2758">src/EncryptedFS.ts:2758</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2731,7 +2759,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2739">src/EncryptedFS.ts:2739</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2759">src/EncryptedFS.ts:2759</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2758,7 +2786,7 @@
 							<aside class="tsd-sources">
 								<p>Inherited from CreateDestroyStartStop.stop</p>
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L219">src/EncryptedFS.ts:219</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L231">src/EncryptedFS.ts:231</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
@@ -2777,7 +2805,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2767">src/EncryptedFS.ts:2767</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2787">src/EncryptedFS.ts:2787</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2797,7 +2825,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2772">src/EncryptedFS.ts:2772</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2792">src/EncryptedFS.ts:2792</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2817,7 +2845,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2777">src/EncryptedFS.ts:2777</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2797">src/EncryptedFS.ts:2797</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2851,7 +2879,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2854">src/EncryptedFS.ts:2854</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2874">src/EncryptedFS.ts:2874</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2868,7 +2896,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2855">src/EncryptedFS.ts:2855</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2875">src/EncryptedFS.ts:2875</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2885,7 +2913,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2856">src/EncryptedFS.ts:2856</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2876">src/EncryptedFS.ts:2876</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2914,7 +2942,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2892">src/EncryptedFS.ts:2892</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2912">src/EncryptedFS.ts:2912</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2940,7 +2968,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L239">src/EncryptedFS.ts:239</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L262">src/EncryptedFS.ts:262</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4>
@@ -2957,7 +2985,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2938">src/EncryptedFS.ts:2938</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2958">src/EncryptedFS.ts:2958</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -2993,7 +3021,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2981">src/EncryptedFS.ts:2981</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3001">src/EncryptedFS.ts:3001</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3019,7 +3047,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2988">src/EncryptedFS.ts:2988</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3008">src/EncryptedFS.ts:3008</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3039,7 +3067,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2993">src/EncryptedFS.ts:2993</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3013">src/EncryptedFS.ts:3013</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3062,7 +3090,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L2999">src/EncryptedFS.ts:2999</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3019">src/EncryptedFS.ts:3019</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3088,7 +3116,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3006">src/EncryptedFS.ts:3006</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3026">src/EncryptedFS.ts:3026</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3128,7 +3156,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3100">src/EncryptedFS.ts:3100</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3120">src/EncryptedFS.ts:3120</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3148,7 +3176,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3105">src/EncryptedFS.ts:3105</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3125">src/EncryptedFS.ts:3125</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3168,7 +3196,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3110">src/EncryptedFS.ts:3110</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3130">src/EncryptedFS.ts:3130</a></li>
 								</ul>
 							</aside>
 							<h4 class="tsd-parameters-title">Parameters</h4>
@@ -3287,7 +3315,7 @@
 						<li class="tsd-description">
 							<aside class="tsd-sources">
 								<ul>
-									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3482">src/EncryptedFS.ts:3482</a></li>
+									<li>Defined in <a href="https://github.com/MatrixAI/js-encryptedfs/blob/master/src/EncryptedFS.ts#L3502">src/EncryptedFS.ts:3502</a></li>
 								</ul>
 							</aside>
 							<div class="tsd-comment tsd-typography">
@@ -3336,6 +3364,12 @@
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-class">
 								<a href="EncryptedFS.default.html#blockSize" class="tsd-kind-icon">block<wbr>Size</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-protected">
+								<a href="EncryptedFS.default.html#chrootParent" class="tsd-kind-icon">chroot<wbr>Parent</a>
+							</li>
+							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-protected">
+								<a href="EncryptedFS.default.html#chroots" class="tsd-kind-icon">chroots</a>
 							</li>
 							<li class=" tsd-kind-property tsd-parent-kind-class tsd-is-protected">
 								<a href="EncryptedFS.default.html#db" class="tsd-kind-icon">db</a>
