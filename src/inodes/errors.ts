@@ -1,26 +1,43 @@
-import { CustomError } from 'ts-custom-error';
+import { AbstractError } from '@matrixai/errors';
 
-class ErrorINodes extends CustomError {}
+class ErrorINodes<T> extends AbstractError<T> {
+  static description = 'INodes error';
+}
 
-class ErrorINodesRunning extends ErrorINodes {}
+class ErrorINodeManagerRunning<T> extends ErrorINodes<T> {
+  static description = 'INodeManager is running';
+}
 
-class ErrorINodesNotRunning extends ErrorINodes {}
+class ErrorINodeManagerNotRunning<T> extends ErrorINodes<T> {
+  static description = 'INodeManager is not running';
+}
 
-class ErrorINodesDestroyed extends ErrorINodes {}
+class ErrorINodeManagerDestroyed<T> extends ErrorINodes<T> {
+  static description = 'INodeManager is destroyed';
+}
 
-class ErrorINodesDuplicateRoot extends ErrorINodes {}
+class ErrorINodesDuplicateRoot<T> extends ErrorINodes<T> {
+  static description = 'Only a single root INode is allowed';
+}
 
-class ErrorINodesIndexMissing extends ErrorINodes {}
+class ErrorINodesIndexMissing<T> extends ErrorINodes<T> {
+  static description = 'INode cannot be found';
+}
 
-class ErrorINodesParentMissing extends ErrorINodes {}
+class ErrorINodesParentMissing<T> extends ErrorINodes<T> {
+  static description = 'Parent INode cannot be found during directory creation';
+}
 
-class ErrorINodesInvalidName extends ErrorINodes {}
+class ErrorINodesInvalidName<T> extends ErrorINodes<T> {
+  static description =
+    'Old entry cannot be found during directory entry renaming';
+}
 
 export {
   ErrorINodes,
-  ErrorINodesRunning,
-  ErrorINodesNotRunning,
-  ErrorINodesDestroyed,
+  ErrorINodeManagerRunning,
+  ErrorINodeManagerNotRunning,
+  ErrorINodeManagerDestroyed,
   ErrorINodesDuplicateRoot,
   ErrorINodesIndexMissing,
   ErrorINodesParentMissing,

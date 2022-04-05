@@ -4,7 +4,8 @@ import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { running } from '@matrixai/async-init';
 import { code as errno } from 'errno';
-import { EncryptedFS, constants } from '@';
+import EncryptedFS from '@/EncryptedFS';
+import * as constants from '@/constants';
 import * as utils from '@/utils';
 import * as errors from '@/errors';
 import { expectError } from './utils';
@@ -34,27 +35,6 @@ describe('EncryptedFS Navigation', () => {
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
-    });
-  });
-  test('creation of EFS', async () => {
-    expect(efs).toBeInstanceOf(EncryptedFS);
-  });
-  test('Validation of keys', async () => {
-    await efs.stop();
-    const falseDbKey = await utils.generateKey(256);
-    await expect(
-      EncryptedFS.createEncryptedFS({
-        dbKey: falseDbKey,
-        dbPath,
-        umask: 0o022,
-        logger,
-      }),
-    ).rejects.toThrow(errors.ErrorEncryptedFSKey);
-    efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      umask: 0o022,
-      logger,
     });
   });
   test('EFS using callback style functions', (done) => {

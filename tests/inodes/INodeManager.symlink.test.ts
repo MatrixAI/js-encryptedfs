@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import { INodeManager } from '@/inodes';
+import INodeManager from '@/inodes/INodeManager';
 import * as utils from '@/utils';
 
 describe('INodeManager Symlink', () => {
@@ -43,44 +43,35 @@ describe('INodeManager Symlink', () => {
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(rootIno);
-        });
-        await iNodeMgr.dirCreate(tran, rootIno, {});
-      },
-      [rootIno],
-    );
+    await iNodeMgr.withTransactionF(rootIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(rootIno);
+      });
+      await iNodeMgr.dirCreate(rootIno, {}, undefined, tran);
+    });
     const symlinkIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(symlinkIno);
-        });
-        await iNodeMgr.symlinkCreate(tran, symlinkIno, {}, 'a link');
-        await iNodeMgr.dirSetEntry(tran, rootIno, 'somelink', symlinkIno);
-      },
-      [rootIno, symlinkIno],
-    );
-    await iNodeMgr.transact(async (tran) => {
-      expect(await iNodeMgr.symlinkGetLink(tran, symlinkIno)).toBe('a link');
-      const statSymlink = await iNodeMgr.statGet(tran, symlinkIno);
+    await iNodeMgr.withTransactionF(rootIno, symlinkIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(symlinkIno);
+      });
+      await iNodeMgr.symlinkCreate(symlinkIno, {}, 'a link', tran);
+      await iNodeMgr.dirSetEntry(rootIno, 'somelink', symlinkIno, tran);
+    });
+    await iNodeMgr.withTransactionF(async (tran) => {
+      expect(await iNodeMgr.symlinkGetLink(symlinkIno, tran)).toBe('a link');
+      const statSymlink = await iNodeMgr.statGet(symlinkIno, tran);
       expect(statSymlink.isSymbolicLink()).toBe(true);
       expect(statSymlink['ino']).toBe(symlinkIno);
       expect(statSymlink['nlink']).toBe(1);
-      const statDir = await iNodeMgr.statGet(tran, rootIno);
+      const statDir = await iNodeMgr.statGet(rootIno, tran);
       expect(statDir['nlink']).toBe(2);
     });
-    await iNodeMgr.transact(
-      async (tran) => {
-        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'somelink');
-      },
-      [rootIno, symlinkIno],
-    );
-    await iNodeMgr.transact(async (tran) => {
-      expect(await iNodeMgr.get(tran, symlinkIno)).toBeUndefined();
-      const stat = await iNodeMgr.statGet(tran, rootIno);
+    await iNodeMgr.withTransactionF(rootIno, symlinkIno, async (tran) => {
+      await iNodeMgr.dirUnsetEntry(rootIno, 'somelink', tran);
+    });
+    await iNodeMgr.withTransactionF(async (tran) => {
+      expect(await iNodeMgr.get(symlinkIno, tran)).toBeUndefined();
+      const stat = await iNodeMgr.statGet(rootIno, tran);
       expect(stat['nlink']).toBe(2);
     });
   });

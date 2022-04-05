@@ -2,13 +2,11 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-
 import { DB } from '@matrixai/db';
 import { INodeManager } from '@/inodes';
-import { FileDescriptorManager } from '@/fd';
-import { FileDescriptor } from '@/fd';
-import { permissions } from '@';
-
+import FileDescriptorManager from '@/fd/FileDescriptorManager';
+import FileDescriptor from '@/fd/FileDescriptor';
+import * as permissions from '@/permissions';
 import * as utils from '@/utils';
 
 describe('File Descriptor Manager', () => {
@@ -115,51 +113,39 @@ describe('File Descriptor Manager', () => {
     });
     const fdMgr = new FileDescriptorManager(iNodeMgr);
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(rootIno);
-        });
-        await iNodeMgr.dirCreate(tran, rootIno, {});
-      },
-      [rootIno],
-    );
+    await iNodeMgr.withTransactionF(rootIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(rootIno);
+      });
+      await iNodeMgr.dirCreate(rootIno, {}, undefined, tran);
+    });
     const fileIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          4096,
-          origBuffer,
-        );
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        4096,
+        origBuffer,
+        tran,
+      );
+    });
     // The file is 'added' to the directory
-    await iNodeMgr.transact(
-      async (tran) => {
-        await iNodeMgr.dirSetEntry(tran, rootIno, 'file', fileIno);
-      },
-      [rootIno, fileIno],
-    );
+    await iNodeMgr.withTransactionF(rootIno, fileIno, async (tran) => {
+      await iNodeMgr.dirSetEntry(rootIno, 'file', fileIno, tran);
+    });
     // The ref to the file iNode is made here
     const [fd, fdIndex] = await fdMgr.createFd(fileIno, 0);
     // The file is 'deleted' from the directory
-    await iNodeMgr.transact(
-      async (tran) => {
-        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'file');
-      },
-      [rootIno, fileIno],
-    );
+    await iNodeMgr.withTransactionF(rootIno, fileIno, async (tran) => {
+      await iNodeMgr.dirUnsetEntry(rootIno, 'file', tran);
+    });
     bytesRead = await fd.read(readBuffer);
     expect(fd.pos).toBe(origBuffer.length);
     expect(readBuffer).toStrictEqual(origBuffer);

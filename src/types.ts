@@ -15,6 +15,11 @@ type POJO = { [key: string]: any };
 type Opaque<K, T> = T & { __TYPE__: K };
 
 /**
+ * Non-empty array
+ */
+type NonEmptyArray<T> = [T, ...T[]];
+
+/**
  * Any type that can be turned into a string
  */
 interface ToString {
@@ -78,6 +83,7 @@ type EFSWorkerManagerInterface = WorkerManagerInterface<EFSWorkerModule>;
 export type {
   POJO,
   Opaque,
+  NonEmptyArray,
   ToString,
   Callback,
   FunctionProperties,

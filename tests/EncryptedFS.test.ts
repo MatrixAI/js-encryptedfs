@@ -2,9 +2,9 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
+import EncryptedFS from '@/EncryptedFS';
 import * as utils from '@/utils';
 import * as errors from '@/errors';
-import { EncryptedFS } from '@';
 
 describe('EncryptedFS', () => {
   const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
@@ -93,6 +93,28 @@ describe('EncryptedFS', () => {
     expect(efs.constants.O_RDONLY).toBeDefined();
     expect(efs.constants.O_TRUNC).toBeDefined();
     expect(efs.constants.S_IRWXG).toBeDefined();
+    await efs.stop();
+  });
+  test('validate key', async () => {
+    let efs = await EncryptedFS.createEncryptedFS({
+      dbPath: dataDir,
+      dbKey,
+      logger,
+    });
+    await efs.stop();
+    const falseDbKey = await utils.generateKey(256);
+    await expect(
+      EncryptedFS.createEncryptedFS({
+        dbPath: dataDir,
+        dbKey: falseDbKey,
+        logger,
+      }),
+    ).rejects.toThrow(errors.ErrorEncryptedFSKey);
+    efs = await EncryptedFS.createEncryptedFS({
+      dbKey,
+      dbPath: dataDir,
+      logger,
+    });
     await efs.stop();
   });
 });

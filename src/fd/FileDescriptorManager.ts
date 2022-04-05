@@ -72,12 +72,9 @@ class FileDescriptorManager {
     if (fd) {
       this._fds.delete(fdIndex);
       this._counter.deallocate(fdIndex);
-      await this._iNodeMgr.transact(
-        async (tran) => {
-          await this._iNodeMgr.unref(tran, fd.ino);
-        },
-        [fd.ino],
-      );
+      await this._iNodeMgr.withTransactionF(fd.ino, async (tran) => {
+        await this._iNodeMgr.unref(fd.ino, tran);
+      });
     }
     return;
   }
