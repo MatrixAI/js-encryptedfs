@@ -236,7 +236,7 @@ class INodeManager {
    */
   public async withTransactionF<T>(
     ...params: [...inos: Array<INodeIndex>, f: (tran: DBTransaction) => Promise<T>]
-  ) {
+  ): Promise<T> {
     const f = params.pop() as (tran: DBTransaction) => Promise<T>;
     const lockRequests = (params as Array<INodeIndex>).map<[INodeIndex, typeof Lock]>(ino => [ino, Lock]);
     return withF(
@@ -975,6 +975,10 @@ class INodeManager {
     for await (const [k] of tran.iterator({ values: false }, dataPath)) {
       await tran.del([...dataPath, k]);
     }
+    const dataPath2 = [...this.dataDbPath, ino.toString()];
+    const key = inodesUtils.bufferId(0);
+    await tran.del([...dataPath2, key]);
+    const buffer = await tran.get([...dataPath2, key], true);
   }
 
   /**
@@ -1082,7 +1086,7 @@ class INodeManager {
     const bufferSegments = utils.segmentBuffer(blockSize, data);
     let blockIdx = startIdx;
     for (const dataSegment of bufferSegments) {
-      await this.fileWriteBlock(ino, dataSegment, blockIdx, 0, tran);
+      const len = await this.fileWriteBlock(ino, dataSegment, blockIdx, 0, tran);
       blockIdx++;
     }
   }

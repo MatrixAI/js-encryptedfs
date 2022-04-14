@@ -1103,6 +1103,7 @@ class EncryptedFS {
             } else if (len < data.length) {
               newData = Buffer.allocUnsafe(len);
               data.copy(newData, 0, 0, len);
+              // Clear all file blocks for this inode before setting new blocks
               await this.iNodeMgr.fileClearData(fd.ino, tran);
               await this.iNodeMgr.fileSetBlocks(
                 fd.ino,
