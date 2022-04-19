@@ -716,25 +716,11 @@ class EncryptedFS {
     }, callback);
   }
 
-  public async createReadStream(
+  @ready(new errors.ErrorEncryptedFSNotRunning())
+  public createReadStream(
     path: Path,
     options?: OptionsStream,
-  ): Promise<ReadStream>;
-  public async createReadStream(
-    path: Path,
-    callback: Callback<[ReadStream]>,
-  ): Promise<void>;
-  public async createReadStream(
-    path: Path,
-    options: OptionsStream,
-    callback: Callback<[ReadStream]>,
-  ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
-  public async createReadStream(
-    path: Path,
-    optionsOrCallback: OptionsStream | Callback<[ReadStream]> = {},
-    callback?: Callback<[ReadStream]>,
-  ): Promise<ReadStream | void> {
+  ): ReadStream {
     const defaultOps: OptionsStream = {
       flags: 'r',
       encoding: undefined,
@@ -743,42 +729,21 @@ class EncryptedFS {
       autoClose: true,
       end: Infinity,
     };
-    const options =
-      typeof optionsOrCallback !== 'function'
-        ? (this.getOptions(defaultOps, optionsOrCallback) as OptionsStream)
-        : defaultOps;
-    callback =
-      typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-    return utils.maybeCallback(async () => {
-      path = this.getPath(path);
-      if (options.start !== undefined) {
-        if (options.start > (options.end ?? Infinity)) {
-          throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
-        }
+    const options_: OptionsStream = this.getOptions(defaultOps, options);
+    path = this.getPath(path);
+    if (options_.start !== undefined) {
+      if (options_.start > (options_.end ?? Infinity)) {
+        throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
       }
-      return new ReadStream(path, options, this);
-    }, callback);
+    }
+    return new ReadStream(path, options_, this);
   }
 
-  public async createWriteStream(
+  @ready(new errors.ErrorEncryptedFSNotRunning())
+  public createWriteStream(
     path: Path,
     options?: OptionsStream,
-  ): Promise<WriteStream>;
-  public async createWriteStream(
-    path: Path,
-    callback: Callback<[WriteStream]>,
-  ): Promise<void>;
-  public async createWriteStream(
-    path: Path,
-    options: OptionsStream,
-    callback: Callback<[WriteStream]>,
-  ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
-  public async createWriteStream(
-    path: Path,
-    optionsOrCallback: OptionsStream | Callback<[WriteStream]> = {},
-    callback?: Callback<[WriteStream]>,
-  ): Promise<WriteStream | void> {
+  ): WriteStream {
     const defaultOps: OptionsStream = {
       flags: 'w',
       encoding: 'utf8',
@@ -786,21 +751,14 @@ class EncryptedFS {
       mode: permissions.DEFAULT_FILE_PERM,
       autoClose: true,
     };
-    const options =
-      typeof optionsOrCallback !== 'function'
-        ? (this.getOptions(defaultOps, optionsOrCallback) as OptionsStream)
-        : defaultOps;
-    callback =
-      typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
-    return utils.maybeCallback(async () => {
-      path = this.getPath(path);
-      if (options.start !== undefined) {
-        if (options.start < 0) {
-          throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
-        }
+    const options_: OptionsStream = this.getOptions(defaultOps, options);
+    path = this.getPath(path);
+    if (options_.start !== undefined) {
+      if (options_.start < 0) {
+        throw new RangeError('ERR_VALUE_OUT_OF_RANGE');
       }
-      return new WriteStream(path, options, this);
-    }, callback);
+    }
+    return new WriteStream(path, options_, this);
   }
 
   @ready(new errors.ErrorEncryptedFSNotRunning())

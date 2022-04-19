@@ -36,7 +36,7 @@ describe('EncryptedFS Streams', () => {
     test("using 'for await'", async () => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -50,7 +50,7 @@ describe('EncryptedFS Streams', () => {
     test("using 'event readable'", async (done) => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -70,7 +70,7 @@ describe('EncryptedFS Streams', () => {
     test("using 'event data'", async (done) => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -87,7 +87,7 @@ describe('EncryptedFS Streams', () => {
     test('respects start and end options', async (done) => {
       const str = 'Hello';
       await efs.writeFile(`file`, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(`file`, {
+      const readable = efs.createReadStream(`file`, {
         encoding: 'utf8',
         start: 1,
         end: 3,
@@ -108,7 +108,7 @@ describe('EncryptedFS Streams', () => {
       const str = 'Hello';
       const highWatermark = 2;
       await efs.writeFile(`file`, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(`file`, {
+      const readable = efs.createReadStream(`file`, {
         encoding: 'utf8',
         highWaterMark: highWatermark,
       });
@@ -132,7 +132,7 @@ describe('EncryptedFS Streams', () => {
       const filePath = `file`;
       const offset = 1;
       await efs.writeFile(filePath, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(filePath, {
+      const readable = efs.createReadStream(filePath, {
         encoding: 'utf8',
         start: offset,
       });
@@ -152,7 +152,7 @@ describe('EncryptedFS Streams', () => {
       const str = 'Hello';
       const filePath = `file`;
       await efs.writeFile(filePath, str);
-      const readable = await efs.createReadStream(filePath, {
+      const readable = efs.createReadStream(filePath, {
         encoding: 'utf8',
         end: 1,
       });
@@ -175,7 +175,7 @@ describe('EncryptedFS Streams', () => {
       const fd = await efs.open(filePath, 'r');
       const offset = 1;
       await efs.lseek(fd, offset);
-      const readable = await efs.createReadStream('', {
+      const readable = efs.createReadStream('', {
         encoding: 'utf8',
         fd: fd,
       });
@@ -196,7 +196,7 @@ describe('EncryptedFS Streams', () => {
       await efs.writeFile(`file`, str);
       const fd = await efs.open(`file`, 'r');
       const offset = 1;
-      const readable = await efs.createReadStream('', {
+      const readable = efs.createReadStream('', {
         encoding: 'utf8',
         fd: fd,
         start: offset,
@@ -217,7 +217,7 @@ describe('EncryptedFS Streams', () => {
       });
     });
     test('can handle errors asynchronously', async (done) => {
-      const stream = await efs.createReadStream(`file`);
+      const stream = efs.createReadStream(`file`);
       stream.on('error', (err) => {
         expect(err instanceof Error).toBe(true);
         const error = err as any;
@@ -229,7 +229,7 @@ describe('EncryptedFS Streams', () => {
     test('can compose with pipes', async (done) => {
       const str = 'Hello';
       await efs.writeFile(`file`, str);
-      const readStream = await efs.createReadStream(`file`, {
+      const readStream = efs.createReadStream(`file`, {
         encoding: 'utf8',
         end: 10,
       });
@@ -260,7 +260,7 @@ describe('EncryptedFS Streams', () => {
       const str = '';
       await efs.writeFile(`file`, str);
 
-      const writeStream = await efs.createWriteStream('file', {
+      const writeStream = efs.createWriteStream('file', {
         encoding: 'utf8',
       });
 
@@ -291,11 +291,11 @@ describe('EncryptedFS Streams', () => {
     test('can create and truncate files', async (done) => {
       const str = 'Hello';
       const fileName = `file`;
-      const writable = await efs.createWriteStream(fileName, {});
+      const writable = efs.createWriteStream(fileName, {});
       writable.end(str, async () => {
         const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
         expect(readStr).toEqual(str);
-        const truncateWritable = await efs.createWriteStream(fileName, {});
+        const truncateWritable = efs.createWriteStream(fileName, {});
         truncateWritable.end('', async () => {
           const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
           expect(readStr).toEqual('');
@@ -305,7 +305,7 @@ describe('EncryptedFS Streams', () => {
     });
     test('can be written into', async (done) => {
       const str = 'Hello';
-      const stream = await efs.createWriteStream('file');
+      const stream = efs.createWriteStream('file');
       stream.write(Buffer.from(str));
       stream.end();
       stream.on('finish', async () => {
@@ -316,7 +316,7 @@ describe('EncryptedFS Streams', () => {
     });
     test('allow ignoring of the drain event, temporarily ignoring resource usage control', async (done) => {
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', {
+      const writable = efs.createWriteStream('file', {
         highWaterMark: waterMark,
       });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
@@ -332,7 +332,7 @@ describe('EncryptedFS Streams', () => {
     });
     test('can use the drain event to manage resource control', async (done) => {
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', {
+      const writable = efs.createWriteStream('file', {
         highWaterMark: waterMark,
       });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
@@ -359,7 +359,7 @@ describe('EncryptedFS Streams', () => {
     });
     test('can handle errors asynchronously', async (done) => {
       const fileName = `file/unknown`;
-      const writable = await efs.createWriteStream(fileName);
+      const writable = efs.createWriteStream(fileName);
       // Note that it is possible to have the finish event occur before the error event
       writable.once('error', (err) => {
         expect(err instanceof Error).toBe(true);

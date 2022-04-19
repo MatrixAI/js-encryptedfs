@@ -258,7 +258,7 @@ describe('EncryptedFS Concurrency', () => {
     });
     test('Allocating while writing to stream', async () => {
       await efs.writeFile('file', '');
-      const writeStream = await efs.createWriteStream('file');
+      const writeStream = efs.createWriteStream('file');
       const content = 'A'.repeat(4096);
       const fd = await efs.open('file', 'w');
 
@@ -284,7 +284,7 @@ describe('EncryptedFS Concurrency', () => {
     });
     test('Truncating while writing to stream', async () => {
       await efs.writeFile('file', '');
-      const writeStream = await efs.createWriteStream('file');
+      const writeStream = efs.createWriteStream('file');
       const content = 'A'.repeat(4096 * 2);
       const promise1 = new Promise((res) => {
         writeStream.write(content, () => {
@@ -512,8 +512,8 @@ describe('EncryptedFS Concurrency', () => {
   });
   test('Read stream and write stream to same file', async (done) => {
     await efs.writeFile('file', '');
-    const readStream = await efs.createReadStream('file');
-    const writeStream = await efs.createWriteStream('file', { flags: 'w+' });
+    const readStream = efs.createReadStream('file');
+    const writeStream = efs.createWriteStream('file', { flags: 'w+' });
     const contents = 'A'.repeat(4096);
 
     // Write two blocks.
@@ -541,7 +541,7 @@ describe('EncryptedFS Concurrency', () => {
   test('One write stream and one fd writing to the same file', async () => {
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
-    const writeStream = await efs.createWriteStream('file');
+    const writeStream = efs.createWriteStream('file');
 
     await Promise.all([
       new Promise((res) => {
@@ -572,7 +572,7 @@ describe('EncryptedFS Concurrency', () => {
   test('One read stream and one fd writing to the same file', async () => {
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
-    const readStream = await efs.createReadStream('file');
+    const readStream = efs.createReadStream('file');
     let readData = '';
 
     readStream.on('data', (data) => {
@@ -600,7 +600,7 @@ describe('EncryptedFS Concurrency', () => {
   test('One write stream and one fd reading to the same file', async () => {
     await efs.writeFile('file', '');
     const fd = await efs.open('file', flags.O_RDWR);
-    const writeStream = await efs.createWriteStream('file');
+    const writeStream = efs.createWriteStream('file');
     const buf1 = Buffer.alloc(20);
     const buf2 = Buffer.alloc(20);
     const buf3 = Buffer.alloc(20);
@@ -635,7 +635,7 @@ describe('EncryptedFS Concurrency', () => {
   test('One read stream and one fd reading to the same file', async () => {
     await efs.writeFile('file', 'AAAAAAAAAABBBBBBBBBB');
     const fd = await efs.open('file', flags.O_RDONLY);
-    const readStream = await efs.createReadStream('file');
+    const readStream = efs.createReadStream('file');
     let readData = '';
 
     readStream.on('data', (data) => {
@@ -667,7 +667,7 @@ describe('EncryptedFS Concurrency', () => {
 
     // Each stream sequentially.
     for (let i = 0; i < contents.length; i++) {
-      streams.push(await efs.createWriteStream('file'));
+      streams.push(efs.createWriteStream('file'));
     }
     for (let i = 0; i < streams.length; i++) {
       streams[i].write(Buffer.from(contents[i]));
@@ -688,7 +688,7 @@ describe('EncryptedFS Concurrency', () => {
     const contents2 = ['A'.repeat(4096), 'B'.repeat(4096), 'C'.repeat(4096)];
     streams = [];
     for (let i = 0; i < contents2.length; i++) {
-      streams.push(await efs.createWriteStream('file'));
+      streams.push(efs.createWriteStream('file'));
     }
     for (let j = 0; j < 3; j++) {
       for (let i = 0; i < streams.length; i++) {
@@ -747,7 +747,7 @@ describe('EncryptedFS Concurrency', () => {
   test('Writing a file and deleting the file at the same time for stream', async () => {
     await efs.writeFile('file', '');
 
-    const writeStream1 = await efs.createWriteStream('file');
+    const writeStream1 = efs.createWriteStream('file');
     await Promise.all([
       new Promise((res) => {
         writeStream1.write(Buffer.from('AAAAAAAAAA'), () => {
@@ -761,7 +761,7 @@ describe('EncryptedFS Concurrency', () => {
     expect(await efs.readdir('.')).toEqual([]);
 
     await efs.writeFile('file', '');
-    const writeStream2 = await efs.createWriteStream('file');
+    const writeStream2 = efs.createWriteStream('file');
     await Promise.all([
       efs.unlink('file'),
       new Promise((res) => {
@@ -806,7 +806,7 @@ describe('EncryptedFS Concurrency', () => {
   });
   test('Appending to a file that is being written for stream', async () => {
     await efs.writeFile('file', '');
-    const writeStream = await efs.createWriteStream('file');
+    const writeStream = efs.createWriteStream('file');
     await Promise.all([
       new Promise((res) => {
         writeStream.write(Buffer.from('AAAAAAAAAA'), () => {
@@ -824,7 +824,7 @@ describe('EncryptedFS Concurrency', () => {
     expect(fileContents).toContain('AB');
 
     await efs.writeFile('file', '');
-    const writeStream2 = await efs.createWriteStream('file');
+    const writeStream2 = efs.createWriteStream('file');
     await Promise.all([
       efs.appendFile('file', 'BBBBBBBBBB'),
       new Promise((res) => {
@@ -872,7 +872,7 @@ describe('EncryptedFS Concurrency', () => {
   });
   test('Copying a file that is being written to for stream', async () => {
     await efs.writeFile('file', 'AAAAAAAAAA');
-    const writeStream = await efs.createWriteStream('file');
+    const writeStream = efs.createWriteStream('file');
 
     await Promise.all([
       new Promise((res) => {
@@ -892,7 +892,7 @@ describe('EncryptedFS Concurrency', () => {
 
     await efs.writeFile('file', 'AAAAAAAAAA');
     await efs.unlink('fileCopy');
-    const writeStream2 = await efs.createWriteStream('file');
+    const writeStream2 = efs.createWriteStream('file');
 
     await Promise.all([
       efs.copyFile('file', 'fileCopy'),
