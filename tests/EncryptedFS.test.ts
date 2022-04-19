@@ -6,8 +6,8 @@ import EncryptedFS from '@/EncryptedFS';
 import * as utils from '@/utils';
 import * as errors from '@/errors';
 
-describe('EncryptedFS', () => {
-  const logger = new Logger('EncryptedFS Test', LogLevel.WARN, [
+describe(EncryptedFS.name, () => {
+  const logger = new Logger(`${EncryptedFS.name} Test`, LogLevel.WARN, [
     new StreamHandler(),
   ]);
   const dbKey: Buffer = utils.generateKeySync(256);

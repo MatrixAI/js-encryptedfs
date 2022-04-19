@@ -1,5 +1,5 @@
 import type { DB, DBTransaction, LevelPath } from '@matrixai/db';
-import type { ResourceAcquire, ResourceRelease } from '@matrixai/resources';
+import type { ResourceAcquire } from '@matrixai/resources';
 import type {
   INodeIndex,
   INodeId,
@@ -7,6 +7,7 @@ import type {
   INodeData,
   BufferId,
 } from './types';
+import type { Ref } from '../types';
 import type { StatProps } from '../Stat';
 import Logger from '@matrixai/logger';
 import {
@@ -55,17 +56,18 @@ class INodeManager {
     return iNodeMgr;
   }
 
-  public mgrDbPath: LevelPath = [this.constructor.name];
-  public iNodesDbPath: LevelPath = [this.constructor.name, 'inodes'];
-  public statsDbPath: LevelPath = [this.constructor.name, 'stats'];
-  public dataDbPath: LevelPath = [this.constructor.name, 'data'];
-  public dirsDbPath: LevelPath = [this.constructor.name, 'dir'];
-  public linkDbPath: LevelPath = [this.constructor.name, 'link'];
-  public gcDbPath: LevelPath = [this.constructor.name, 'gc'];
+  public readonly mgrDbPath: LevelPath = [this.constructor.name];
+  public readonly iNodesDbPath: LevelPath = [this.constructor.name, 'inodes'];
+  public readonly statsDbPath: LevelPath = [this.constructor.name, 'stats'];
+  public readonly dataDbPath: LevelPath = [this.constructor.name, 'data'];
+  public readonly dirsDbPath: LevelPath = [this.constructor.name, 'dir'];
+  public readonly linkDbPath: LevelPath = [this.constructor.name, 'link'];
+  public readonly gcDbPath: LevelPath = [this.constructor.name, 'gc'];
 
   protected logger: Logger;
   protected db: DB;
-  protected counter: Counter = new Counter(1);
+  protected iNodeCounter: Counter = new Counter(1);
+  protected iNodeAllocations: Map<string, Ref<INodeIndex>> = new Map();
   protected refs: Map<INodeIndex, number> = new Map();
   protected locks: LockBox<Lock> = new LockBox();
 
@@ -80,8 +82,11 @@ class INodeManager {
       await this.db.clear(this.mgrDbPath);
     }
     // Populate the inode counter with pre-existing inodes
-    for await (const [k] of this.db.iterator({ values: false })) {
-      this.counter.allocate(inodesUtils.uniNodeId(k as INodeId));
+    for await (const [k] of this.db.iterator(
+      { values: false },
+      this.iNodesDbPath,
+    )) {
+      this.iNodeCounter.allocate(inodesUtils.uniNodeId(k as INodeId));
     }
     // Clean up all dangling inodes that could not be removed due to references
     // This only has effect when `this.stop` was not called during a prior instance
@@ -98,7 +103,7 @@ class INodeManager {
     // Clean up all dangling inodes that could not be removed due to references
     await this.gcAll();
     // Reset the inode counter, it will be repopulated on start
-    this.counter = new Counter(1);
+    this.iNodeCounter = new Counter(1);
     // Reset the references
     this.refs.clear();
     this.logger.info(`Stopped ${this.constructor.name}`);
@@ -113,13 +118,14 @@ class INodeManager {
   /**
    * Delete iNodes that were scheduled for deletion
    * These iNodes could not be deleted because of an existing reference
-   * This is used during `this.start` and `this.stop`
+   * This is used during `this.start` and `this.stop`, and thus does not use any locks
    * This must only be called when there are no active `this.refs` or `this.locks`
    */
   protected async gcAll(): Promise<void> {
     await withF([this.db.transaction()], async ([tran]) => {
       for await (const [k] of tran.iterator({ values: false }, this.gcDbPath)) {
         const ino = inodesUtils.uniNodeId(k as INodeId);
+        // Snapshot doesn't need to be used because `this.gcAll` is only executed at `this.stop`
         const type = (await tran.get<INodeType>([
           ...this.iNodesDbPath,
           inodesUtils.iNodeId(ino),
@@ -142,115 +148,106 @@ class INodeManager {
         });
       }
     });
-
-    // This originally locked the whole DB
-    // should not be necessary as long as we have transactional iteration
-
-    // for await (const k of this.gcDb.createKeyStream()) {
-    //   await this.db.transact(async (tran) => {
-    //     const ino = inodesUtils.uniNodeId(k as INodeId);
-    //     const type = (await tran.get<INodeType>(
-    //       this.iNodesDomain,
-    //       inodesUtils.iNodeId(ino),
-    //     ))!;
-    //     // Delete the on-disk state
-    //     switch (type) {
-    //       case 'File':
-    //         await this._fileDestroy(tran, ino);
-    //         break;
-    //       case 'Directory':
-    //         await this._dirDestroy(tran, ino);
-    //         break;
-    //       case 'Symlink':
-    //         await this._symlinkDestroy(tran, ino);
-    //         break;
-    //     }
-    //     tran.queueSuccess(() => {
-    //       this.refs.delete(ino);
-    //       this.locks.delete(ino);
-    //       this.inoDeallocate(ino);
-    //     });
-    //   });
-    // }
   }
 
   public inoAllocate(): INodeIndex {
-    return this.counter.allocate();
+    return this.iNodeCounter.allocate();
   }
 
   public inoDeallocate(ino: INodeIndex): void {
-    return this.counter.deallocate(ino);
+    return this.iNodeCounter.deallocate(ino);
   }
 
   /**
-   * Locks a sequence of INodeIndexes
-   * The INodeIndexes will be sorted before locking to ensure lock-hierarchy
-   * in order to prevent deadlocks
+   * INodeIndex allocation resource
+   * This resource represents potentially INodeIndex being allocated
+   * The navigated parameter tells us where the first hardlink for this INodeIndex will be set
+   * If left to be undefined, it is assumed that you are allocating the root INodeIndex
+   * Concurrent call with same navigated parameter will result in the same INodeIndex result
+   * This is essential to enable mutual-exclusion
    */
-  // public getLocks(...inos: Array<INodeIndex>): ResourceAcquire<Array<Lock>> {
-  //   return async () => {
-  //     inos.sort().filter((ino, i, arr) => {
-  //       return i === 0 || ino !== arr[i - 1];
-  //     });
-  //     const locks: Array<[INodeIndex, ResourceRelease, Lock]> = [];
-  //     for (const ino of inos) {
-  //       let lock = this.locks.get(ino);
-  //       if (lock == null) {
-  //         lock = new Lock();
-  //         this.locks.set(ino, lock);
-  //       }
-  //       let lockRelease: ResourceRelease;
-  //       try {
-  //         [lockRelease] = await lock.lock()();
-  //       } catch (e) {
-  //         // Release all intermediate locks in reverse order
-  //         locks.reverse();
-  //         for (const [ino, lockRelease, lock] of locks) {
-  //           await lockRelease();
-  //           if (!lock!.isLocked()) {
-  //             this.locks.delete(ino);
-  //           }
-  //         }
-  //         throw e;
-  //       }
-  //       locks.push([ino, lockRelease, lock]);
-  //     }
-  //     return [
-  //       async () => {
-  //         // Release all locks in reverse order
-  //         locks.reverse();
-  //         for (const [ino, lockRelease, lock] of locks) {
-  //           await lockRelease();
-  //           if (!lock!.isLocked()) {
-  //             this.locks.delete(ino);
-  //           }
-  //         }
-  //       },
-  //       locks.map(([, , lock]) => lock),
-  //     ];
-  //   };
-  // }
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  public inoAllocation(
+    navigated?: Readonly<{ dir: INodeIndex; name: string }>,
+  ): ResourceAcquire<INodeIndex> {
+    let key: string;
+    if (navigated == null) {
+      key = '';
+    } else {
+      key = navigated.dir + navigated.name;
+    }
+    return async () => {
+      let inoRef = this.iNodeAllocations.get(key);
+      if (inoRef != null) {
+        inoRef.count++;
+      } else {
+        inoRef = {
+          value: this.inoAllocate(),
+          count: 1,
+        };
+        this.iNodeAllocations.set(key, inoRef);
+      }
+      return [
+        async (e) => {
+          // Only deallocate if there was an error while using inode allocation
+          if (e != null) {
+            this.iNodeCounter.deallocate(inoRef!.value);
+          }
+          // Remove the inode allocations entry if the count reaches 0
+          if (--inoRef!.count <= 0) {
+            this.iNodeAllocations.delete(key);
+          }
+        },
+        inoRef.value,
+      ];
+    };
+  }
 
-  /**
-   * By default will not lock anything
-   */
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  public transaction(
+    ...inos: Array<INodeIndex>
+  ): ResourceAcquire<DBTransaction> {
+    return async () => {
+      const locksAcquire = this.locks.lock(
+        ...inos.map<[INodeIndex, typeof Lock]>((ino) => [ino, Lock]),
+      );
+      const transactionAcquire = this.db.transaction();
+      const [locksRelease] = await locksAcquire();
+      let transactionRelease, tran;
+      try {
+        [transactionRelease, tran] = await transactionAcquire();
+      } catch (e) {
+        await locksRelease();
+        throw e;
+      }
+      return [
+        async () => {
+          await transactionRelease();
+          await locksRelease();
+        },
+        tran,
+      ];
+    };
+  }
+
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async withTransactionF<T>(
-    ...params: [...inos: Array<INodeIndex>, f: (tran: DBTransaction) => Promise<T>]
+    ...params: [
+      ...inos: Array<INodeIndex>,
+      f: (tran: DBTransaction) => Promise<T>,
+    ]
   ): Promise<T> {
     const f = params.pop() as (tran: DBTransaction) => Promise<T>;
-    const lockRequests = (params as Array<INodeIndex>).map<[INodeIndex, typeof Lock]>(ino => [ino, Lock]);
+    const lockRequests = (params as Array<INodeIndex>).map<
+      [INodeIndex, typeof Lock]
+    >((ino) => [ino, Lock]);
     return withF(
-      [
-        this.db.transaction(),
-        this.locks.lock(...lockRequests)
-      ],
+      [this.db.transaction(), this.locks.lock(...lockRequests)],
       ([tran]) => f(tran),
     );
   }
 
-  /**
-   * By default will not lock anything
-   */
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public withTransactionG<T, TReturn, TNext>(
     ...params: [
       ...inos: Array<INodeIndex>,
@@ -260,13 +257,88 @@ class INodeManager {
     const g = params.pop() as (
       tran: DBTransaction,
     ) => AsyncGenerator<T, TReturn, TNext>;
-    const lockRequests = (params as Array<INodeIndex>).map<[INodeIndex, typeof Lock]>(ino => [ino, Lock]);
+    const lockRequests = (params as Array<INodeIndex>).map<
+      [INodeIndex, typeof Lock]
+    >((ino) => [ino, Lock]);
+    return withG(
+      [this.db.transaction(), this.locks.lock(...lockRequests)],
+      ([tran]) => g(tran),
+    );
+  }
+
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  public async withNewINodeTransactionF<T>(
+    ...params:
+      | [
+          ...inos: Array<INodeIndex>,
+          f: (ino: INodeIndex, tran: DBTransaction) => Promise<T>,
+        ]
+      | [
+          navigated: Readonly<{ dir: INodeIndex; name: string }>,
+          ...inos: Array<INodeIndex>,
+          f: (ino: INodeIndex, tran: DBTransaction) => Promise<T>,
+        ]
+  ): Promise<T> {
+    const f = params.pop() as (
+      ino: INodeIndex,
+      tran: DBTransaction,
+    ) => Promise<T>;
+    let navigated: Readonly<{ dir: INodeIndex; name: string }> | undefined;
+    if (typeof params[0] !== 'number') {
+      navigated = params.shift() as Readonly<{ dir: INodeIndex; name: string }>;
+    }
+    const lockRequests = (params as Array<INodeIndex>).map<
+      [INodeIndex, typeof Lock]
+    >((ino) => [ino, Lock]);
+    return withF(
+      [
+        this.inoAllocation(navigated),
+        ([ino]: [INodeIndex]) =>
+          this.locks.lock([ino, Lock], ...lockRequests)(),
+        this.db.transaction(),
+      ],
+      ([ino, _, tran]) => f(ino, tran),
+    );
+  }
+
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  public withNewINodeTransactionG<T, TReturn, TNext>(
+    ...params:
+      | [
+          ...inos: Array<INodeIndex>,
+          g: (
+            ino: INodeIndex,
+            tran: DBTransaction,
+          ) => AsyncGenerator<T, TReturn, TNext>,
+        ]
+      | [
+          navigated: Readonly<{ dir: INodeIndex; name: string }>,
+          ...inos: Array<INodeIndex>,
+          g: (
+            ino: INodeIndex,
+            tran: DBTransaction,
+          ) => AsyncGenerator<T, TReturn, TNext>,
+        ]
+  ): AsyncGenerator<T, TReturn, TNext> {
+    const g = params.pop() as (
+      ino: INodeIndex,
+      tran: DBTransaction,
+    ) => AsyncGenerator<T, TReturn, TNext>;
+    let navigated: Readonly<{ dir: INodeIndex; name: string } | undefined>;
+    if (typeof params[0] !== 'number') {
+      navigated = params.shift() as Readonly<{ dir: INodeIndex; name: string }>;
+    }
+    const lockRequests = (params as Array<INodeIndex>).map<
+      [INodeIndex, typeof Lock]
+    >((ino) => [ino, Lock]);
     return withG(
       [
+        this.inoAllocation(navigated),
+        ([ino]: [INodeIndex]) =>
+          this.locks.lock([ino, Lock], ...lockRequests)(),
         this.db.transaction(),
-        this.locks.lock(...lockRequests),
       ],
-      ([tran]) => g(tran),
+      ([ino, _, tran]) => g(ino, tran),
     );
   }
 
@@ -554,10 +626,39 @@ class INodeManager {
       inodesUtils.iNodeId(ino as INodeIndex),
     ]);
     return {
-      ino: ino as INodeIndex,
+      ino,
       type,
       gc: gc !== undefined,
     };
+  }
+
+  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  public async *getAll(tran?: DBTransaction): AsyncGenerator<INodeData> {
+    if (tran == null) {
+      return yield* this.withTransactionG((tran) => this.getAll(tran));
+    }
+    // Consistent iteration on iNodesDbPath and gcDbPath
+    const gcIterator = tran.iterator(undefined, this.gcDbPath);
+    try {
+      for await (const [inoData, typeData] of tran.iterator(
+        undefined,
+        this.iNodesDbPath,
+      )) {
+        const ino = inodesUtils.uniNodeId(inoData as INodeId);
+        const type = dbUtils.deserialize<INodeType>(typeData);
+        gcIterator.seek(inoData);
+        const gcData = (await gcIterator.next())?.[1];
+        const gc =
+          gcData != null ? dbUtils.deserialize<null>(gcData) : undefined;
+        yield {
+          ino,
+          type,
+          gc: gc !== undefined,
+        };
+      }
+    } finally {
+      await gcIterator.end();
+    }
   }
 
   @ready(new inodesErrors.ErrorINodeManagerNotRunning())
@@ -823,7 +924,9 @@ class INodeManager {
     tran?: DBTransaction,
   ): AsyncGenerator<[string, INodeIndex]> {
     if (tran == null) {
-      return this.withTransactionG(ino, (tran) => this.dirGet(ino, tran));
+      return yield* this.withTransactionG(ino, (tran) =>
+        this.dirGet(ino, tran),
+      );
     }
     for await (const [k, v] of tran.iterator(undefined, [
       ...this.dirsDbPath,
@@ -969,16 +1072,8 @@ class INodeManager {
         this.fileClearData(ino, tran),
       );
     }
-    // To set the data we must first clear all existing data, which is
-    // how VFS handles it
     const dataPath = [...this.dataDbPath, ino.toString()];
-    for await (const [k] of tran.iterator({ values: false }, dataPath)) {
-      await tran.del([...dataPath, k]);
-    }
-    const dataPath2 = [...this.dataDbPath, ino.toString()];
-    const key = inodesUtils.bufferId(0);
-    await tran.del([...dataPath2, key]);
-    const buffer = await tran.get([...dataPath2, key], true);
+    await tran.clear(dataPath);
   }
 
   /**
@@ -994,7 +1089,7 @@ class INodeManager {
     tran?: DBTransaction,
   ): AsyncGenerator<Buffer> {
     if (tran == null) {
-      return this.withTransactionG(ino, (tran) =>
+      return yield* this.withTransactionG(ino, (tran) =>
         this.fileGetBlocks(ino, blockSize, startIdx, endIdx, tran),
       );
     }

@@ -5,37 +5,37 @@ import pathNode from 'path';
 import path from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
+import EncryptedFS from '@/EncryptedFS';
+import { ErrorEncryptedFSError } from '@/errors';
 import * as utils from '@/utils';
-import { EncryptedFS, constants } from '@';
+import * as constants from '@/constants';
 import { createFile, expectError, setId, sleep, supportedTypes } from './utils';
 
-describe('EncryptedFS Files', () => {
-  const logger = new Logger('EncryptedFS Files', LogLevel.WARN, [
+describe(`${EncryptedFS.name} Files`, () => {
+  const logger = new Logger(`${EncryptedFS.name} Files`, LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  let dataDir: string;
-  let dbPath: string;
   const dbKey: Buffer = utils.generateKeySync(256);
+  let dataDir: string;
   let efs: EncryptedFS;
   const n0 = 'zero';
   const n1 = 'one';
   const n2 = 'two';
   const dp = 0o0755;
   const tuid = 0o65534;
-  const flags = constants;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
-    dbPath = `${dataDir}/db`;
     efs = await EncryptedFS.createEncryptedFS({
+      dbPath: dataDir,
       dbKey,
-      dbPath,
       umask: 0o022,
       logger,
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -86,7 +86,7 @@ describe('EncryptedFS Files', () => {
     test('can seek different parts of a file', async () => {
       const fd = await efs.open('/fdtest', 'w+');
       await efs.write(fd, 'abc');
-      const pos = await efs.lseek(fd, -1, flags.SEEK_CUR);
+      const pos = await efs.lseek(fd, -1, constants.SEEK_CUR);
       expect(pos).toBe(2);
       await efs.write(fd, 'd');
       await efs.close(fd);
@@ -96,7 +96,7 @@ describe('EncryptedFS Files', () => {
     test('can seek beyond the file length and create a zeroed "sparse" file', async () => {
       await efs.writeFile('/fdtest', Buffer.from([0x61, 0x62, 0x63]));
       const fd = await efs.open('/fdtest', 'r+');
-      const pos = await efs.lseek(fd, 1, flags.SEEK_END);
+      const pos = await efs.lseek(fd, 1, constants.SEEK_END);
       expect(pos).toBe(4);
       await efs.write(fd, Buffer.from([0x64]));
       await efs.close(fd);
@@ -383,10 +383,18 @@ describe('EncryptedFS Files', () => {
       // Become the other
       efs.uid = 1000;
       efs.gid = 1000;
-      await efs.access('/test1', flags.R_OK);
-      await expectError(efs.access('/test1', flags.W_OK), errno.EACCES);
-      await efs.access('/test2', flags.R_OK);
-      await expectError(efs.access('/test1', flags.W_OK), errno.EACCES);
+      await efs.access('/test1', constants.R_OK);
+      await expectError(
+        efs.access('/test1', constants.W_OK),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+      await efs.access('/test2', constants.R_OK);
+      await expectError(
+        efs.access('/test1', constants.W_OK),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
     });
     test('file writes from the beginning, and does not move the fd position', async () => {
       const fd = await efs.open('/fdtest', 'w+');
@@ -448,13 +456,14 @@ describe('EncryptedFS Files', () => {
   });
   describe('open', () => {
     test("opens a file if O_CREAT is specified and the file doesn't exist", async () => {
-      const modeCheck = flags.S_IRWXU | flags.S_IRWXG | flags.S_IRWXO;
+      const modeCheck =
+        constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO;
       let fd;
-      fd = await efs.open(n0, flags.O_CREAT | flags.O_WRONLY, dp);
+      fd = await efs.open(n0, constants.O_CREAT | constants.O_WRONLY, dp);
       expect((await efs.lstat(n0)).mode & modeCheck).toEqual(dp & ~0o022);
       await efs.unlink(n0);
       await efs.close(fd);
-      fd = await efs.open(n0, flags.O_CREAT | flags.O_WRONLY, 0o0151);
+      fd = await efs.open(n0, constants.O_CREAT | constants.O_WRONLY, 0o0151);
       expect((await efs.lstat(n0)).mode & modeCheck).toEqual(0o0151 & ~0o022);
       await efs.unlink(n0);
       await efs.close(fd);
@@ -484,7 +493,11 @@ describe('EncryptedFS Files', () => {
       const dmtime = (await efs.stat(n1)).mtime.getTime();
       const dctime = (await efs.stat(n1)).ctime.getTime();
       await sleep(10);
-      const fd = await efs.open(PUT, flags.O_CREAT | flags.O_RDONLY, 0o0644);
+      const fd = await efs.open(
+        PUT,
+        constants.O_CREAT | constants.O_RDONLY,
+        0o0644,
+      );
       const mtime = (await efs.stat(n1)).mtime.getTime();
       expect(dmtime).toEqual(mtime);
       const ctime = (await efs.stat(n1)).ctime.getTime();
@@ -497,18 +510,28 @@ describe('EncryptedFS Files', () => {
       async (type) => {
         const PUT = path.join(n1, 'test');
         await createFile(efs, type as FileTypes, n1);
-        await expectError(efs.open(PUT, 'r'), errno.ENOTDIR);
-        await expectError(efs.open(PUT, 'w', 0o0644), errno.ENOTDIR);
+        await expectError(
+          efs.open(PUT, 'r'),
+          ErrorEncryptedFSError,
+          errno.ENOTDIR,
+        );
+        await expectError(
+          efs.open(PUT, 'w', 0o0644),
+          ErrorEncryptedFSError,
+          errno.ENOTDIR,
+        );
       },
     );
     test('returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist', async () => {
       await efs.mkdir(n0, { mode: dp });
       await expectError(
-        efs.open(path.join(n0, n1, 'test'), flags.O_CREAT, 0o0644),
+        efs.open(path.join(n0, n1, 'test'), constants.O_CREAT, 0o0644),
+        ErrorEncryptedFSError,
         errno.ENOENT,
       );
       await expectError(
-        efs.open(path.join(n0, n1, 'test'), flags.O_RDONLY),
+        efs.open(path.join(n0, n1, 'test'), constants.O_RDONLY),
+        ErrorEncryptedFSError,
         errno.ENOENT,
       );
     });
@@ -517,15 +540,16 @@ describe('EncryptedFS Files', () => {
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
       await createFile(efs, 'regular', path.join(n1, n2));
-      let fd = await efs.open(path.join(n1, n2), flags.O_RDONLY);
+      let fd = await efs.open(path.join(n1, n2), constants.O_RDONLY);
       await efs.close(fd);
       await efs.chmod(n1, 0o0644);
       await expectError(
-        efs.open(path.join(n1, n2), flags.O_RDONLY),
+        efs.open(path.join(n1, n2), constants.O_RDONLY),
+        ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0755);
-      fd = await efs.open(path.join(n1, n2), flags.O_RDONLY);
+      fd = await efs.open(path.join(n1, n2), constants.O_RDONLY);
       await efs.close(fd);
     });
     test('returns EACCES when the required permissions are denied for a regular file', async () => {
@@ -547,11 +571,11 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        fd = await efs.open(n1, flags.O_RDONLY);
+        fd = await efs.open(n1, constants.O_RDONLY);
         await efs.close(fd);
-        fd = await efs.open(n1, flags.O_WRONLY);
+        fd = await efs.open(n1, constants.O_WRONLY);
         await efs.close(fd);
-        fd = await efs.open(n1, flags.O_RDWR);
+        fd = await efs.open(n1, constants.O_RDWR);
         await efs.close(fd);
         setId(efs, tuid);
       }
@@ -566,10 +590,18 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        fd = await efs.open(n1, flags.O_RDONLY);
+        fd = await efs.open(n1, constants.O_RDONLY);
         await efs.close(fd);
-        await expectError(efs.open(n1, flags.O_WRONLY), errno.EACCES);
-        await expectError(efs.open(n1, flags.O_RDWR), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_WRONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        await expectError(
+          efs.open(n1, constants.O_RDWR),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
 
@@ -584,10 +616,18 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
-        fd = await efs.open(n1, flags.O_WRONLY);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        fd = await efs.open(n1, constants.O_WRONLY);
         await efs.close(fd);
-        await expectError(efs.open(n1, flags.O_RDWR), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDWR),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
 
@@ -602,9 +642,21 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
-        await expectError(efs.open(n1, flags.O_WRONLY), errno.EACCES);
-        await expectError(efs.open(n1, flags.O_RDWR), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        await expectError(
+          efs.open(n1, constants.O_WRONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        await expectError(
+          efs.open(n1, constants.O_RDWR),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
 
@@ -619,9 +671,21 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
-        await expectError(efs.open(n1, flags.O_WRONLY), errno.EACCES);
-        await expectError(efs.open(n1, flags.O_RDWR), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        await expectError(
+          efs.open(n1, constants.O_WRONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
+        await expectError(
+          efs.open(n1, constants.O_RDWR),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
     });
@@ -644,7 +708,7 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        fd = await efs.open(n1, flags.O_RDONLY);
+        fd = await efs.open(n1, constants.O_RDONLY);
         await efs.close(fd);
         setId(efs, tuid);
       }
@@ -660,7 +724,7 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        fd = await efs.open(n1, flags.O_RDONLY);
+        fd = await efs.open(n1, constants.O_RDONLY);
         await efs.close(fd);
         setId(efs, tuid);
       }
@@ -676,7 +740,11 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
 
@@ -691,7 +759,11 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
 
@@ -706,7 +778,11 @@ describe('EncryptedFS Files', () => {
         } else {
           await efs.chmod(n1, mode);
         }
-        await expectError(efs.open(n1, flags.O_RDONLY), errno.EACCES);
+        await expectError(
+          efs.open(n1, constants.O_RDONLY),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         setId(efs, tuid);
       }
     });
@@ -721,7 +797,7 @@ describe('EncryptedFS Files', () => {
         0o0477, 0o0177, 0o0077, 0o0747, 0o0717, 0o0707, 0o0774, 0o0771, 0o0770,
       ];
       let counter = 0;
-      const flag = flags.O_RDONLY | flags.O_TRUNC;
+      const flag = constants.O_RDONLY | constants.O_TRUNC;
       for (const mode of modes) {
         if (counter < 3) {
           await efs.chmod(n1, mode);
@@ -732,7 +808,11 @@ describe('EncryptedFS Files', () => {
           await efs.chmod(n1, mode);
           setId(efs, 1000, 1000);
         }
-        await expectError(efs.open(n1, flag), errno.EACCES);
+        await expectError(
+          efs.open(n1, flag),
+          ErrorEncryptedFSError,
+          errno.EACCES,
+        );
         counter++;
         setId(efs, tuid);
       }
@@ -741,43 +821,69 @@ describe('EncryptedFS Files', () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.open(path.join(n0, 'test'), flags.O_RDONLY),
+        efs.open(path.join(n0, 'test'), constants.O_RDONLY),
+        ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.open(path.join(n1, 'test'), flags.O_RDONLY),
+        efs.open(path.join(n1, 'test'), constants.O_RDONLY),
+        ErrorEncryptedFSError,
         errno.ELOOP,
       );
     });
     test('returns EISDIR when trying to open a directory for writing', async () => {
       await efs.mkdir(n0, { mode: dp });
-      const fd = await efs.open(n0, flags.O_RDONLY);
+      const fd = await efs.open(n0, constants.O_RDONLY);
       await efs.close(fd);
-      await expectError(efs.open(n0, flags.O_WRONLY), errno.EISDIR);
-      await expectError(efs.open(n0, flags.O_RDWR), errno.EISDIR);
       await expectError(
-        efs.open(n0, flags.O_RDONLY | flags.O_TRUNC),
+        efs.open(n0, constants.O_WRONLY),
+        ErrorEncryptedFSError,
         errno.EISDIR,
       );
       await expectError(
-        efs.open(n0, flags.O_WRONLY | flags.O_TRUNC),
+        efs.open(n0, constants.O_RDWR),
+        ErrorEncryptedFSError,
         errno.EISDIR,
       );
       await expectError(
-        efs.open(n0, flags.O_RDWR | flags.O_TRUNC),
+        efs.open(n0, constants.O_RDONLY | constants.O_TRUNC),
+        ErrorEncryptedFSError,
+        errno.EISDIR,
+      );
+      await expectError(
+        efs.open(n0, constants.O_WRONLY | constants.O_TRUNC),
+        ErrorEncryptedFSError,
+        errno.EISDIR,
+      );
+      await expectError(
+        efs.open(n0, constants.O_RDWR | constants.O_TRUNC),
+        ErrorEncryptedFSError,
         errno.EISDIR,
       );
     });
     test('returns ELOOP when O_NOFOLLOW was specified and the target is a symbolic link', async () => {
       await efs.symlink(n0, n1);
-      const nf = flags.O_NOFOLLOW;
+      const nf = constants.O_NOFOLLOW;
       await expectError(
-        efs.open(n1, flags.O_RDONLY | flags.O_CREAT | nf),
+        efs.open(n1, constants.O_RDONLY | constants.O_CREAT | nf),
+        ErrorEncryptedFSError,
         errno.ELOOP,
       );
-      await expectError(efs.open(n1, flags.O_RDONLY | nf), errno.ELOOP);
-      await expectError(efs.open(n1, flags.O_WRONLY | nf), errno.ELOOP);
-      await expectError(efs.open(n1, flags.O_RDWR | nf), errno.ELOOP);
+      await expectError(
+        efs.open(n1, constants.O_RDONLY | nf),
+        ErrorEncryptedFSError,
+        errno.ELOOP,
+      );
+      await expectError(
+        efs.open(n1, constants.O_WRONLY | nf),
+        ErrorEncryptedFSError,
+        errno.ELOOP,
+      );
+      await expectError(
+        efs.open(n1, constants.O_RDWR | nf),
+        ErrorEncryptedFSError,
+        errno.ELOOP,
+      );
     });
     test.each(supportedTypes)(
       'returns EEXIST when O_CREAT and O_EXCL were specified and the %s exists',
@@ -785,7 +891,8 @@ describe('EncryptedFS Files', () => {
         await efs.mkdir('test');
         await createFile(efs, type, n0);
         await expectError(
-          efs.open(n0, flags.O_CREAT | flags.O_EXCL, 0o0644),
+          efs.open(n0, constants.O_CREAT | constants.O_EXCL, 0o0644),
+          ErrorEncryptedFSError,
           errno.EEXIST,
         );
       },

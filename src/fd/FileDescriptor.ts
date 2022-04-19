@@ -1,7 +1,7 @@
 import type { INodeType, INodeIndex } from '../inodes/types';
 import type { DBTransaction } from '@matrixai/db';
-
 import type { INodeManager } from '../inodes';
+import { Lock } from '@matrixai/async-locks';
 import * as errorsFd from './errors';
 import * as constants from '../constants';
 import * as utils from '../utils';
@@ -12,6 +12,10 @@ class FileDescriptor {
   protected _ino: INodeIndex;
   protected _flags: number;
   protected _pos: number;
+  /**
+   * Ensure mutual exclusion for this file descriptor's methods
+   */
+  protected lock: Lock = new Lock();
 
   constructor(iNodeMgr: INodeManager, ino: INodeIndex, flags: number) {
     this._iNodeMgr = iNodeMgr;
@@ -63,42 +67,44 @@ class FileDescriptor {
         this.setPos(pos, flags, tran),
       );
     }
-    let newPos;
-    const type = await tran.get<INodeType>([
-      ...this._iNodeMgr.iNodesDbPath,
-      inodesUtils.iNodeId(this._ino),
-    ]);
-    const size = await this._iNodeMgr.statGetProp(this._ino, 'size', tran);
-    switch (type) {
-      case 'File':
-      case 'Directory':
-        {
-          switch (flags) {
-            case constants.SEEK_SET:
-              newPos = pos;
-              break;
-            case constants.SEEK_CUR:
-              newPos = this._pos + pos;
-              break;
-            case constants.SEEK_END:
-              newPos = size + pos;
-              break;
-            default:
-              newPos = this._pos;
+    await this.lock.withF(async () => {
+      let newPos;
+      const type = await tran.get<INodeType>([
+        ...this._iNodeMgr.iNodesDbPath,
+        inodesUtils.iNodeId(this._ino),
+      ]);
+      const size = await this._iNodeMgr.statGetProp(this._ino, 'size', tran);
+      switch (type) {
+        case 'File':
+        case 'Directory':
+          {
+            switch (flags) {
+              case constants.SEEK_SET:
+                newPos = pos;
+                break;
+              case constants.SEEK_CUR:
+                newPos = this._pos + pos;
+                break;
+              case constants.SEEK_END:
+                newPos = size + pos;
+                break;
+              default:
+                newPos = this._pos;
+            }
+            if (newPos < 0) {
+              throw new errorsFd.ErrorFileDescriptorInvalidPosition(
+                `Position ${newPos} is not reachable`,
+              );
+            }
+            this._pos = newPos;
           }
-          if (newPos < 0) {
-            throw new errorsFd.ErrorFileDescriptorInvalidPosition(
-              `Position ${newPos} is not reachable`,
-            );
-          }
-          this._pos = newPos;
-        }
-        break;
-      default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          `Invalid INode Type ${type}`,
-        );
-    }
+          break;
+        default:
+          throw new errorsFd.ErrorFileDescriptorInvalidINode(
+            `Invalid INode Type ${type}`,
+          );
+      }
+    });
   }
 
   /*
@@ -108,47 +114,57 @@ class FileDescriptor {
    * current position. The function will read up to the length of
    * the provided buffer.
    */
-  public async read(buffer: Buffer, position?: number): Promise<number> {
-    // Check that the iNode is a valid type (for now, only File iNodes)
-    let type, blkSize;
-    await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
-      type = await tran.get<INodeType>([
+  public async read(
+    buffer: Buffer,
+    position?: number,
+    tran?: DBTransaction,
+  ): Promise<number> {
+    if (tran == null) {
+      return await this._iNodeMgr.withTransactionF(this._ino, async (tran) =>
+        this.read(buffer, position, tran),
+      );
+    }
+    return await this.lock.withF(async () => {
+      // Check that the iNode is a valid type (for now, only File iNodes)
+      const type = await tran.get<INodeType>([
         ...this._iNodeMgr.iNodesDbPath,
         inodesUtils.iNodeId(this._ino),
       ]);
-      blkSize = await this._iNodeMgr.statGetProp(this._ino, 'blksize', tran);
-    });
-    // Determine the starting position within the data
-    let currentPos = this._pos;
-    if (position != null) {
-      currentPos = position;
-    }
-    let bytesRead = buffer.byteLength;
-    switch (type) {
-      case 'File':
-        {
-          // Get the starting block index
-          const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
-          // Determines the offset of blocks
-          const blockOffset = utils.blockOffset(blkSize, currentPos);
-          // Determines the number of blocks
-          const blockLength = utils.blockLength(
-            blkSize,
-            blockOffset,
-            bytesRead,
-          );
-          // Get the ending block index
-          const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
-          // Get the cursor offset for the start and end blocks
-          const blockCursorStart = utils.blockOffset(blkSize, currentPos);
-          const blockCursorEnd = utils.blockOffset(
-            blkSize,
-            currentPos + bytesRead - 1,
-          );
-          // Initialise counters for the read buffer and block position
-          let retBufferPos = 0;
-          let blockCounter = blockStartIdx;
-          await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
+      const blkSize = await this._iNodeMgr.statGetProp(
+        this._ino,
+        'blksize',
+        tran,
+      );
+      // Determine the starting position within the data
+      let currentPos = this._pos;
+      if (position != null) {
+        currentPos = position;
+      }
+      let bytesRead = buffer.byteLength;
+      switch (type) {
+        case 'File':
+          {
+            // Get the starting block index
+            const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
+            // Determines the offset of blocks
+            const blockOffset = utils.blockOffset(blkSize, currentPos);
+            // Determines the number of blocks
+            const blockLength = utils.blockLength(
+              blkSize,
+              blockOffset,
+              bytesRead,
+            );
+            // Get the ending block index
+            const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
+            // Get the cursor offset for the start and end blocks
+            const blockCursorStart = utils.blockOffset(blkSize, currentPos);
+            const blockCursorEnd = utils.blockOffset(
+              blkSize,
+              currentPos + bytesRead - 1,
+            );
+            // Initialise counters for the read buffer and block position
+            let retBufferPos = 0;
+            let blockCounter = blockStartIdx;
             // Iterate over the blocks in the database
             for await (const block of this._iNodeMgr.fileGetBlocks(
               this._ino,
@@ -184,34 +200,27 @@ class FileDescriptor {
               } else {
                 retBufferPos += block.copy(buffer, retBufferPos);
               }
-
               // Increment the block counter
               blockCounter++;
             }
-          });
-
-          // Set the access time in the metadata
-          await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
+            // Set the access time in the metadata
             const now = new Date();
             await this._iNodeMgr.statSetProp(this._ino, 'atime', now, tran);
-          });
-
-          bytesRead = retBufferPos;
-        }
-        break;
-      default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          `Invalid INode Type ${type}`,
-        );
-    }
-
-    // If the default position used, increment by the bytes read in
-    if (position == null) {
-      this._pos = currentPos + bytesRead;
-    }
-
-    // Return the number of bytes read in
-    return bytesRead;
+            bytesRead = retBufferPos;
+          }
+          break;
+        default:
+          throw new errorsFd.ErrorFileDescriptorInvalidINode(
+            `Invalid INode Type ${type}`,
+          );
+      }
+      // If the default position used, increment by the bytes read in
+      if (position == null) {
+        this._pos = currentPos + bytesRead;
+      }
+      // Return the number of bytes read in
+      return bytesRead;
+    });
   }
 
   /**
@@ -222,30 +231,36 @@ class FileDescriptor {
     buffer: Buffer,
     position?: number,
     extraFlags: number = 0,
+    tran?: DBTransaction,
   ): Promise<number> {
-    // Check that the iNode is a valid type
-    let type, blkSize;
-    await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
-      type = await tran.get<INodeType>([
+    if (tran == null) {
+      return await this._iNodeMgr.withTransactionF(this._ino, async (tran) =>
+        this.write(buffer, position, extraFlags, tran),
+      );
+    }
+    return await this.lock.withF(async () => {
+      // Check that the iNode is a valid type
+      const type = await tran.get<INodeType>([
         ...this._iNodeMgr.iNodesDbPath,
         inodesUtils.iNodeId(this._ino),
       ]);
-      blkSize = await this._iNodeMgr.statGetProp(this._ino, 'blksize', tran);
-    });
-    // Determine the starting position within the data
-    let currentPos = this._pos;
-    if (position != null) {
-      currentPos = position;
-    }
-    let bytesWritten = 0;
-    switch (type) {
-      case 'File':
-        {
-          if ((this._flags | extraFlags) & constants.O_APPEND) {
-            let idx, value;
-            // To append we check the idx and length of the last block
-            await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
-              [idx, value] = await this._iNodeMgr.fileGetLastBlock(
+      const blkSize = await this._iNodeMgr.statGetProp(
+        this._ino,
+        'blksize',
+        tran,
+      );
+      // Determine the starting position within the data
+      let currentPos = this._pos;
+      if (position != null) {
+        currentPos = position;
+      }
+      let bytesWritten = 0;
+      switch (type) {
+        case 'File':
+          {
+            if ((this._flags | extraFlags) & constants.O_APPEND) {
+              // To append we check the idx and length of the last block
+              const [idx, value] = await this._iNodeMgr.fileGetLastBlock(
                 this._ino,
                 tran,
               );
@@ -292,35 +307,33 @@ class FileDescriptor {
                 );
               }
               bytesWritten = buffer.byteLength;
-            });
-            // Move the cursor to the end of the existing data
-            currentPos = idx * blkSize + value.byteLength;
-          } else {
-            // Get the starting block index
-            const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
-            // Determines the offset of blocks
-            const blockOffset = utils.blockOffset(blkSize, currentPos);
-            // Determines the number of blocks
-            const blockLength = utils.blockLength(
-              blkSize,
-              blockOffset,
-              buffer.byteLength,
-            );
-            // Get the ending block index
-            const blockEndIdx = utils.blockIndexEnd(blockStartIdx, blockLength);
-
-            // Get the cursors for the start and end blocks
-            const blockCursorStart = utils.blockOffset(blkSize, currentPos);
-            const blockCursorEnd = utils.blockOffset(
-              blkSize,
-              currentPos + buffer.byteLength - 1,
-            );
-
-            // Initialise write buffer and block position counters
-            let writeBufferPos = 0;
-            let blockCounter = blockStartIdx;
-
-            await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
+              // Move the cursor to the end of the existing data
+              currentPos = idx * blkSize + value.byteLength;
+            } else {
+              // Get the starting block index
+              const blockStartIdx = utils.blockIndexStart(blkSize, currentPos);
+              // Determines the offset of blocks
+              const blockOffset = utils.blockOffset(blkSize, currentPos);
+              // Determines the number of blocks
+              const blockLength = utils.blockLength(
+                blkSize,
+                blockOffset,
+                buffer.byteLength,
+              );
+              // Get the ending block index
+              const blockEndIdx = utils.blockIndexEnd(
+                blockStartIdx,
+                blockLength,
+              );
+              // Get the cursors for the start and end blocks
+              const blockCursorStart = utils.blockOffset(blkSize, currentPos);
+              const blockCursorEnd = utils.blockOffset(
+                blkSize,
+                currentPos + buffer.byteLength - 1,
+              );
+              // Initialise write buffer and block position counters
+              let writeBufferPos = 0;
+              let blockCounter = blockStartIdx;
               for (const idx of utils.range(blockStartIdx, blockEndIdx + 1)) {
                 // For each data segment write the data to the index in the database
                 if (
@@ -371,17 +384,13 @@ class FileDescriptor {
                     tran,
                   );
                 }
-
                 // Increment the block counter
                 blockCounter++;
               }
-            });
-            // Set the amount of bytes written
-            bytesWritten = writeBufferPos;
-          }
-
-          // Set the modified time, changed time, size and blocks of the file iNode
-          await this._iNodeMgr.withTransactionF(this._ino, async (tran) => {
+              // Set the amount of bytes written
+              bytesWritten = writeBufferPos;
+            }
+            // Set the modified time, changed time, size and blocks of the file iNode
             const now = new Date();
             await this._iNodeMgr.statSetProp(this._ino, 'mtime', now, tran);
             await this._iNodeMgr.statSetProp(this._ino, 'ctime', now, tran);
@@ -402,21 +411,20 @@ class FileDescriptor {
               Math.ceil(size / blkSize),
               tran,
             );
-          });
-        }
-        break;
-      default:
-        throw new errorsFd.ErrorFileDescriptorInvalidINode(
-          `Invalid INode Type ${type}`,
-        );
-    }
-
-    // If the default position used, increment by the bytes read in
-    if (position == null) {
-      this._pos = currentPos + bytesWritten;
-    }
-    // Return the number of bytes written
-    return bytesWritten;
+          }
+          break;
+        default:
+          throw new errorsFd.ErrorFileDescriptorInvalidINode(
+            `Invalid INode Type ${type}`,
+          );
+      }
+      // If the default position used, increment by the bytes read in
+      if (position == null) {
+        this._pos = currentPos + bytesWritten;
+      }
+      // Return the number of bytes written
+      return bytesWritten;
+    });
   }
 }
 

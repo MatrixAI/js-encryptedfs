@@ -4,6 +4,7 @@ import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import EncryptedFS from '@/EncryptedFS';
+import { ErrorEncryptedFSError } from '@/errors';
 import * as constants from '@/constants';
 import * as permissions from '@/permissions';
 import * as utils from '@/utils';
@@ -30,6 +31,7 @@ describe('EncryptedFS Permissions', () => {
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -83,10 +85,18 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.chown('file', 1000, 1000);
     // You cannot give away files
-    await expectError(efs.chown('file', 2000, 2000), errno.EPERM);
+    await expectError(
+      efs.chown('file', 2000, 2000),
+      ErrorEncryptedFSError,
+      errno.EPERM,
+    );
     // If you don't own the file, you also cannot change (even if your change is noop)
     efs.uid = 3000;
-    await expectError(efs.chown('file', 1000, 1000), errno.EPERM);
+    await expectError(
+      efs.chown('file', 1000, 1000),
+      ErrorEncryptedFSError,
+      errno.EPERM,
+    );
   });
   test('chmod only works if you are the owner of the file', async () => {
     await efs.writeFile('file', 'hello');
@@ -94,7 +104,11 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 1000;
     await efs.chmod('file', 0o000);
     efs.uid = 2000;
-    await expectError(efs.chmod('file', 0o777), errno.EPERM);
+    await expectError(
+      efs.chmod('file', 0o777),
+      ErrorEncryptedFSError,
+      errno.EPERM,
+    );
   });
   test('permissions are checked in stages of user, group then other', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -114,17 +128,27 @@ describe('EncryptedFS Permissions', () => {
     efs.uid = 2000;
     await efs.access('testfile', constants.R_OK | constants.W_OK);
     await efs.access('dir', constants.R_OK | constants.W_OK);
-    await expectError(efs.access('testfile', constants.X_OK), errno.EACCES);
-    await expectError(efs.access('dir', constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access('testfile', constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access('dir', constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     efs.gid = 2000;
     await efs.access('testfile', constants.R_OK);
     await efs.access('dir', constants.R_OK);
     await expectError(
       efs.access('testfile', fs.constants.W_OK | fs.constants.X_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await expectError(
       efs.access('dir', fs.constants.W_OK | fs.constants.X_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
   });
@@ -151,8 +175,16 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.access('testfile', constants.R_OK | constants.W_OK);
     await efs.access('dir', constants.R_OK | constants.W_OK);
-    await expectError(efs.access('testfile', constants.X_OK), errno.EACCES);
-    await expectError(efs.access('dir', constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access('testfile', constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(
+      efs.access('dir', constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     efs.uid = permissions.DEFAULT_ROOT_UID;
     efs.uid = permissions.DEFAULT_ROOT_GID;
     await efs.chown('testfile', 2000, 2000);
@@ -163,10 +195,12 @@ describe('EncryptedFS Permissions', () => {
     await efs.access('dir', constants.R_OK);
     await expectError(
       efs.access('testfile', constants.W_OK | constants.X_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await expectError(
       efs.access('dir', constants.W_OK | constants.X_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
   });
@@ -179,10 +213,12 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await expectError(
       efs.access(`file`, constants.R_OK | constants.W_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await expectError(
       efs.access(`dir`, constants.R_OK | constants.W_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await efs.access(`file`, constants.X_OK);
@@ -196,9 +232,21 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.writeFile(`file`, 'hello');
     await efs.chmod(`file`, 0o000);
-    await expectError(efs.access(`file`, constants.X_OK), errno.EACCES);
-    await expectError(efs.open(`file`, 'r'), errno.EACCES);
-    await expectError(efs.open(`file`, 'w'), errno.EACCES);
+    await expectError(
+      efs.access(`file`, constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(
+      efs.open(`file`, 'r'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(
+      efs.open(`file`, 'w'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     const stat = await efs.stat(`file`);
     expect(stat.isFile()).toStrictEqual(true);
   });
@@ -212,11 +260,19 @@ describe('EncryptedFS Permissions', () => {
     const str = 'hello';
     await efs.writeFile(`file`, str);
     await efs.chmod(`file`, 0o400);
-    await expectError(efs.access(`file`, constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access(`file`, constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
       str,
     );
-    await expectError(efs.open(`file`, 'w'), errno.EACCES);
+    await expectError(
+      efs.open(`file`, 'w'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
   });
   test('file permissions rw-', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -226,7 +282,11 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.writeFile(`file`, 'world', { mode: 0o666 });
     await efs.chmod(`file`, 0o600);
-    await expectError(efs.access(`file`, constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access(`file`, constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     const str = 'hello';
     await efs.writeFile(`file`, str);
     await expect(efs.readFile(`file`, { encoding: 'utf8' })).resolves.toEqual(
@@ -271,9 +331,17 @@ describe('EncryptedFS Permissions', () => {
     const str = 'hello';
     await efs.writeFile(`file`, str);
     await efs.chmod(`file`, 0o200);
-    await expectError(efs.access(`file`, constants.X_OK), errno.EACCES);
+    await expectError(
+      efs.access(`file`, constants.X_OK),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     await efs.writeFile(`file`, str);
-    await expectError(efs.open(`file`, 'r'), errno.EACCES);
+    await expectError(
+      efs.open(`file`, 'r'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
   });
   test('file permissions -wx', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -286,7 +354,11 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`file`, 0o300);
     await efs.access(`file`, constants.X_OK);
     await efs.writeFile(`file`, str);
-    await expectError(efs.open(`file`, 'r'), errno.EACCES);
+    await expectError(
+      efs.open(`file`, 'r'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
   });
   test('file permissions --x', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -297,8 +369,16 @@ describe('EncryptedFS Permissions', () => {
     await efs.writeFile(`file`, 'hello');
     await efs.chmod(`file`, 0o100);
     await efs.access(`file`, constants.X_OK);
-    await expectError(efs.open(`file`, 'w'), errno.EACCES);
-    await expectError(efs.open(`file`, 'r'), errno.EACCES);
+    await expectError(
+      efs.open(`file`, 'w'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(
+      efs.open(`file`, 'r'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
   });
   test('directory permissions ---', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -310,9 +390,13 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod(`---`, 0o000);
     const stat = await efs.stat(`---`);
     expect(stat.isDirectory()).toStrictEqual(true);
-    await expectError(efs.writeFile(`---/a`, 'hello'), errno.EACCES);
-    await expectError(efs.chdir(`---`), errno.EACCES);
-    await expectError(efs.readdir(`---`), errno.EACCES);
+    await expectError(
+      efs.writeFile(`---/a`, 'hello'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(efs.chdir(`---`), ErrorEncryptedFSError, errno.EACCES);
+    await expectError(efs.readdir(`---`), ErrorEncryptedFSError, errno.EACCES);
   });
   test('directory permissions r--', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -323,12 +407,16 @@ describe('EncryptedFS Permissions', () => {
     await efs.mkdir(`r--`);
     await efs.writeFile(`r--/a`, 'hello');
     await efs.chmod(`r--`, 0o400);
-    await expectError(efs.writeFile(`r--/b`, 'hello'), errno.EACCES);
-    await expectError(efs.chdir(`r--`), errno.EACCES);
+    await expectError(
+      efs.writeFile(`r--/b`, 'hello'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(efs.chdir(`r--`), ErrorEncryptedFSError, errno.EACCES);
     await expect(efs.readdir(`r--`)).resolves.toContain('a');
     // You can always change metadata even without write permissions
     await efs.utimes(`r--`, new Date(), new Date());
-    await expectError(efs.stat(`r--/a`), errno.EACCES);
+    await expectError(efs.stat(`r--/a`), ErrorEncryptedFSError, errno.EACCES);
   });
   test('directory permissions rw-', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -340,15 +428,23 @@ describe('EncryptedFS Permissions', () => {
     await efs.writeFile(`rw-/a`, 'hello');
     await efs.chmod(`rw-`, 0o600);
     // You cannot write into a file
-    await expectError(efs.writeFile(`rw-/a`, 'world'), errno.EACCES);
+    await expectError(
+      efs.writeFile(`rw-/a`, 'world'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     // You cannot create a new file
-    await expectError(efs.writeFile(`rw-/b`, 'hello'), errno.EACCES);
+    await expectError(
+      efs.writeFile(`rw-/b`, 'hello'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     // You cannot remove files
-    await expectError(efs.unlink(`rw-/a`), errno.EACCES);
-    await expectError(efs.chdir(`rw-`), errno.EACCES);
+    await expectError(efs.unlink(`rw-/a`), ErrorEncryptedFSError, errno.EACCES);
+    await expectError(efs.chdir(`rw-`), ErrorEncryptedFSError, errno.EACCES);
     await expect(efs.readdir(`rw-`)).resolves.toContain('a');
     await efs.utimes(`rw-`, new Date(), new Date());
-    await expectError(efs.stat(`rw-/a`), errno.EACCES);
+    await expectError(efs.stat(`rw-/a`), ErrorEncryptedFSError, errno.EACCES);
   });
   test('directory permissions rwx', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -382,7 +478,11 @@ describe('EncryptedFS Permissions', () => {
     // You can write to the file
     await efs.writeFile(`r-x/a`, str);
     // You cannot create new files
-    await expectError(efs.writeFile(`r-x/b`, str), errno.EACCES);
+    await expectError(
+      efs.writeFile(`r-x/b`, str),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     // You can read the directory
     await expect(efs.readdir(`r-x`)).resolves.toContain('a');
     await expect(efs.readdir(`r-x`)).resolves.toContain('dir');
@@ -395,9 +495,9 @@ describe('EncryptedFS Permissions', () => {
     const stat = await efs.stat(`dir`);
     expect(stat.isDirectory()).toStrictEqual(true);
     // You cannot delete the file
-    await expectError(efs.unlink(`./a`), errno.EACCES);
+    await expectError(efs.unlink(`./a`), ErrorEncryptedFSError, errno.EACCES);
     // Cannot delete the directory
-    await expectError(efs.rmdir(`dir`), errno.EACCES);
+    await expectError(efs.rmdir(`dir`), ErrorEncryptedFSError, errno.EACCES);
   });
   test('directory permissions -w-', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -407,9 +507,13 @@ describe('EncryptedFS Permissions', () => {
     efs.gid = 1000;
     await efs.mkdir(`-w-`);
     await efs.chmod(`-w-`, 0o000);
-    await expectError(efs.writeFile(`-w-/a`, 'hello'), errno.EACCES);
-    await expectError(efs.chdir(`-w-`), errno.EACCES);
-    await expectError(efs.readdir(`-w-`), errno.EACCES);
+    await expectError(
+      efs.writeFile(`-w-/a`, 'hello'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
+    await expectError(efs.chdir(`-w-`), ErrorEncryptedFSError, errno.EACCES);
+    await expectError(efs.readdir(`-w-`), ErrorEncryptedFSError, errno.EACCES);
   });
   test('directory permissions -wx', async () => {
     await efs.mkdir('/home/1000', { recursive: true });
@@ -427,7 +531,7 @@ describe('EncryptedFS Permissions', () => {
     await efs.unlink(`-wx/a`);
     await efs.chdir('-wx');
     await efs.mkdir(`./dir`);
-    await expectError(efs.readdir(`.`), errno.EACCES);
+    await expectError(efs.readdir(`.`), ErrorEncryptedFSError, errno.EACCES);
     const stat = await efs.stat(`./dir`);
     expect(stat.isDirectory()).toStrictEqual(true);
   });
@@ -441,10 +545,14 @@ describe('EncryptedFS Permissions', () => {
     const str = 'hello';
     await efs.writeFile(`--x/a`, str);
     await efs.chmod(`--x`, 0o100);
-    await expectError(efs.writeFile(`--x/b`, 'world'), errno.EACCES);
+    await expectError(
+      efs.writeFile(`--x/b`, 'world'),
+      ErrorEncryptedFSError,
+      errno.EACCES,
+    );
     await efs.chdir('--x');
-    await expectError(efs.unlink(`./a`), errno.EACCES);
-    await expectError(efs.readdir(`.`), errno.EACCES);
+    await expectError(efs.unlink(`./a`), ErrorEncryptedFSError, errno.EACCES);
+    await expectError(efs.readdir(`.`), ErrorEncryptedFSError, errno.EACCES);
     await expect(efs.readFile(`./a`, { encoding: 'utf8' })).resolves.toEqual(
       str,
     );
@@ -506,10 +614,12 @@ describe('EncryptedFS Permissions', () => {
     await efs.chmod('dir', 0o124);
     await expectError(
       efs.access('file', constants.R_OK | constants.W_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await expectError(
       efs.access('dir', constants.R_OK | constants.W_OK),
+      ErrorEncryptedFSError,
       errno.EACCES,
     );
     await efs.access('file', fs.constants.X_OK);

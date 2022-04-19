@@ -27,6 +27,15 @@ interface ToString {
 }
 
 /**
+ * Wrap a type to be reference counted
+ * Useful for when we need to garbage collect data
+ */
+type Ref<T> = {
+  count: number;
+  value: T;
+};
+
+/**
  * Generic callback
  */
 type Callback<P extends Array<any> = [], R = any, E extends Error = Error> = {
@@ -85,6 +94,7 @@ export type {
   Opaque,
   NonEmptyArray,
   ToString,
+  Ref,
   Callback,
   FunctionProperties,
   NonFunctionProperties,

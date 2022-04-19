@@ -249,13 +249,7 @@ describe('INodeManager File', () => {
         tran,
       );
       // Sets blocks for [7, 8)
-      await iNodeMgr.fileSetBlocks(
-        fileIno,
-        data7to8,
-        blockSize,
-        7,
-        tran
-      );
+      await iNodeMgr.fileSetBlocks(fileIno, data7to8, blockSize, 7, tran);
     });
     await iNodeMgr.withTransactionF(fileIno, async (tran) => {
       // Zero out block 1
@@ -264,16 +258,10 @@ describe('INodeManager File', () => {
         Buffer.alloc(blockSize),
         1,
         0,
-        tran
+        tran,
       );
       // Sets blocks for [9, 11)
-      await iNodeMgr.fileSetBlocks(
-        fileIno,
-        data9to11,
-        blockSize,
-        9,
-        tran
-      );
+      await iNodeMgr.fileSetBlocks(fileIno, data9to11, blockSize, 9, tran);
     });
     const blocks: Array<Buffer> = [];
     await iNodeMgr.withTransactionF(fileIno, async (tran) => {
@@ -302,8 +290,8 @@ describe('INodeManager File', () => {
         // [8, 9)
         Buffer.alloc(1 * blockSize),
         // [9, 11)
-        data9to11
-      ])
+        data9to11,
+      ]),
     );
   });
   test('write a single block from a file', async () => {

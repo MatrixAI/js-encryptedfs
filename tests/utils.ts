@@ -2,14 +2,23 @@ import type EncryptedFS from '@/EncryptedFS';
 import * as constants from '@/constants';
 
 /**
- *
- * @param promise - the Promise that throws the expected error.
- * @param code - Error code such as 'errno.ENOTDIR'
+ * Checks if asynchronous operation throws an exception
  */
-async function expectError(promise: Promise<any>, code) {
-  await expect(promise).rejects.toThrow();
-  await expect(promise).rejects.toHaveProperty('code', code.code);
-  await expect(promise).rejects.toHaveProperty('errno', code.errno);
+async function expectError(
+  p: Promise<unknown>,
+  exception: new (...params: Array<unknown>) => Error = Error,
+  errno?: {
+    errno?: number;
+    code?: string;
+    description?: string;
+  },
+): Promise<void> {
+  await expect(p).rejects.toThrow(exception);
+  if (errno != null) {
+    await expect(p).rejects.toHaveProperty('code', errno.code);
+    await expect(p).rejects.toHaveProperty('errno', errno.errno);
+    await expect(p).rejects.toHaveProperty('description', errno.description);
+  }
 }
 
 type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';

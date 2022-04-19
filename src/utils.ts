@@ -1,6 +1,5 @@
 import type { Callback } from './types';
-import type { Stat } from '.';
-
+import type Stat from './Stat';
 import pathNode from 'path';
 import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
 import callbackify from 'util-callbackify';
@@ -31,7 +30,16 @@ function fromArrayBuffer(
 }
 
 async function getRandomBytes(size: number): Promise<Buffer> {
-  return Buffer.from(await random.getBytes(size), 'binary');
+  const p = new Promise<string>((resolve, reject) => {
+    random.getBytes(size, (e, bytes) => {
+      if (e != null) {
+        reject(e);
+      } else {
+        resolve(bytes);
+      }
+    });
+  });
+  return Buffer.from(await p, 'binary');
 }
 
 function getRandomBytesSync(size: number): Buffer {

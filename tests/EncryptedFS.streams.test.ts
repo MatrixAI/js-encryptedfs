@@ -27,6 +27,7 @@ describe('EncryptedFS Streams', () => {
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
