@@ -1013,6 +1013,7 @@ class INodeManager {
       // i.e. blocks 0 -> 3 have data and a write operation was performed on blocks 7 -> 8
       while (inodesUtils.unbufferId(k as BufferId) !== blockCount) {
         yield Buffer.alloc(blockSize);
+        blockCount++;
       }
       yield v;
       blockCount++;
@@ -1086,7 +1087,7 @@ class INodeManager {
     const bufferSegments = utils.segmentBuffer(blockSize, data);
     let blockIdx = startIdx;
     for (const dataSegment of bufferSegments) {
-      const len = await this.fileWriteBlock(ino, dataSegment, blockIdx, 0, tran);
+      await this.fileWriteBlock(ino, dataSegment, blockIdx, 0, tran);
       blockIdx++;
     }
   }
