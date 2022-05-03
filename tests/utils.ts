@@ -21,6 +21,25 @@ async function expectError(
   }
 }
 
+function expectReason(
+  result: PromiseSettledResult<unknown>,
+  exception: new (...params: Array<unknown>) => Error = Error,
+  errno?: {
+    errno?: number;
+    code?: string;
+    description?: string;
+  },
+): void {
+  expect(result.status).toBe('rejected');
+  if (result.status === 'fulfilled') throw Error('never'); // Let typescript know the status
+  expect(result.reason).toBeInstanceOf(exception);
+  if (errno != null) {
+    expect(result.reason).toHaveProperty('code', errno.code);
+    expect(result.reason).toHaveProperty('errno', errno.errno);
+    expect(result.reason).toHaveProperty('description', errno.description);
+  }
+}
+
 type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';
 
 async function createFile(
@@ -82,6 +101,6 @@ function setId(efs: EncryptedFS, uid: number, gid?: number) {
   efs.gid = gid ?? uid;
 }
 
-export { expectError, createFile, supportedTypes, sleep, setId };
+export { expectError, expectReason, createFile, supportedTypes, sleep, setId };
 
 export type { FileTypes };
