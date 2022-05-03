@@ -270,6 +270,126 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.rmdir(n0, { recursive: true });
       await expect(efs.readdir('.')).resolves.toEqual([]);
     });
+    // Recursive deleting
+    const MODE_RX = 0o555; // R-xr-xr-x
+    const MODE_RW = 0o655; // Rw-r-xr-x
+    test('to fail recursive delete when the parent directory lacks the write permission', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(path.join(n0, n2), 'test');
+      await efs.writeFile(path.join(n0, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      // Removing write permissions from directory n0
+      await efs.chmod(n0, MODE_RX);
+      // Expectation is that direct n0, n0/n1 has no permissions
+      await expectError(
+        efs.rmdir(n0, { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+      await expectError(
+        efs.rmdir(path.join(n0, n1), { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+      // But n0/n1/n2 and deeper still has permission to be removed
+      await expect(
+        efs.rmdir(path.join(n0, n1, n2), { recursive: true }),
+      ).resolves.toBeUndefined();
+    });
+    test('to fail recursive delete when the parent directory lacks the search permission', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(path.join(n0, n2), 'test');
+      await efs.writeFile(path.join(n0, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
+      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      // Removing search permissions from directory n0
+      await efs.chmod(n0, MODE_RW);
+      // Expectation is that direct n0, n0/n1 and n0/n1/n2 has no permissions
+      await expectError(
+        efs.rmdir(n0, { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+      await expectError(
+        efs.rmdir(path.join(n0, n1), { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+      await expectError(
+        efs.rmdir(path.join(n0, n1, n2), { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+    });
+    test('to recursively delete when the target directory lacks write permission and is empty', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      // Removing write permissions from directory n0
+      await efs.chmod(n0, MODE_RX);
+      // Expectation is that direct n0 can be removed when empty
+      await expect(efs.rmdir(n0, { recursive: true })).resolves.toBeUndefined();
+    });
+    test('to fail recursive delete when the target directory lacks write permission and is not empty', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.writeFile(path.join(n0, n2), 'test');
+      await efs.writeFile(path.join(n0, n0), 'test');
+      // Removing write permissions from directory n0
+      await efs.chmod(n0, MODE_RX);
+      // Expectation is that directory n0 lacks permissions
+      await expectError(
+        efs.rmdir(n0, { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+    });
+    test('to recursively delete when the target directory lacks search permissions and is empty', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      // Removing search permissions from directory n0
+      await efs.chmod(n0, MODE_RW);
+      // Expectation is that direct n0 can be removed when empty
+      await expect(efs.rmdir(n0, { recursive: true })).resolves.toBeUndefined();
+    });
+    test('to fail recursive delete when the target directory lacks search permissions and is not empty', async () => {
+      await efs.chown('.', 1000, 1000);
+      efs.uid = 1000;
+      efs.gid = 1000;
+      await efs.mkdir(n0, { mode: 0o0755 });
+      await efs.writeFile(path.join(n0, n2), 'test');
+      await efs.writeFile(path.join(n0, n0), 'test');
+      // Removing write permissions from directory n0
+      await efs.chmod(n0, MODE_RW);
+      // Expectation is that direct n0, n0/n1 has no permissions
+      await expectError(
+        efs.rmdir(n0, { recursive: true }),
+        ErrorEncryptedFSError,
+        errno.EACCES,
+      );
+    });
   });
   describe('mkdir & mkdtemp', () => {
     test('is able to make directories', async () => {
