@@ -472,10 +472,9 @@ class EncryptedFS {
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
       options.flag = 'a';
-      data = this.getBuffer(data, options.encoding);
-      let fdIndex;
+      let fdIndex: FdIndex | undefined;
       try {
-        let fd;
+        let fd: FileDescriptor | undefined;
         if (typeof file === 'number') {
           fd = this.fdMgr.getFd(file);
           if (!fd)
@@ -497,7 +496,11 @@ class EncryptedFS {
           );
         }
         try {
-          await fd.write(data, undefined, constants.O_APPEND);
+          await fd.write(
+            this.getBuffer(data, options.encoding),
+            undefined,
+            constants.O_APPEND,
+          );
         } catch (e) {
           if (e instanceof RangeError) {
             throw new errors.ErrorEncryptedFSError(
@@ -625,7 +628,7 @@ class EncryptedFS {
     return utils.maybeCallback(async () => {
       path = this.getPath(path);
       await this.chown(path, uid, gid);
-      let children;
+      let children: Array<string | Buffer>;
       try {
         children = await this.readdir(path);
       } catch (e) {
@@ -633,7 +636,7 @@ class EncryptedFS {
         throw e;
       }
       for (const child of children) {
-        const pathChild = utils.pathJoin(path as string, child);
+        const pathChild = utils.pathJoin(path as string, child.toString());
         // Don't traverse symlinks
         if (!(await this.lstat(pathChild)).isSymbolicLink()) {
           await this.chownr(pathChild, uid, gid);
@@ -684,7 +687,10 @@ class EncryptedFS {
     return utils.maybeCallback(async () => {
       srcPath = this.getPath(srcPath);
       dstPath = this.getPath(dstPath);
-      let srcFd, srcFdIndex, dstFd, dstFdIndex;
+      let srcFd: FileDescriptor;
+      let srcFdIndex: FdIndex | undefined;
+      let dstFd: FileDescriptor;
+      let dstFdIndex: FdIndex | undefined;
       try {
         // The only things that are copied is the data and the mode
         [srcFd, srcFdIndex] = await this._open(srcPath, constants.O_RDONLY);
@@ -853,7 +859,7 @@ class EncryptedFS {
             fd.ino,
             tran,
           );
-          let newData;
+          let newData: Buffer;
           try {
             newData = Buffer.concat([
               data,
@@ -1055,7 +1061,7 @@ class EncryptedFS {
           syscall: 'ftruncate',
         });
       }
-      let newData;
+      let newData: Buffer;
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
         throw new errors.ErrorEncryptedFSError({
@@ -1163,20 +1169,20 @@ class EncryptedFS {
             syscall: 'futimes',
           });
         }
-        let newAtime;
-        let newMtime;
+        let newAtime: Date;
+        let newMtime: Date;
         if (typeof atime === 'number') {
           newAtime = new Date(atime * 1000);
         } else if (typeof atime === 'string') {
           newAtime = new Date(parseInt(atime) * 1000);
-        } else if (atime instanceof Date) {
+        } else {
           newAtime = atime;
         }
         if (typeof mtime === 'number') {
           newMtime = new Date(mtime * 1000);
         } else if (typeof mtime === 'string') {
           newMtime = new Date(parseInt(mtime) * 1000);
-        } else if (mtime instanceof Date) {
+        } else {
           newMtime = mtime;
         }
         await this.iNodeMgr.statSetProp(fd.ino, 'atime', newAtime, tran);
@@ -1457,18 +1463,20 @@ class EncryptedFS {
           syscall: 'lstat',
         });
       }
-      let targetStat;
-      await this.iNodeMgr.withTransactionF(target, async (tran) => {
-        const targetData = await this.iNodeMgr.get(target, tran);
-        if (targetData == null) {
-          throw new errors.ErrorEncryptedFSError({
-            errno: errno.ENOENT,
-            path: path as string,
-            syscall: 'lstat',
-          });
-        }
-        targetStat = await this.iNodeMgr.statGet(target, tran);
-      });
+      const targetStat = await this.iNodeMgr.withTransactionF(
+        target,
+        async (tran) => {
+          const targetData = await this.iNodeMgr.get(target, tran);
+          if (targetData == null) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'lstat',
+            });
+          }
+          return await this.iNodeMgr.statGet(target, tran);
+        },
+      );
       return new Stat({ ...targetStat });
     }, callback);
   }
@@ -1535,25 +1543,7 @@ class EncryptedFS {
             const targetType = (await this.iNodeMgr.get(navigated.target, tran))
               ?.type;
             // If recursive, then loop through the path components
-            if (targetType === 'Directory' && options.recursive) {
-              // No more path components to process
-              if (!navigated.remaining) {
-                return;
-              }
-              // Continue the navigation process
-              navigated = await this.navigateFrom(
-                navigated.target,
-                navigated.remaining,
-                true,
-                undefined,
-                undefined,
-                undefined,
-                // Preserve the transaction context for `navigated.target`
-                tran,
-              );
-              // Restart the opening procedure with the new target
-              continue;
-            } else {
+            if (!(targetType === 'Directory' && options.recursive)) {
               // Target already exists
               throw new errors.ErrorEncryptedFSError({
                 errno: errno.EEXIST,
@@ -1561,6 +1551,22 @@ class EncryptedFS {
                 syscall: 'mkdir',
               });
             }
+            // No more path components to process
+            if (!navigated.remaining) {
+              return;
+            }
+            // Continue the navigation process
+            navigated = await this.navigateFrom(
+              navigated.target,
+              navigated.remaining,
+              true,
+              undefined,
+              undefined,
+              undefined,
+              // Preserve the transaction context for `navigated.target`
+              tran,
+            );
+            // Restart the opening procedure with the new target
           } catch (e_) {
             e = e_;
             throw e_;
@@ -1694,7 +1700,7 @@ class EncryptedFS {
           'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         return possibleChars[Math.floor(Math.random() * possibleChars.length)];
       };
-      let pathS;
+      let pathS: string;
       while (true) {
         pathS = pathSPrefix.concat(
           Array.from({ length: 6 }, () => getChar)
@@ -1927,9 +1933,6 @@ class EncryptedFS {
         default:
           throw new TypeError('Unknown file open flag: ' + flags);
       }
-    }
-    if (typeof flags !== 'number') {
-      throw new TypeError('Unknown file open flag: ' + flags);
     }
     // Creates the file descriptor, used at the very end
     const createFd = async (
@@ -2254,7 +2257,7 @@ class EncryptedFS {
           throw new RangeError('Length extends beyond buffer');
         }
         buffer = this.getBuffer(buffer).slice(offset, offset + length);
-        let bytesRead;
+        let bytesRead: number;
         try {
           bytesRead = await fd.read(buffer as Buffer, position, tran);
         } catch (e) {
@@ -2372,28 +2375,21 @@ class EncryptedFS {
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
       options.flag = 'r';
-      let fdIndex;
+      let fdIndex: FdIndex | undefined;
       try {
         const buffer = Buffer.allocUnsafe(this.blockSize);
         let totalBuffer = Buffer.alloc(0);
-        let bytesRead;
-        if (typeof file === 'number') {
-          while (bytesRead !== 0) {
-            bytesRead = await this.read(file, buffer, 0, buffer.length);
-            totalBuffer = Buffer.concat([
-              totalBuffer,
-              buffer.slice(0, bytesRead),
-            ]);
-          }
-        } else {
-          fdIndex = await this.open(file as Path, options.flag);
-          while (bytesRead !== 0) {
-            bytesRead = await this.read(fdIndex, buffer, 0, buffer.length);
-            totalBuffer = Buffer.concat([
-              totalBuffer,
-              buffer.slice(0, bytesRead),
-            ]);
-          }
+        let bytesRead: number | undefined = undefined;
+        if (typeof file !== 'number') {
+          fdIndex = await this.open(file, options.flag);
+          file = fdIndex;
+        }
+        while (bytesRead !== 0) {
+          bytesRead = await this.read(file, buffer, 0, buffer.length);
+          totalBuffer = Buffer.concat([
+            totalBuffer,
+            buffer.slice(0, bytesRead),
+          ]);
         }
         return options.encoding
           ? totalBuffer.toString(options.encoding)
@@ -2441,26 +2437,28 @@ class EncryptedFS {
           syscall: 'readlink',
         });
       }
-      let link;
-      await this.iNodeMgr.withTransactionF(target, async (tran) => {
-        const targetData = await this.iNodeMgr.get(target, tran);
-        if (targetData == null) {
-          throw new errors.ErrorEncryptedFSError({
-            errno: errno.ENOENT,
-            path: path as string,
-            syscall: 'readlink',
-          });
-        }
-        const targetType = (await this.iNodeMgr.get(target, tran))?.type;
-        if (!(targetType === 'Symlink')) {
-          throw new errors.ErrorEncryptedFSError({
-            errno: errno.EINVAL,
-            path: path as string,
-            syscall: 'readlink',
-          });
-        }
-        link = await this.iNodeMgr.symlinkGetLink(target, tran);
-      });
+      const link = await this.iNodeMgr.withTransactionF(
+        target,
+        async (tran) => {
+          const targetData = await this.iNodeMgr.get(target, tran);
+          if (targetData == null) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.ENOENT,
+              path: path as string,
+              syscall: 'readlink',
+            });
+          }
+          const targetType = (await this.iNodeMgr.get(target, tran))?.type;
+          if (!(targetType === 'Symlink')) {
+            throw new errors.ErrorEncryptedFSError({
+              errno: errno.EINVAL,
+              path: path as string,
+              syscall: 'readlink',
+            });
+          }
+          return await this.iNodeMgr.symlinkGetLink(target, tran);
+        },
+      );
       if (options.encoding === 'binary') {
         return Buffer.from(link);
       } else {
@@ -2889,10 +2887,7 @@ class EncryptedFS {
           if (!(e instanceof errors.ErrorEncryptedFSError)) {
             throw e;
           }
-          if (e.code === errno.ENOENT.code) {
-            // Already deleted, skip
-            continue;
-          } else if (e.code === errno.EISDIR.code) {
+          if (e.code === errno.EISDIR.code) {
             // Is a directory, propagate recursive deletion
             await this.rmdir(entryPath, options);
           } else {
@@ -3066,7 +3061,7 @@ class EncryptedFS {
         await this.ftruncate(file, len);
       } else {
         file = this.getPath(file as Path);
-        let fdIndex;
+        let fdIndex: FdIndex | undefined;
         try {
           fdIndex = await this.open(file, constants.O_WRONLY);
           await this.ftruncate(fdIndex, len);
@@ -3157,20 +3152,20 @@ class EncryptedFS {
             syscall: 'utimes',
           });
         }
-        let newAtime;
-        let newMtime;
+        let newAtime: Date;
+        let newMtime: Date;
         if (typeof atime === 'number') {
           newAtime = new Date(atime * 1000);
         } else if (typeof atime === 'string') {
           newAtime = new Date(parseInt(atime) * 1000);
-        } else if (atime instanceof Date) {
+        } else {
           newAtime = atime;
         }
         if (typeof mtime === 'number') {
           newMtime = new Date(mtime * 1000);
         } else if (typeof mtime === 'string') {
           newMtime = new Date(parseInt(mtime) * 1000);
-        } else if (mtime instanceof Date) {
+        } else {
           newMtime = mtime;
         }
         await this.iNodeMgr.statSetProp(target, 'atime', newAtime, tran);
@@ -3261,7 +3256,7 @@ class EncryptedFS {
           syscall: 'write',
         });
       }
-      let buffer;
+      let buffer: Buffer;
       if (typeof data === 'string') {
         position = typeof offsetOrPos === 'number' ? offsetOrPos : undefined;
         lengthOrEncoding =
@@ -3342,7 +3337,7 @@ class EncryptedFS {
     callback =
       typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
     return utils.maybeCallback(async () => {
-      let fdIndex;
+      let fdIndex: FdIndex;
       options.flag = 'w';
       const buffer = this.getBuffer(data, options.encoding);
       let fdCheck = false;
@@ -3640,7 +3635,7 @@ class EncryptedFS {
     if (path instanceof Buffer) {
       return path.toString();
     }
-    if (typeof path === 'object' && typeof path.pathname === 'string') {
+    if (typeof path === 'object') {
       return this.getPathFromURL(path);
     }
     throw new TypeError('path must be a string or Buffer or URL');
@@ -3700,10 +3695,7 @@ class EncryptedFS {
         data.byteOffset + data.byteLength,
       );
     }
-    if (typeof data === 'string') {
-      return Buffer.from(data, encoding);
-    }
-    throw new TypeError('data must be Buffer or Uint8Array or string');
+    return Buffer.from(data, encoding);
   }
 }
 
