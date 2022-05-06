@@ -103,6 +103,20 @@ describe(`${EncryptedFS.name} Files`, () => {
       const buf = await efs.readFile('/fdtest');
       expect(buf).toEqual(Buffer.from([0x61, 0x62, 0x63, 0x00, 0x64]));
     });
+    test('can seek beyond the file length and create a zeroed "sparse" file with an empty file', async () => {
+      const path1 = '/fdtest';
+      const data = 'test';
+      const jump = 10;
+      // Await efs.writeFile(path1, 'abc');
+      const fd = await efs.open(path1, 'wx');
+      await efs.lseek(fd, jump, constants.SEEK_CUR);
+      await efs.write(fd, data);
+      await efs.close(fd);
+      const contents = (await efs.readFile(path1)).toString();
+      const stat = await efs.stat(path1);
+      expect(stat.size).toEqual(jump + data.length);
+      expect(contents).toEqual('\0'.repeat(jump) + data);
+    });
   });
   describe('fallocate', () => {
     test('can extend the file length', async () => {

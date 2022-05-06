@@ -1209,7 +1209,9 @@ class INodeManager {
     const key = inodesUtils.bufferId(idx);
     let bytesWritten;
     if (!block) {
-      await tran.put([...dataPath, key], data, true);
+      const newBlock = Buffer.alloc(offset + data.length);
+      data.copy(newBlock, offset);
+      await tran.put([...dataPath, key], newBlock, true);
       bytesWritten = data.length;
     } else {
       if (offset >= block.length) {
