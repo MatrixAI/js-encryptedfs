@@ -117,4 +117,66 @@ describe(EncryptedFS.name, () => {
     });
     await efs.stop();
   });
+  test('iNode allocation across restarts', async () => {
+    const d1 = 'dir1';
+    const d1f1 = path.join(d1, 'file1');
+    const d1f2 = path.join(d1, 'file2');
+    const d1f3 = path.join(d1, 'file3');
+    const d2 = 'dir2';
+    const d2f1 = path.join(d2, 'file1');
+    const d2f2 = path.join(d2, 'file2');
+    const d2f3 = path.join(d2, 'file3');
+
+    let efs = await EncryptedFS.createEncryptedFS({
+      dbPath: dataDir,
+      dbKey,
+      logger,
+    });
+
+    const listNodes = async (efs) => {
+      const iNodeManager = efs.iNodeMgr;
+      const nodes: Array<number> = [];
+      for await (const iNode of iNodeManager.getAll()) {
+        nodes.push(iNode.ino);
+      }
+      return nodes;
+    };
+
+    await efs.mkdir(d1);
+    await efs.writeFile(d1f1, d1f1);
+    await efs.writeFile(d1f2, d1f2);
+    await efs.writeFile(d1f3, d1f3);
+    await efs.mkdir(d2);
+    await efs.writeFile(d2f1, d2f1);
+    await efs.writeFile(d2f2, d2f2);
+    await efs.writeFile(d2f3, d2f3);
+    // Inodes 1-9 allocated
+
+    expect(await listNodes(efs)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    await efs.rmdir(d1, { recursive: true });
+    // Inodes 1, 6-9 left
+    expect(await listNodes(efs)).toEqual([1, 6, 7, 8, 9]);
+
+    // Re-creating the efs
+    await efs.stop();
+    efs = await EncryptedFS.createEncryptedFS({
+      dbPath: dataDir,
+      dbKey,
+      logger,
+    });
+
+    // Nodes should be maintained
+    expect(await listNodes(efs)).toEqual([1, 6, 7, 8, 9]);
+
+    // Creating new nodes.
+    await efs.mkdir(d1);
+    await efs.writeFile(d1f1, d1f1);
+    await efs.writeFile(d1f2, d1f2);
+    await efs.writeFile(d1f3, d1f3);
+
+    // Expecting 3, 4, 5 and 10 to be created
+    expect(await listNodes(efs)).toEqual([1, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // Note that 2 is skipped, this seems to be incremented
+    // but not created when the RFS is created
+  });
 });
