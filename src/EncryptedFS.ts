@@ -1531,7 +1531,7 @@ class EncryptedFS {
       // If the path has trailing slashes, navigation would traverse into it
       // we must trim off these trailing slashes to allow these directories to be removed
       path = path.replace(/(.+?)\/+$/, '$1');
-      let navigated = await this.navigate(path, true);
+      let navigated = await this.navigate(path, false);
       // Mutable transaction contexts may be inherited across loop iterations
       // During concurrent mkdir calls, calls race to create the inode
       // One call will win the lock to create the inode, all other calls must coalesce

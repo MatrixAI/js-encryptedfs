@@ -3856,7 +3856,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         });
       }
     });
-    // FIXME, mkdir should throw EEXIST, not ENOENTtest('EncryptedFS.mkdir and EncryptedFS.symlink', async () => {
+    test('EncryptedFS.mkdir and EncryptedFS.symlink', async () => {
       const path1 = path.join('dir', 'file1');
       const path2 = path.join('dir', 'file2');
       await efs.mkdir('dir');
