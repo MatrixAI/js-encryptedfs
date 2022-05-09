@@ -253,7 +253,7 @@ describe('EncryptedFS Streams', () => {
         encoding: 'utf8',
         end: 10,
       });
-      // Creating a test writable stream.
+      // Creating a test writable stream
       let data = '';
       class TestWritable extends Writable {
         constructor() {
@@ -267,7 +267,7 @@ describe('EncryptedFS Streams', () => {
 
       const ended = promise<void>();
       const testWritable = new TestWritable();
-      // @ts-ignore: This works but problem with types.
+      // @ts-ignore: This works but problem with types
       readStream.pipe(testWritable);
       testWritable.on('finish', () => {
         expect(data).toEqual(str);
@@ -303,7 +303,7 @@ describe('EncryptedFS Streams', () => {
 
       const ended = promise<void>();
       const testReadableStream = new TestReadableStream();
-      // @ts-ignore: This works but problem with types.
+      // @ts-ignore: This works but problem with types
       testReadableStream.pipe(writeStream);
       writeStream.on('finish', async () => {
         const data = await efs.readFile('file');

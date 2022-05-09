@@ -62,7 +62,7 @@ describe(`${EncryptedFS.name} Links`, () => {
       // Const stat = await efs.lstat(n0);
       // Expect(stat.mode).toEqual(0o0644);
       await efs.symlink(n0, n1);
-      // Should check that it is a link here.
+      // Should check that it is a link here
       await efs.unlink(n0);
       await expectError(efs.stat(n1), ErrorEncryptedFSError, errno.ENOENT);
       await efs.unlink(n1);

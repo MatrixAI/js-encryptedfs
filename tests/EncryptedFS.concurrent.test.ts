@@ -2498,11 +2498,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (stat.size > 15) {
-        // Expected BB..BBAA..AA
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2533,7 +2531,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2562,11 +2559,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (stat.size > 15) {
-        // Expected BB..BBAA..AA
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2595,11 +2590,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (stat.size > 15) {
-        // Expected BB..BBAA..AA
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2628,11 +2621,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: 10 },
       ]);
       if (contents[0] === 'A') {
-        // Expected BB..BBAA..AA
         expect(contents).toEqual(dataA + dataB);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       }
@@ -2661,11 +2652,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: 10 },
       ]);
       if (contents[0] === 'A') {
-        // Expected BB..BBAA..AA
         expect(contents).toEqual(dataA + dataB);
         expect(stat.size).toEqual(20);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB + dataA);
         expect(stat.size).toEqual(20);
       }
@@ -2806,11 +2795,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2837,11 +2824,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2871,11 +2856,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2904,11 +2887,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2938,11 +2919,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: 10 },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }
@@ -2971,11 +2950,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: 10 },
       ]);
       if (contents[0] === 'A') {
-        // Expected AA..AA
         expect(contents).toEqual(dataA);
         expect(stat.size).toEqual(10);
       } else {
-        // Expected BB..BB
         expect(contents).toEqual(dataB);
         expect(stat.size).toEqual(10);
       }

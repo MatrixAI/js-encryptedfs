@@ -107,7 +107,6 @@ describe(`${EncryptedFS.name} Files`, () => {
       const path1 = '/fdtest';
       const data = 'test';
       const jump = 10;
-      // Await efs.writeFile(path1, 'abc');
       const fd = await efs.open(path1, 'wx');
       await efs.lseek(fd, jump, constants.SEEK_CUR);
       await efs.write(fd, data);
