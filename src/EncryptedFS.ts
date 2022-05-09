@@ -2005,8 +2005,13 @@ class EncryptedFS {
         }
         let e: Error | undefined;
         try {
-          const targetType = (await this.iNodeMgr.get(navigated.target, tran))!
-            .type;
+          const target = await this.iNodeMgr.get(navigated.target, tran);
+          if (target == null) {
+            // Try to find the target again
+            navigated = await this.navigate(path, false);
+            continue;
+          }
+          const targetType = target.type;
           if (targetType === 'Symlink') {
             // Cannot be symlink if O_NOFOLLOW
             if (flags & constants.O_NOFOLLOW) {
