@@ -199,6 +199,21 @@ describe(`${EncryptedFS.name} Files`, () => {
       expect(buf).toEqual(Buffer.from('dbc'));
       await efs.close(fd);
     });
+    test('truncates the file contents', async () => {
+      const path1 = path.join('dir', 'path1');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'abcdef');
+      expect(await efs.readFile(path1, { encoding: 'utf-8' })).toEqual(
+        'abcdef',
+      );
+      const fd = await efs.open(path1, 'r+');
+      expect(await efs.readFile(path1, { encoding: 'utf-8' })).toEqual(
+        'abcdef',
+      );
+      await efs.ftruncate(fd, 4);
+      await efs.close(fd);
+      expect(await efs.readFile(path1, { encoding: 'utf-8' })).toEqual('abcd');
+    });
   });
   describe('read', () => {
     test('can be called using different styles', async () => {
