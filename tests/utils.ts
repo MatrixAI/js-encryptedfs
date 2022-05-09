@@ -1,15 +1,43 @@
 import type EncryptedFS from '@/EncryptedFS';
-import { constants } from '@';
+import * as constants from '@/constants';
 
 /**
- *
- * @param promise - the Promise that throws the expected error.
- * @param code - Error code such as 'errno.ENOTDIR'
+ * Checks if asynchronous operation throws an exception
  */
-async function expectError(promise: Promise<any>, code) {
-  await expect(promise).rejects.toThrow();
-  await expect(promise).rejects.toHaveProperty('code', code.code);
-  await expect(promise).rejects.toHaveProperty('errno', code.errno);
+async function expectError(
+  p: Promise<unknown>,
+  exception: new (...params: Array<unknown>) => Error = Error,
+  errno?: {
+    errno?: number;
+    code?: string;
+    description?: string;
+  },
+): Promise<void> {
+  await expect(p).rejects.toThrow(exception);
+  if (errno != null) {
+    await expect(p).rejects.toHaveProperty('code', errno.code);
+    await expect(p).rejects.toHaveProperty('errno', errno.errno);
+    await expect(p).rejects.toHaveProperty('description', errno.description);
+  }
+}
+
+function expectReason(
+  result: PromiseSettledResult<unknown>,
+  exception: new (...params: Array<unknown>) => Error = Error,
+  errno?: {
+    errno?: number;
+    code?: string;
+    description?: string;
+  },
+): void {
+  expect(result.status).toBe('rejected');
+  if (result.status === 'fulfilled') throw Error('never'); // Let typescript know the status
+  expect(result.reason).toBeInstanceOf(exception);
+  if (errno != null) {
+    expect(result.reason).toHaveProperty('code', errno.code);
+    expect(result.reason).toHaveProperty('errno', errno.errno);
+    expect(result.reason).toHaveProperty('description', errno.description);
+  }
 }
 
 type FileTypes = 'none' | 'regular' | 'dir' | 'block' | 'symlink';
@@ -73,6 +101,6 @@ function setId(efs: EncryptedFS, uid: number, gid?: number) {
   efs.gid = gid ?? uid;
 }
 
-export { expectError, createFile, supportedTypes, sleep, setId };
+export { expectError, expectReason, createFile, supportedTypes, sleep, setId };
 
 export type { FileTypes };

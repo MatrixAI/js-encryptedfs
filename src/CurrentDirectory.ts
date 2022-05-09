@@ -22,8 +22,8 @@ class CurrentDirectory {
     curPath: Array<string>,
   ): Promise<void> {
     this._iNodeMgr.ref(ino);
-    await this._iNodeMgr.transact(async (tran) => {
-      await this._iNodeMgr.unref(tran, this._ino);
+    await this._iNodeMgr.withTransactionF(async (tran) => {
+      await this._iNodeMgr.unref(this._ino, tran);
     });
     this._ino = ino;
     this._curPath = curPath;

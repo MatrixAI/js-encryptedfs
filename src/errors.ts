@@ -1,42 +1,62 @@
-import { CustomError } from 'ts-custom-error';
+import type { POJO } from './types';
+import { AbstractError } from '@matrixai/errors';
 
-class ErrorEncryptedFS extends CustomError {}
+class ErrorEncryptedFS<T> extends AbstractError<T> {
+  static description = 'EncryptedFS error';
+}
 
-class ErrorEncryptedFSRunning extends ErrorEncryptedFS {}
+class ErrorEncryptedFSRunning<T> extends ErrorEncryptedFS<T> {
+  static description = 'EncryptedFS is running';
+}
 
-class ErrorEncryptedFSNotRunning extends ErrorEncryptedFS {}
+class ErrorEncryptedFSNotRunning<T> extends ErrorEncryptedFS<T> {
+  static description = 'EncryptedFS is not running';
+}
 
-class ErrorEncryptedFSDestroyed extends ErrorEncryptedFS {}
+class ErrorEncryptedFSDestroyed<T> extends ErrorEncryptedFS<T> {
+  static description = 'EncryptedFS is destroyed';
+}
 
-class ErrorEncryptedFSKey extends ErrorEncryptedFS {}
+class ErrorEncryptedFSKey<T> extends ErrorEncryptedFS<T> {
+  static description = 'EncryptedFS failed canary check';
+}
 
-class ErrorEncryptedFSError extends ErrorEncryptedFS {
+class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
+  static description = 'EncryptedFS filesystem error';
+
   protected _errno: number;
   protected _code: string;
   protected _description: string;
   protected _syscall?: string;
 
-  constructor({
-    errno,
-    path,
-    dest,
-    syscall,
-  }: {
-    errno: {
-      errno: number;
-      code: string;
-      description: string;
-    };
-    path?: string;
-    dest?: string;
-    syscall?: string;
-  }) {
+  constructor(
+    {
+      errno,
+      path,
+      dest,
+      syscall,
+    }: {
+      errno: {
+        errno: number;
+        code: string;
+        description: string;
+      };
+      path?: string;
+      dest?: string;
+      syscall?: string;
+    },
+    options: {
+      timestamp?: Date;
+      data?: POJO;
+      cause?: T;
+    } = {},
+  ) {
     let message = errno.code + ': ' + errno.description;
     if (path != null) {
       message += ', ' + path;
       if (dest != null) message += ' -> ' + dest;
     }
-    super(message);
+    super(message, options);
     this._errno = errno.errno;
     this._code = errno.code;
     this._description = errno.description;

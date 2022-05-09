@@ -1,16 +1,19 @@
-import { CustomError } from 'ts-custom-error';
+import { AbstractError } from '@matrixai/errors';
 
-class ErrorFileDescriptor extends CustomError {}
+class ErrorFileDescriptor<T> extends AbstractError<T> {
+  static description = 'File descriptor error';
+}
 
-class ErrorFileDescriptorMissingINode extends ErrorFileDescriptor {}
+class ErrorFileDescriptorInvalidPosition<T> extends ErrorFileDescriptor<T> {
+  static description = 'File descriptor position cannot be less than 0';
+}
 
-class ErrorFileDescriptorInvalidPosition extends ErrorFileDescriptor {}
-
-class ErrorFileDescriptorInvalidINode extends ErrorFileDescriptor {}
+class ErrorFileDescriptorInvalidINode<T> extends ErrorFileDescriptor<T> {
+  static description = 'File descriptor cannot handle unknown INode type';
+}
 
 export {
   ErrorFileDescriptor,
-  ErrorFileDescriptorMissingINode,
   ErrorFileDescriptorInvalidPosition,
   ErrorFileDescriptorInvalidINode,
 };

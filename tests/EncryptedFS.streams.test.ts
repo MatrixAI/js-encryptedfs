@@ -3,8 +3,9 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { Readable, Writable } from 'readable-stream';
+import EncryptedFS from '@/EncryptedFS';
 import * as utils from '@/utils';
-import { EncryptedFS } from '@';
+import { promise } from '@/utils';
 
 describe('EncryptedFS Streams', () => {
   const logger = new Logger('EncryptedFS Streams', LogLevel.WARN, [
@@ -27,6 +28,7 @@ describe('EncryptedFS Streams', () => {
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -36,7 +38,7 @@ describe('EncryptedFS Streams', () => {
     test("using 'for await'", async () => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -47,10 +49,10 @@ describe('EncryptedFS Streams', () => {
       }
       expect(readString).toBe(str);
     });
-    test("using 'event readable'", async (done) => {
+    test("using 'event readable'", async () => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -62,15 +64,17 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test("using 'event data'", async (done) => {
+    test("using 'event data'", async () => {
       const str = 'Hello';
       await efs.writeFile(`/test`, str);
-      const readable = await efs.createReadStream(`/test`, {
+      const readable = efs.createReadStream(`/test`, {
         encoding: 'utf8',
         start: 0,
         end: str.length - 1,
@@ -79,15 +83,17 @@ describe('EncryptedFS Streams', () => {
       readable.on('data', (chunk) => {
         data += chunk;
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('respects start and end options', async (done) => {
+    test('respects start and end options', async () => {
       const str = 'Hello';
       await efs.writeFile(`file`, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(`file`, {
+      const readable = efs.createReadStream(`file`, {
         encoding: 'utf8',
         start: 1,
         end: 3,
@@ -99,16 +105,18 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str.slice(1, 4));
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('respects the high watermark', async (done) => {
+    test('respects the high watermark', async () => {
       const str = 'Hello';
       const highWatermark = 2;
       await efs.writeFile(`file`, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(`file`, {
+      const readable = efs.createReadStream(`file`, {
         encoding: 'utf8',
         highWaterMark: highWatermark,
       });
@@ -122,17 +130,19 @@ describe('EncryptedFS Streams', () => {
           counter += highWatermark;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('respects the start option', async (done) => {
+    test('respects the start option', async () => {
       const str = 'Hello';
       const filePath = `file`;
       const offset = 1;
       await efs.writeFile(filePath, str, { encoding: 'utf8' });
-      const readable = await efs.createReadStream(filePath, {
+      const readable = efs.createReadStream(filePath, {
         encoding: 'utf8',
         start: offset,
       });
@@ -143,16 +153,18 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str.slice(offset));
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('end option is ignored without the start option', async (done) => {
+    test('end option is ignored without the start option', async () => {
       const str = 'Hello';
       const filePath = `file`;
       await efs.writeFile(filePath, str);
-      const readable = await efs.createReadStream(filePath, {
+      const readable = efs.createReadStream(filePath, {
         encoding: 'utf8',
         end: 1,
       });
@@ -163,19 +175,21 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('can use a file descriptor', async (done) => {
+    test('can use a file descriptor', async () => {
       const str = 'Hello';
       const filePath = `file`;
       await efs.writeFile(filePath, str);
       const fd = await efs.open(filePath, 'r');
       const offset = 1;
       await efs.lseek(fd, offset);
-      const readable = await efs.createReadStream('', {
+      const readable = efs.createReadStream('', {
         encoding: 'utf8',
         fd: fd,
       });
@@ -186,17 +200,19 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', () => {
         expect(data).toBe(str.slice(offset));
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('with start option overrides the file descriptor position', async (done) => {
+    test('with start option overrides the file descriptor position', async () => {
       const str = 'Hello';
       await efs.writeFile(`file`, str);
       const fd = await efs.open(`file`, 'r');
       const offset = 1;
-      const readable = await efs.createReadStream('', {
+      const readable = efs.createReadStream('', {
         encoding: 'utf8',
         fd: fd,
         start: offset,
@@ -208,32 +224,36 @@ describe('EncryptedFS Streams', () => {
           data += chunk;
         }
       });
+      const ended = promise<void>();
       readable.on('end', async () => {
         expect(data).toBe(str.slice(offset));
         const buf = Buffer.allocUnsafe(1);
         await efs.read(fd, buf, 0, buf.length);
         expect(buf.toString('utf8')).toBe(str.slice(0, buf.length));
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('can handle errors asynchronously', async (done) => {
-      const stream = await efs.createReadStream(`file`);
+    test('can handle errors asynchronously', async () => {
+      const stream = efs.createReadStream(`file`);
+      const ended = promise<void>();
       stream.on('error', (err) => {
         expect(err instanceof Error).toBe(true);
         const error = err as any;
         expect(error.code).toBe('ENOENT');
-        done();
+        ended.resolveP();
       });
       stream.read(10);
+      await ended.p;
     });
-    test('can compose with pipes', async (done) => {
+    test('can compose with pipes', async () => {
       const str = 'Hello';
       await efs.writeFile(`file`, str);
-      const readStream = await efs.createReadStream(`file`, {
+      const readStream = efs.createReadStream(`file`, {
         encoding: 'utf8',
         end: 10,
       });
-      // Creating a test writable stream.
+      // Creating a test writable stream
       let data = '';
       class TestWritable extends Writable {
         constructor() {
@@ -245,22 +265,24 @@ describe('EncryptedFS Streams', () => {
         }
       }
 
+      const ended = promise<void>();
       const testWritable = new TestWritable();
-      // @ts-ignore: This works but problem with types.
+      // @ts-ignore: This works but problem with types
       readStream.pipe(testWritable);
       testWritable.on('finish', () => {
         expect(data).toEqual(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
   });
   describe('writestream', () => {
-    test('can compose with pipes', async (done) => {
+    test('can compose with pipes', async () => {
       const message = 'Hello there kenobi';
       const str = '';
       await efs.writeFile(`file`, str);
 
-      const writeStream = await efs.createWriteStream('file', {
+      const writeStream = efs.createWriteStream('file', {
         encoding: 'utf8',
       });
 
@@ -279,44 +301,50 @@ describe('EncryptedFS Streams', () => {
         }
       }
 
+      const ended = promise<void>();
       const testReadableStream = new TestReadableStream();
-      // @ts-ignore: This works but problem with types.
+      // @ts-ignore: This works but problem with types
       testReadableStream.pipe(writeStream);
       writeStream.on('finish', async () => {
         const data = await efs.readFile('file');
         expect(data.toString()).toEqual(message);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('can create and truncate files', async (done) => {
+    test('can create and truncate files', async () => {
       const str = 'Hello';
       const fileName = `file`;
-      const writable = await efs.createWriteStream(fileName, {});
+      const ended = promise<void>();
+      const writable = efs.createWriteStream(fileName, {});
       writable.end(str, async () => {
         const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
         expect(readStr).toEqual(str);
-        const truncateWritable = await efs.createWriteStream(fileName, {});
+        const truncateWritable = efs.createWriteStream(fileName, {});
         truncateWritable.end('', async () => {
           const readStr = await efs.readFile(fileName, { encoding: 'utf-8' });
           expect(readStr).toEqual('');
-          done();
+          ended.resolveP();
         });
       });
+      await ended.p;
     });
-    test('can be written into', async (done) => {
+    test('can be written into', async () => {
       const str = 'Hello';
-      const stream = await efs.createWriteStream('file');
+      const stream = efs.createWriteStream('file');
       stream.write(Buffer.from(str));
       stream.end();
+      const ended = promise<void>();
       stream.on('finish', async () => {
         const readStr = await efs.readFile('file', { encoding: 'utf-8' });
         expect(readStr).toEqual(str);
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('allow ignoring of the drain event, temporarily ignoring resource usage control', async (done) => {
+    test('allow ignoring of the drain event, temporarily ignoring resource usage control', async () => {
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', {
+      const writable = efs.createWriteStream('file', {
         highWaterMark: waterMark,
       });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
@@ -324,20 +352,23 @@ describe('EncryptedFS Streams', () => {
       for (let i = 0; i < times; ++i) {
         expect(writable.write(buf)).toBe(false);
       }
+      const ended = promise<void>();
       writable.end(async () => {
         const readStr = await efs.readFile('file', { encoding: 'utf8' });
         expect(readStr).toBe(buf.toString().repeat(times));
-        done();
+        ended.resolveP();
       });
+      await ended.p;
     });
-    test('can use the drain event to manage resource control', async (done) => {
+    test('can use the drain event to manage resource control', async () => {
       const waterMark = 10;
-      const writable = await efs.createWriteStream('file', {
+      const writable = efs.createWriteStream('file', {
         highWaterMark: waterMark,
       });
       const buf = Buffer.allocUnsafe(waterMark).fill(97);
       let times = 10;
       const timesOrig = times;
+      const ended = promise<void>();
       const writing = () => {
         let status;
         do {
@@ -347,7 +378,7 @@ describe('EncryptedFS Streams', () => {
             writable.end(async () => {
               const readStr = await efs.readFile('file', { encoding: 'utf8' });
               expect(readStr).toBe(buf.toString().repeat(timesOrig));
-              done();
+              ended.resolveP();
             });
           }
         } while (times > 0 && status);
@@ -356,18 +387,21 @@ describe('EncryptedFS Streams', () => {
         }
       };
       writing();
+      await ended.p;
     });
-    test('can handle errors asynchronously', async (done) => {
+    test('can handle errors asynchronously', async () => {
       const fileName = `file/unknown`;
-      const writable = await efs.createWriteStream(fileName);
+      const writable = efs.createWriteStream(fileName);
       // Note that it is possible to have the finish event occur before the error event
+      const ended = promise<void>();
       writable.once('error', (err) => {
         expect(err instanceof Error).toBe(true);
         const error = err as any;
         expect(error.code).toBe('ENOENT');
-        done();
+        ended.resolveP();
       });
       writable.end();
+      await ended.p;
     });
   });
 });

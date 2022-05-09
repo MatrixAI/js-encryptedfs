@@ -15,11 +15,25 @@ type POJO = { [key: string]: any };
 type Opaque<K, T> = T & { __TYPE__: K };
 
 /**
+ * Non-empty array
+ */
+type NonEmptyArray<T> = [T, ...T[]];
+
+/**
  * Any type that can be turned into a string
  */
 interface ToString {
   toString(): string;
 }
+
+/**
+ * Wrap a type to be reference counted
+ * Useful for when we need to garbage collect data
+ */
+type Ref<T> = {
+  count: number;
+  value: T;
+};
 
 /**
  * Generic callback
@@ -78,7 +92,9 @@ type EFSWorkerManagerInterface = WorkerManagerInterface<EFSWorkerModule>;
 export type {
   POJO,
   Opaque,
+  NonEmptyArray,
   ToString,
+  Ref,
   Callback,
   FunctionProperties,
   NonFunctionProperties,

@@ -3,10 +3,11 @@ import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import { INodeManager } from '@/inodes';
-import { FileDescriptor } from '@/fd';
+import INodeManager from '@/inodes/INodeManager';
+import FileDescriptor from '@/fd/FileDescriptor';
 import * as utils from '@/utils';
-import { constants, permissions } from '@';
+import * as constants from '@/constants';
+import * as permissions from '@/permissions';
 
 describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
@@ -74,41 +75,38 @@ describe('File Descriptor', () => {
     const fileIno = iNodeMgr.inoAllocate();
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     // Rejects as the iNode has not been created
-    await iNodeMgr.transact(
-      async (tran) => {
-        await expect(fd.setPos(tran, 1, constants.SEEK_SET)).rejects.toThrow(
-          Error,
-        );
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-      },
-      [fileIno],
-    );
-    await iNodeMgr.transact(async (tran) => {
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      await expect(fd.setPos(1, constants.SEEK_SET, tran)).rejects.toThrow(
+        Error,
+      );
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+    });
+    await iNodeMgr.withTransactionF(async (tran) => {
       // Rejects as the new position would be a negativ number
-      await expect(fd.setPos(tran, -10, 0)).rejects.toThrow(Error);
+      await expect(fd.setPos(-10, 0, tran)).rejects.toThrow(Error);
       // Will seek the absolute position given
-      await fd.setPos(tran, 5, constants.SEEK_SET);
+      await fd.setPos(5, constants.SEEK_SET, tran);
       expect(fd.pos).toBe(5);
       // Will seek the current position plus the absolute position
-      await fd.setPos(tran, 5, constants.SEEK_CUR);
+      await fd.setPos(5, constants.SEEK_CUR, tran);
       expect(fd.pos).toBe(5 + 5);
       // Will seek the end of the data plus the absolute position
-      await fd.setPos(tran, 5, constants.SEEK_END);
+      await fd.setPos(5, constants.SEEK_END, tran);
       expect(fd.pos).toBe(origBuffer.length + 5);
-    }, []);
+    });
   });
   test('read all the data on the file iNode', async () => {
     // Allocate the size of the buffer to be read into
@@ -119,33 +117,30 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let atime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      atime = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     bytesRead = await fd.read(readBuffer);
     expect(fd.pos).toBe(origBuffer.length);
     expect(readBuffer).toStrictEqual(origBuffer);
     expect(bytesRead).toBe(readBuffer.length);
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
       expect(stat.getTime()).toBeGreaterThan(atime.getTime());
     });
   });
@@ -158,26 +153,23 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let atime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      atime = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     // Start reading from byte number 4
     bytesRead = await fd.read(readBuffer, 4);
@@ -186,8 +178,8 @@ describe('File Descriptor', () => {
       Buffer.from(' Buffer for File Descriptor'),
     );
     expect(bytesRead).toBe(readBuffer.length);
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
       expect(stat.getTime()).toBeGreaterThan(atime.getTime());
     });
   });
@@ -200,26 +192,23 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let atime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        atime = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      atime = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     // Return buffer is only 21 bytes and starts at byte 6
     // so should only reach the 27th byte of the original buffer
@@ -227,8 +216,8 @@ describe('File Descriptor', () => {
     expect(fd.pos).toBe(0);
     expect(returnBuffer).toStrictEqual(Buffer.from('uffer for File Descri'));
     expect(bytesRead).toBe(returnBuffer.length);
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGetProp(tran, fileIno, 'atime');
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGetProp(fileIno, 'atime', tran);
       expect(stat.getTime()).toBeGreaterThan(atime.getTime());
     });
   });
@@ -240,35 +229,33 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let mtime, ctime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-        );
-        const stat = await iNodeMgr.statGet(tran, fileIno);
-        mtime = stat['mtime'].getTime();
-        ctime = stat['ctime'].getTime();
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        undefined,
+        tran,
+      );
+      const stat = await iNodeMgr.statGet(fileIno, tran);
+      mtime = stat['mtime'].getTime();
+      ctime = stat['ctime'].getTime();
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
     bytesWritten = await fd.write(origBuffer);
     expect(fd.pos).toBe(origBuffer.length);
     expect(bytesWritten).toBe(origBuffer.length);
     await fd.read(returnBuffer, 0);
     expect(returnBuffer).toStrictEqual(origBuffer);
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
       expect(stat['size']).toBe(origBuffer.length);
@@ -286,28 +273,25 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let mtime, ctime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        const stat = await iNodeMgr.statGet(tran, fileIno);
-        mtime = stat['mtime'].getTime();
-        ctime = stat['ctime'].getTime();
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      const stat = await iNodeMgr.statGet(fileIno, tran);
+      mtime = stat['mtime'].getTime();
+      ctime = stat['ctime'].getTime();
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
 
     // Overwrite the existing buffer at position 0
@@ -319,8 +303,8 @@ describe('File Descriptor', () => {
     expect(readBuffer).toStrictEqual(
       Buffer.from('Nice Buffer for File Descriptor'),
     );
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
       expect(stat['size']).toBe(origBuffer.length);
@@ -338,28 +322,25 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let mtime, ctime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        const stat = await iNodeMgr.statGet(tran, fileIno);
-        mtime = stat['mtime'].getTime();
-        ctime = stat['ctime'].getTime();
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      const stat = await iNodeMgr.statGet(fileIno, tran);
+      mtime = stat['mtime'].getTime();
+      ctime = stat['ctime'].getTime();
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
 
     // Overwrite the original buffer starting from byte 4
@@ -369,8 +350,8 @@ describe('File Descriptor', () => {
     expect(readBuffer).toStrictEqual(
       Buffer.from('Testing Buf for File Descriptor'),
     );
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
       expect(stat['size']).toBe(origBuffer.length);
@@ -388,28 +369,25 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let mtime, ctime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        const stat = await iNodeMgr.statGet(tran, fileIno);
-        mtime = stat['mtime'].getTime();
-        ctime = stat['ctime'].getTime();
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      const stat = await iNodeMgr.statGet(fileIno, tran);
+      mtime = stat['mtime'].getTime();
+      ctime = stat['ctime'].getTime();
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, 0);
 
     // Write to bytes on from the end of the data
@@ -423,8 +401,8 @@ describe('File Descriptor', () => {
     await fd.read(readBuffer, origBuffer.length + 2);
     // This should be the buffer that was written
     expect(readBuffer).toEqual(writeBuffer);
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
       expect(stat['size']).toBe(origBuffer.length + writeBuffer.length + 2);
@@ -444,28 +422,25 @@ describe('File Descriptor', () => {
     });
     const fileIno = iNodeMgr.inoAllocate();
     let mtime, ctime;
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(fileIno);
-        });
-        await iNodeMgr.fileCreate(
-          tran,
-          fileIno,
-          {
-            mode: permissions.DEFAULT_FILE_PERM,
-            uid: permissions.DEFAULT_ROOT_UID,
-            gid: permissions.DEFAULT_ROOT_GID,
-          },
-          blockSize,
-          origBuffer,
-        );
-        const stat = await iNodeMgr.statGet(tran, fileIno);
-        mtime = stat['mtime'].getTime();
-        ctime = stat['ctime'].getTime();
-      },
-      [fileIno],
-    );
+    await iNodeMgr.withTransactionF(fileIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(fileIno);
+      });
+      await iNodeMgr.fileCreate(
+        fileIno,
+        {
+          mode: permissions.DEFAULT_FILE_PERM,
+          uid: permissions.DEFAULT_ROOT_UID,
+          gid: permissions.DEFAULT_ROOT_GID,
+        },
+        blockSize,
+        origBuffer,
+        tran,
+      );
+      const stat = await iNodeMgr.statGet(fileIno, tran);
+      mtime = stat['mtime'].getTime();
+      ctime = stat['ctime'].getTime();
+    });
     const fd = new FileDescriptor(iNodeMgr, fileIno, constants.O_APPEND);
 
     // Appending data to a non full block which will exceed the block size
@@ -477,8 +452,8 @@ describe('File Descriptor', () => {
     expect(readBuffer).toStrictEqual(
       Buffer.from('Test Buffer for File Descriptor Tests'),
     );
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       mtime = stat['mtime'].getTime();
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
@@ -499,8 +474,8 @@ describe('File Descriptor', () => {
     expect(readBuffer).toStrictEqual(
       Buffer.from('Test Buffer for File Descriptor Testssss'),
     );
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       mtime = stat['mtime'].getTime();
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
@@ -530,8 +505,8 @@ describe('File Descriptor', () => {
     expect(readBuffer).toStrictEqual(
       Buffer.from('Test Buffer for File Descriptor Testssss Tests'),
     );
-    await iNodeMgr.transact(async (tran) => {
-      const stat = await iNodeMgr.statGet(tran, fileIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const stat = await iNodeMgr.statGet(fileIno, tran);
       expect(stat['mtime'].getTime()).toBeGreaterThan(mtime);
       expect(stat['ctime'].getTime()).toBeGreaterThan(ctime);
       expect(stat['size']).toBe(

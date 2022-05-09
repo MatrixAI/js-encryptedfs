@@ -3,9 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import { INodeManager } from '@/inodes';
+import INodeManager from '@/inodes/INodeManager';
 import * as utils from '@/utils';
-import { permissions } from '@';
+import * as permissions from '@/permissions';
 
 describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [
@@ -44,18 +44,15 @@ describe('INodeManager', () => {
     });
     const rootIno = iNodeMgr.inoAllocate();
     const childIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(rootIno);
-          iNodeMgr.inoDeallocate(childIno);
-        });
-        await iNodeMgr.dirCreate(tran, rootIno, {});
-        await iNodeMgr.dirCreate(tran, childIno, {}, rootIno);
-        await iNodeMgr.dirSetEntry(tran, rootIno, 'childdir', childIno);
-      },
-      [rootIno, childIno],
-    );
+    await iNodeMgr.withTransactionF(rootIno, childIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(rootIno);
+        iNodeMgr.inoDeallocate(childIno);
+      });
+      await iNodeMgr.dirCreate(rootIno, {}, undefined, tran);
+      await iNodeMgr.dirCreate(childIno, {}, rootIno, tran);
+      await iNodeMgr.dirSetEntry(rootIno, 'childdir', childIno, tran);
+    });
     await db.stop();
     db = await DB.createDB({
       dbPath: `${dataDir}/db`,
@@ -72,11 +69,11 @@ describe('INodeManager', () => {
       db,
       logger,
     });
-    await iNodeMgr.transact(async (tran) => {
+    await iNodeMgr.withTransactionF(async (tran) => {
       const rootIno_ = await iNodeMgr.dirGetRoot(tran);
       expect(rootIno_).toBeDefined();
       expect(rootIno_).toBe(rootIno);
-      const childIno_ = await iNodeMgr.dirGetEntry(tran, rootIno, 'childdir');
+      const childIno_ = await iNodeMgr.dirGetEntry(rootIno, 'childdir', tran);
       expect(childIno_).toBeDefined();
       expect(childIno_).toBe(childIno);
     });
@@ -87,47 +84,41 @@ describe('INodeManager', () => {
       logger,
     });
     // Demonstrate a counter increment race condition
-    await iNodeMgr.transact(async (tran) => {
-      await tran.put(iNodeMgr.mgrDomain, 'test', 0);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      await tran.put([...iNodeMgr.mgrDbPath, 'test'], 0);
     });
     await Promise.all([
-      iNodeMgr.transact(async (tran) => {
-        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      iNodeMgr.withTransactionF(async (tran) => {
+        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
+        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
       }),
-      iNodeMgr.transact(async (tran) => {
-        const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-        await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
+      iNodeMgr.withTransactionF(async (tran) => {
+        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
+        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
       }),
     ]);
-    await iNodeMgr.transact(async (tran) => {
-      const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
       // Race condition clobbers the counter
       expect(num).toBe(1);
     });
     // Now with proper locking, the race condition doesn't happen
-    await iNodeMgr.transact(async (tran) => {
-      await tran.put(iNodeMgr.mgrDomain, 'test', 0);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      await tran.put([...iNodeMgr.mgrDbPath, 'test'], 0);
     });
     const ino = iNodeMgr.inoAllocate();
     await Promise.all([
-      iNodeMgr.transact(
-        async (tran) => {
-          const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-          await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
-        },
-        [ino],
-      ),
-      iNodeMgr.transact(
-        async (tran) => {
-          const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
-          await tran.put(iNodeMgr.mgrDomain, 'test', num + 1);
-        },
-        [ino],
-      ),
+      iNodeMgr.withTransactionF(ino, async (tran) => {
+        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
+        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
+      }),
+      iNodeMgr.withTransactionF(ino, async (tran) => {
+        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
+        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
+      }),
     ]);
-    await iNodeMgr.transact(async (tran) => {
-      const num = (await tran.get<number>(iNodeMgr.mgrDomain, 'test'))!;
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
       // Race condition is solved by the locking the ino
       expect(num).toBe(2);
     });
@@ -138,55 +129,51 @@ describe('INodeManager', () => {
       logger,
     });
     const rootIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(rootIno);
-        });
-        await iNodeMgr.dirCreate(tran, rootIno, {
+    await iNodeMgr.withTransactionF(rootIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(rootIno);
+      });
+      await iNodeMgr.dirCreate(
+        rootIno,
+        {
           mode: permissions.DEFAULT_ROOT_PERM,
           uid: permissions.DEFAULT_ROOT_UID,
           gid: permissions.DEFAULT_ROOT_GID,
-        });
-      },
-      [rootIno],
-    );
+        },
+        undefined,
+        tran,
+      );
+    });
     const childIno = iNodeMgr.inoAllocate();
-    await iNodeMgr.transact(
-      async (tran) => {
-        tran.queueFailure(() => {
-          iNodeMgr.inoDeallocate(childIno);
-        });
-        await iNodeMgr.dirCreate(
-          tran,
-          childIno,
-          {
-            mode: permissions.DEFAULT_DIRECTORY_PERM,
-          },
-          rootIno,
-        );
-        await iNodeMgr.dirSetEntry(tran, rootIno, 'childdir', childIno);
-      },
-      [rootIno, childIno],
-    );
-    await iNodeMgr.transact(
-      async (tran) => {
-        iNodeMgr.ref(childIno);
-        await iNodeMgr.dirUnsetEntry(tran, rootIno, 'childdir');
-      },
-      [rootIno, childIno],
-    );
-    await iNodeMgr.transact(async (tran) => {
-      const data = await iNodeMgr.get(tran, childIno);
+    await iNodeMgr.withTransactionF(rootIno, childIno, async (tran) => {
+      tran.queueFailure(() => {
+        iNodeMgr.inoDeallocate(childIno);
+      });
+      await iNodeMgr.dirCreate(
+        childIno,
+        {
+          mode: permissions.DEFAULT_DIRECTORY_PERM,
+        },
+        rootIno,
+        tran,
+      );
+      await iNodeMgr.dirSetEntry(rootIno, 'childdir', childIno, tran);
+    });
+    await iNodeMgr.withTransactionF(rootIno, childIno, async (tran) => {
+      iNodeMgr.ref(childIno);
+      await iNodeMgr.dirUnsetEntry(rootIno, 'childdir', tran);
+    });
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const data = await iNodeMgr.get(childIno, tran);
       expect(data).toBeDefined();
       expect(data!.gc).toBe(true);
       expect(data!.ino).toBe(childIno);
     });
-    await iNodeMgr.transact(async (tran) => {
-      await iNodeMgr.unref(tran, childIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      await iNodeMgr.unref(childIno, tran);
     });
-    await iNodeMgr.transact(async (tran) => {
-      const data = await iNodeMgr.get(tran, childIno);
+    await iNodeMgr.withTransactionF(async (tran) => {
+      const data = await iNodeMgr.get(childIno, tran);
       expect(data).toBeUndefined();
     });
   });

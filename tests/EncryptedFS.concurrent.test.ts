@@ -1,46 +1,3312 @@
 import type { FdIndex } from '@/fd/types';
-import type { WriteStream } from '@/streams';
-import path from 'path';
+import type { INodeData } from '@/inodes/types';
 import fs from 'fs';
-import pathNode from 'path';
 import os from 'os';
+import path from 'path';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { code as errno } from 'errno';
+import { DB } from '@matrixai/db';
+import EncryptedFS from '@/EncryptedFS';
+import { ErrorEncryptedFSError } from '@/errors';
 import * as utils from '@/utils';
-import { EncryptedFS, constants } from '@';
-import { expectError, sleep } from './utils';
+import * as constants from '@/constants';
+import INodeManager from '@/inodes/INodeManager';
+import { promise } from '@/utils';
+import { expectReason, sleep } from './utils';
 
-describe('EncryptedFS Concurrency', () => {
-  const logger = new Logger('EncryptedFS Directories', LogLevel.WARN, [
+describe(`${EncryptedFS.name} Concurrency`, () => {
+  const logger = new Logger(`${EncryptedFS.name} Concurrency`, LogLevel.WARN, [
     new StreamHandler(),
   ]);
-  let dataDir: string;
-  let dbPath: string;
   const dbKey: Buffer = utils.generateKeySync(256);
+  let dataDir: string;
+  let db: DB;
+  let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
-  const flags = constants;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
+      path.join(os.tmpdir(), 'encryptedfs-test-'),
     );
-    dbPath = `${dataDir}/db`;
+    db = await DB.createDB({
+      dbPath: dataDir,
+      crypto: {
+        key: dbKey!,
+        ops: {
+          encrypt: utils.encrypt,
+          decrypt: utils.decrypt,
+        },
+      },
+      logger: logger.getChild(DB.name),
+    });
+    iNodeMgr = await INodeManager.createINodeManager({
+      db,
+      logger: logger.getChild(INodeManager.name),
+    });
     efs = await EncryptedFS.createEncryptedFS({
-      dbKey,
-      dbPath,
-      umask: 0o022,
+      db,
+      iNodeMgr,
       logger,
     });
   });
   afterEach(async () => {
+    await efs.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
     });
   });
-  test('Renaming a directory at the same time with two different calls', async () => {
-    await efs.mkdir('test');
-    try {
+  describe('concurrent inode creation', () => {
+    test('EncryptedFS.open', async () => {
+      // Only one call wins the race to create the file
       await Promise.all([
+        efs.open('test', constants.O_RDWR | constants.O_CREAT),
+        efs.open('test', constants.O_RDWR | constants.O_CREAT),
+        efs.open('test', constants.O_RDWR | constants.O_CREAT),
+        efs.open('test', constants.O_RDWR | constants.O_CREAT),
+      ]);
+      expect(await efs.readFile('test', { encoding: 'utf-8' })).toBe('');
+      const inodeDatas: Array<INodeData> = [];
+      for await (const inodeData of iNodeMgr.getAll()) {
+        inodeDatas.push(inodeData);
+      }
+      expect(inodeDatas).toStrictEqual([
+        { ino: 1, type: 'Directory', gc: false },
+        { ino: 2, type: 'File', gc: false },
+      ]);
+    });
+    test('EncryptedFS.mknod and EncryptedFS.mknod', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+        (async () => {
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+        (async () => {
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    test('EncryptedFS.mkdir and EncryptedFS.mknod', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.mkdir(path1);
+        })(),
+        (async () => {
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.mkdir(path1);
+        })(),
+        (async () => {
+          return await efs.mknod(path1, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    test('EncryptedFS.open and EncryptedFS.mkdir', async () => {
+      const path1 = path.join('dir', 'dir1');
+      await efs.mkdir('dir');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.mkdir(path1);
+        })(),
+        (async () => {
+          const fd = await efs.open(path1, 'wx');
+          await efs.close(fd);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.mkdir(path1);
+        })(),
+        (async () => {
+          const fd = await efs.open(path1, 'wx');
+          await efs.close(fd);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    // Test inode creation as well
+  });
+  describe('concurrent file writes', () => {
+    test('EncryptedFS.write on multiple file descriptors', async () => {
+      // Concurrent writes of the same length results in "last write wins"
+      let fds: Array<FdIndex> = [
+        await efs.open('test', constants.O_RDWR | constants.O_CREAT),
+        await efs.open('test', constants.O_RDWR | constants.O_CREAT),
+      ];
+      let contents = ['one', 'two'];
+      let promises: Array<Promise<any>>;
+      promises = [];
+      for (let i = 0; i < 2; i++) {
+        promises.push(efs.write(fds[i], contents[i]));
+      }
+      await Promise.all(promises);
+      expect(['one', 'two']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      for (const fd of fds) {
+        await efs.close(fd);
+      }
+      // Concurrent writes of different length results in "last write wins" or a merge
+      fds = [
+        await efs.open('test', constants.O_RDWR | constants.O_CREAT),
+        await efs.open('test', constants.O_RDWR | constants.O_CREAT),
+      ];
+      contents = ['one1', 'two'];
+      promises = [];
+      for (let i = 0; i < 2; i++) {
+        promises.push(efs.write(fds[i], contents[i]));
+      }
+      expect(['one1', 'two', 'two1']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      for (const fd of fds) {
+        await efs.close(fd);
+      }
+    });
+    test('EncryptedFS.write on the same file descriptor', async () => {
+      await efs.writeFile('test', '');
+      const fd = await efs.open('test', 'w');
+      await Promise.all([
+        efs.write(fd, Buffer.from('aaa')),
+        efs.write(fd, Buffer.from('bbb')),
+      ]);
+      expect(['aaabbb', 'bbbaaa']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      await efs.close(fd);
+    });
+    test('EncryptedFS.writeFile', async () => {
+      let promises: Array<Promise<void>>;
+      // Concurrent writes of the same length results in "last write wins"
+      promises = [];
+      for (const data of ['one', 'two']) {
+        promises.push(efs.writeFile('test', data));
+      }
+      await Promise.all(promises);
+      expect(['one', 'two']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      // Concurrent writes of different length results in "last write wins" or a merge
+      for (let i = 0; i < 10; i++) {
+        promises = [];
+        for (const data of ['one1', 'two']) {
+          promises.push(efs.writeFile('test', data));
+        }
+        await Promise.all(promises);
+        expect(['one1', 'two', 'two1']).toContainEqual(
+          await efs.readFile('test', { encoding: 'utf-8' }),
+        );
+      }
+      // Explicit last write wins
+      promises = [
+        (async () => {
+          // One is written last
+          await sleep(0);
+          return efs.writeFile('test', 'one');
+        })(),
+        efs.writeFile('test', 'two'),
+      ];
+      await Promise.all(promises);
+      expect(['one']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      promises = [
+        efs.writeFile('test', 'one'),
+        (async () => {
+          // Two1 is written last
+          await sleep(0);
+          return efs.writeFile('test', 'two1');
+        })(),
+      ];
+      await Promise.all(promises);
+      expect(['two1']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+      const inodeDatas: Array<INodeData> = [];
+      for await (const inodeData of iNodeMgr.getAll()) {
+        inodeDatas.push(inodeData);
+      }
+      expect(inodeDatas).toStrictEqual([
+        { ino: 1, type: 'Directory', gc: false },
+        { ino: 2, type: 'File', gc: false },
+      ]);
+    });
+    test('EncryptedFS.appendFile', async () => {
+      await efs.writeFile('test', 'original');
+      // Concurrent appends results in mutually exclusive writes
+      const promises = [
+        efs.appendFile('test', 'one'),
+        efs.appendFile('test', 'two'),
+      ];
+      await Promise.all(promises);
+      // Either order of appending is acceptable
+      expect(['originalonetwo', 'originaltwoone']).toContainEqual(
+        await efs.readFile('test', { encoding: 'utf-8' }),
+      );
+    });
+    test('EncryptedFS.fallocate and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+
+      // WriteFile with FdIndex
+      // cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+    });
+    test('EncryptedFS.fallocate and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 4 },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 4 },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(4);
+      }
+    });
+    test('EncryptedFS.fallocate and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(i.toString());
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(i.toString());
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      // With a slow streaming write,
+      //  fallocate should happen in the middle of the stream
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(50);
+          return await efs.fallocate(fd, 0, 100);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(i.toString());
+            await sleep(10);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length === 100) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(100);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(100);
+        expect(contents.length).toEqual(10);
+      }
+    });
+    test('EncryptedFS.truncate and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            path1,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            path1,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // WriteFile with FdIndex
+      // cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+    });
+    test('EncryptedFS.truncate and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.write(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 44 },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.write(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 44 },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+    });
+    test('EncryptedFS.truncate and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const phrase = 'The quick brown fox jumped over the lazy dog'.split(' ');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(50);
+          return await efs.truncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+            await sleep(10);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+    });
+    test('EncryptedFS.ftruncate and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            path1,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            path1,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // WriteFile with FdIndex
+      // cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.writeFile(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length < 30) {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      } else {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      }
+    });
+    test('EncryptedFS.ftruncate and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.write(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 44 },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        // Fallocate happened after write
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      } else {
+        // Write happened after fallocate
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          return await efs.write(
+            fd,
+            'The quick brown fox jumped over the lazy dog',
+          );
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 44 },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(44);
+        expect(contents.length).toEqual(44);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+    });
+    test('EncryptedFS.ftruncate and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const phrase = 'The quick brown fox jumped over the lazy dog'.split(' ');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      // WriteFile with path
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(50);
+          return await efs.ftruncate(fd, 27);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (const i of phrase) {
+            writeStream.write(i + ' ');
+            await sleep(10);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 30) {
+        expect(stat.size).toEqual(45);
+        expect(contents.length).toEqual(45);
+      } else {
+        expect(stat.size).toEqual(27);
+        expect(contents.length).toEqual(27);
+      }
+    });
+    test('EncryptedFS.utimes and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      const nowTime = Date.now();
+      await sleep(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.utimes(path1, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.utimes(path1, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+    });
+    test('EncryptedFS.futimes and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      const nowTime = Date.now();
+      await sleep(10);
+      await efs.mkdir('dir');
+      const fd = await efs.open(path1, 'wx+');
+      await efs.writeFile(fd, 'test');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.futimes(fd, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.futimes(fd, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+      await efs.close(fd);
+    });
+    test('EncryptedFS.utimes a directory and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'dir1');
+      const path2 = path.join(path1, 'file1');
+      const nowTime = Date.now();
+      await sleep(10);
+      await efs.mkdir('dir');
+      await efs.mkdir(path1);
+      await efs.writeFile(path2, 'test');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.utimes(path1, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path2, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.utimes(path1, 0, 0);
+        })(),
+        (async () => {
+          return await efs.writeFile(path2, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      if (stat.mtime.getTime() === 0) {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toEqual(0);
+      } else {
+        expect(stat.atime.getTime()).toEqual(0);
+        expect(stat.mtime.getTime()).toBeGreaterThan(nowTime);
+      }
+    });
+    test('EncryptedFS.lseek and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+    });
+    test('EncryptedFS.lseek and EncryptedFS.writeFile with fd', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+    });
+    test('EncryptedFS.lseek and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      if (contents.length > 15) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 20 },
+          { status: 'fulfilled', value: 4 },
+        ]);
+        expect(stat.size).toEqual(24);
+        expect(contents.length).toEqual(24);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 24 },
+          { status: 'fulfilled', value: 4 },
+        ]);
+        expect(stat.size).toEqual(4);
+        expect(contents.length).toEqual(4);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      if (contents.length > 15) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 20 },
+          { status: 'fulfilled', value: 4 },
+        ]);
+        expect(stat.size).toEqual(24);
+        expect(contents.length).toEqual(24);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 24 },
+          { status: 'fulfilled', value: 4 },
+        ]);
+        expect(stat.size).toEqual(4);
+        expect(contents.length).toEqual(4);
+      }
+    });
+    test('EncryptedFS.lseek and EncryptedFS.readFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+      await efs.writeFile(path1, 'test');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return (await efs.readFile(path1)).toString();
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: 'test' },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+      await efs.writeFile(path1, 'test');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return (await efs.readFile(path1)).toString();
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 20 },
+        { status: 'fulfilled', value: 'test' },
+      ]);
+      stat = await efs.stat(path1);
+      contents = await efs.readFile(path1);
+      expect(stat.size).toEqual(4);
+      expect(contents.length).toEqual(4);
+    });
+    test('EncryptedFS.lseek and EncryptedFS.read', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      await efs.writeFile(
+        path1,
+        'The quick brown fox jumped over the lazy dog',
+      );
+      let fd = await efs.open(path1, 'r+');
+
+      const buffer = Buffer.alloc(45);
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 27, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.read(fd, buffer, undefined, 44);
+        })(),
+      ]);
+      if (results[1].status === 'fulfilled' && results[1].value > 30) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 71 },
+          { status: 'fulfilled', value: 44 },
+        ]);
+        expect(buffer.toString()).toContain('The quick brown fox');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 27 },
+          { status: 'fulfilled', value: 17 },
+        ]);
+        expect(buffer.toString()).not.toContain('The quick brown fox');
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(
+        path1,
+        'The quick brown fox jumped over the lazy dog',
+      );
+      fd = await efs.open(path1, 'r+');
+      buffer.fill(0);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 27, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.read(fd, buffer, undefined, 44);
+        })(),
+      ]);
+      if (results[1].status === 'fulfilled' && results[1].value > 30) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 71 },
+          { status: 'fulfilled', value: 44 },
+        ]);
+        expect(buffer.toString()).toContain('The quick brown fox');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 27 },
+          { status: 'fulfilled', value: 17 },
+        ]);
+        expect(buffer.toString()).not.toContain('The quick brown fox');
+      }
+    });
+    test('EncryptedFS.lseek and EncryptedFS.lseek setting position', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      let fd = await efs.open(path1, 'wx+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.lseek(fd, 15, constants.SEEK_SET);
+        })(),
+      ]);
+      let pos = await efs.lseek(fd, 0, constants.SEEK_CUR);
+      if (pos > 30) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 35 },
+          { status: 'fulfilled', value: 15 },
+        ]);
+        expect(pos).toEqual(35);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 20 },
+          { status: 'fulfilled', value: 15 },
+        ]);
+        expect(pos).toEqual(15);
+      }
+
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      fd = await efs.open(path1, 'wx+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.lseek(fd, 20, constants.SEEK_CUR);
+        })(),
+        (async () => {
+          return await efs.lseek(fd, 15, constants.SEEK_SET);
+        })(),
+      ]);
+      pos = await efs.lseek(fd, 0, constants.SEEK_CUR);
+      if (pos > 30) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 35 },
+          { status: 'fulfilled', value: 15 },
+        ]);
+        expect(pos).toEqual(35);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 20 },
+          { status: 'fulfilled', value: 15 },
+        ]);
+        expect(pos).toEqual(15);
+      }
+    });
+    test('EncryptedFS.createReadStream and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB'.repeat(5);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+
+      let results = await Promise.allSettled([
+        (async () => {
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+
+      if (results[0].status === 'fulfilled' && results[0].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataA.repeat(10) },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+
+      if (results[0].status === 'fulfilled' && results[0].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataA.repeat(10) },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+    });
+    test('EncryptedFS.write and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB'.repeat(5);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return efs.write(fd, dataB);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 25 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual(dataB + dataA.repeat(5));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return efs.write(fd, dataB);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 25 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual(dataB + dataA.repeat(5));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      }
+    });
+    test('EncryptedFS.createReadStream and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB'.repeat(5);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          await efs.write(fd, dataA);
+        })(),
+      ]);
+
+      if (results[0].status === 'fulfilled' && results[0].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataA + dataB.slice(dataA.length) },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          await efs.write(fd, dataA);
+        })(),
+      ]);
+
+      if (results[0].status === 'fulfilled' && results[0].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataA + dataB.slice(dataA.length) },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+    });
+    test('EncryptedFS.read and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+      const buffer = Buffer.alloc(100);
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return efs.read(fd, buffer, undefined, 100);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      let contents = buffer.toString();
+
+      if (results[0].status === 'fulfilled' && results[0].value === 50) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 50 },
+          { status: 'fulfilled', value: undefined },
+        ]);
+        expect(contents).toEqual(dataA.repeat(10) + '\0'.repeat(50));
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 0 },
+          { status: 'fulfilled', value: undefined },
+        ]);
+        expect(contents).toEqual('\0'.repeat(100));
+      }
+
+      // Cleaning up
+      buffer.fill(0);
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return efs.read(fd, buffer, undefined, 100);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      contents = buffer.toString();
+
+      if (results[0].status === 'fulfilled' && results[0].value === 50) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 50 },
+          { status: 'fulfilled', value: undefined },
+        ]);
+        expect(contents).toEqual(dataA.repeat(10) + '\0'.repeat(50));
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: 0 },
+          { status: 'fulfilled', value: undefined },
+        ]);
+        expect(contents).toEqual('\0'.repeat(100));
+      }
+    });
+    test('EncryptedFS.createReadStream and EncryptedFS.read', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataB = 'BBBBB'.repeat(5);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+      const buffer = Buffer.alloc(100);
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          return efs.read(fd, buffer, undefined, 100);
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: dataB },
+        { status: 'fulfilled', value: 25 },
+      ]);
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataB);
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          const readProm = new Promise<string>((resolve, reject) => {
+            const readStream = efs.createReadStream(path1);
+            let readData = '';
+            readStream.on('data', (data) => {
+              readData += data.toString();
+            });
+            readStream.on('end', () => {
+              resolve(readData);
+            });
+            readStream.on('error', (e) => {
+              reject(e);
+            });
+          });
+          return await readProm;
+        })(),
+        (async () => {
+          return efs.read(fd, buffer, undefined, 100);
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: dataB },
+        { status: 'fulfilled', value: 25 },
+      ]);
+    });
+    test('EncryptedFS.createWriteStream and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB';
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataB);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual(dataB.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataB);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual(dataB.repeat(10));
+        expect(contents).toHaveLength(50);
+        expect(stat.size).toEqual(50);
+      }
+    });
+    test('EncryptedFS.unlink and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if ((await efs.exists(path1)) === true) {
+        expect(await efs.exists(path1)).toEqual(true);
+        expect((await efs.readFile(path1)).toString()).toEqual('test');
+      } else {
+        expect(await efs.exists(path1)).toEqual(false);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if ((await efs.exists(path1)) === true) {
+        expect(await efs.exists(path1)).toEqual(true);
+        expect((await efs.readFile(path1)).toString()).toEqual('test');
+      } else {
+        expect(await efs.exists(path1)).toEqual(false);
+      }
+    });
+    test('EncryptedFS.unlink and EncryptedFS.open', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          const fd = await efs.open(path1, 'r+');
+          await efs.close(fd);
+          return fd;
+        })(),
+      ]);
+      if (
+        results[0].status === 'fulfilled' &&
+        results[1].status === 'rejected'
+      ) {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.ENOENT);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: 0 },
+        ]);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          const fd = await efs.open(path1, 'r+');
+          await efs.close(fd);
+          return fd;
+        })(),
+      ]);
+      if (
+        results[0].status === 'fulfilled' &&
+        results[1].status === 'rejected'
+      ) {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.ENOENT);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: 0 },
+        ]);
+      }
+    });
+    test('EncryptedFS.unlink and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+      await efs.close(fd);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 4 },
+      ]);
+      expect(await efs.exists(path1)).toEqual(false);
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+      ]);
+      await efs.close(fd);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 4 },
+      ]);
+      expect(await efs.exists(path1)).toEqual(false);
+    });
+    test('EncryptedFS.unlink and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (await efs.exists(path1)) {
+        const stat = await efs.stat(path1);
+        const contents = (await efs.readFile(path1)).toString();
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(await efs.exists(path1)).toEqual(false);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.unlink(path1);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (await efs.exists(path1)) {
+        const stat = await efs.stat(path1);
+        const contents = (await efs.readFile(path1)).toString();
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(await efs.exists(path1)).toEqual(false);
+      }
+    });
+    test('EncryptedFS.appendFIle and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.appendFile(path1, dataA);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (stat.size > 15) {
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.appendFile(path1, dataA);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (stat.size > 15) {
+        // Expected BB..BBAA..AA
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+    });
+    test('EncryptedFS.appendFIle and EncryptedFS.writeFile with fd', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.appendFile(fd, dataA);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (stat.size > 15) {
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.appendFile(fd, dataA);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (stat.size > 15) {
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+    });
+    test('EncryptedFS.appendFIle and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.appendFile(fd, dataA);
+        })(),
+        (async () => {
+          return await efs.write(fd, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 10 },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA + dataB);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.appendFile(fd, dataA);
+        })(),
+        (async () => {
+          return await efs.write(fd, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 10 },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA + dataB);
+        expect(stat.size).toEqual(20);
+      } else {
+        expect(contents).toEqual(dataB + dataA);
+        expect(stat.size).toEqual(20);
+      }
+    });
+    test('EncryptedFS.appendFIle and EncryptedFS.createReadStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBBBBBBBBBBBBBBBBB';
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.appendFile(path1, dataB);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      let contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents.length > 55) {
+        expect(contents).toEqual(dataA.repeat(10) + dataB);
+        expect(stat.size).toEqual(70);
+      } else {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.appendFile(path1, dataB);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents.length > 55) {
+        expect(contents).toEqual(dataA.repeat(10) + dataB);
+        expect(stat.size).toEqual(70);
+      } else {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(50);
+          return await efs.appendFile(path1, dataB);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+            await sleep(10);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      contents = (await efs.readFile(path1)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents.length > 51) {
+        expect(contents).toContain(dataA[0]);
+        expect(contents).toContain(dataB[0]);
+        expect(stat.size).toBeGreaterThanOrEqual(50);
+      } else {
+        expect(contents).toContain(dataA[0]);
+        expect(contents).not.toContain(dataB[0]);
+        expect(stat.size).toEqual(50);
+      }
+    });
+    test('EncryptedFS.copyFile and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path2);
+      let contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path2);
+      contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+    });
+    test('EncryptedFS.copyFile and EncryptedFS.writeFile with fd', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path2);
+      let contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.writeFile(fd, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path2);
+      contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+    });
+    test('EncryptedFS.copyFile and EncryptedFS.write', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      const dataA = 'A'.repeat(10);
+      const dataB = 'B'.repeat(10);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.write(fd, dataB);
+        })(),
+      ]);
+      let stat = await efs.stat(path2);
+      let contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 10 },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          return await efs.write(fd, dataB);
+        })(),
+      ]);
+      stat = await efs.stat(path2);
+      contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: 10 },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA);
+        expect(stat.size).toEqual(10);
+      } else {
+        expect(contents).toEqual(dataB);
+        expect(stat.size).toEqual(10);
+      }
+    });
+    test('EncryptedFS.copyFile and EncryptedFS.createWriteStream', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      const dataA = 'AAAAA';
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      let stat = await efs.stat(path2);
+      let contents = (await efs.readFile(path2)).toString();
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual('');
+        expect(stat.size).toEqual(0);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      stat = await efs.stat(path2);
+      contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual('');
+        expect(stat.size).toEqual(0);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(50);
+          return await efs.copyFile(path1, path2);
+        })(),
+        (async () => {
+          const writeStream = efs.createWriteStream(path1);
+          for (let i = 0; i < 10; i++) {
+            writeStream.write(dataA);
+            await sleep(10);
+          }
+          writeStream.end();
+          const endProm = promise<void>();
+          writeStream.on('finish', () => endProm.resolveP());
+          await endProm.p;
+        })(),
+      ]);
+      stat = await efs.stat(path2);
+      contents = (await efs.readFile(path2)).toString();
+
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: undefined },
+        { status: 'fulfilled', value: undefined },
+      ]);
+      if (contents[0] === 'A') {
+        expect(contents).toEqual(dataA.repeat(10));
+        expect(stat.size).toEqual(50);
+      } else {
+        expect(contents).toEqual('');
+        expect(stat.size).toEqual(0);
+      }
+    });
+    test('EncryptedFS.readFile and EncryptedFS.writeFile', async () => {
+      const path1 = path.join('dir', 'file1');
+      await efs.mkdir('dir');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB';
+      await efs.writeFile(path1, dataA);
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.writeFile(path1, dataB);
+        })(),
+        (async () => {
+          return (await efs.readFile(path1)).toString();
+        })(),
+      ]);
+
+      if (results[1].status === 'fulfilled' && results[1].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: dataA },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: dataB },
+        ]);
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.writeFile(path1, dataB);
+        })(),
+        (async () => {
+          return (await efs.readFile(path1)).toString();
+        })(),
+      ]);
+
+      if (results[1].status === 'fulfilled' && results[1].value[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: dataA },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: undefined },
+          { status: 'fulfilled', value: dataB },
+        ]);
+      }
+    });
+    test('EncryptedFS.read and EncryptedFS.write with different fd', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB';
+      const buffer = Buffer.alloc(100);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      let fd1 = await efs.open(path1, 'r+');
+      let fd2 = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          // Await sleep(100);
+          return await efs.write(fd1, dataB);
+        })(),
+        (async () => {
+          return await efs.read(fd2, buffer, undefined, 100);
+        })(),
+      ]);
+      if (buffer.toString()[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataA.length },
+          { status: 'fulfilled', value: dataB.length },
+        ]);
+        expect(buffer.toString()).toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: dataB.length },
+        ]);
+        expect(buffer.toString()).not.toContain('A');
+        expect(buffer.toString()).toContain('B');
+      }
+
+      // Cleaning up
+      await efs.close(fd1);
+      await efs.close(fd2);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      fd1 = await efs.open(path1, 'r+');
+      fd2 = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.write(fd1, dataB);
+        })(),
+        (async () => {
+          return await efs.read(fd2, buffer, undefined, 100);
+        })(),
+      ]);
+      if (buffer.toString()[0] === 'A') {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: dataA.length },
+        ]);
+        expect(buffer.toString()).toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: dataB.length },
+        ]);
+        expect(buffer.toString()).not.toContain('A');
+        expect(buffer.toString()).toContain('B');
+      }
+    });
+    test('EncryptedFS.read and EncryptedFS.write with same fd', async () => {
+      const path1 = path.join('dir', 'file1');
+      const dataA = 'AAAAA';
+      const dataB = 'BBBBB';
+      const buffer = Buffer.alloc(100);
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          // Await sleep(100);
+          return await efs.write(fd, dataB);
+        })(),
+        (async () => {
+          return await efs.read(fd, buffer, undefined, 100);
+        })(),
+      ]);
+      let stat = await efs.stat(path1);
+      if (stat.size === 5) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: 0 },
+        ]);
+        expect(buffer.toString()).not.toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: dataB.length },
+        ]);
+        expect(buffer.toString()).toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      }
+
+      // Cleaning up
+      await efs.close(fd);
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, dataA);
+      fd = await efs.open(path1, 'r+');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.write(fd, dataB);
+        })(),
+        (async () => {
+          return await efs.read(fd, buffer, undefined, 100);
+        })(),
+      ]);
+      stat = await efs.stat(path1);
+      if (stat.size === 5) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: 0 },
+        ]);
+        expect(buffer.toString()).not.toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: dataB.length },
+          { status: 'fulfilled', value: dataB.length },
+        ]);
+        expect(buffer.toString()).toContain('A');
+        expect(buffer.toString()).not.toContain('B');
+      }
+    });
+  });
+  describe('concurrent directory manipulation', () => {
+    test('EncryptedFS.mkdir', async () => {
+      const results = await Promise.allSettled([
+        efs.mkdir('dir'),
+        efs.mkdir('dir'),
+      ]);
+      expect(
+        results.some((result) => {
+          return result.status === 'fulfilled';
+        }),
+      ).toBe(true);
+      expect(
+        results.some((result) => {
+          const status = result.status === 'rejected';
+          if (status) {
+            expect(result.reason).toBeInstanceOf(ErrorEncryptedFSError);
+            expect(result.reason).toHaveProperty('code', errno.EEXIST.code);
+            expect(result.reason).toHaveProperty('errno', errno.EEXIST.errno);
+            expect(result.reason).toHaveProperty(
+              'description',
+              errno.EEXIST.description,
+            );
+          }
+          return status;
+        }),
+      ).toBe(true);
+    });
+    test('EncryptedFS.mkdir with recursive creation', async () => {
+      await Promise.all([
+        efs.mkdir('1/dira/dirb', { recursive: true }),
+        efs.mkdir('1/dira/dirb', { recursive: true }),
+      ]);
+      expect(await efs.readdir('1/dira')).toStrictEqual(['dirb']);
+      expect(await efs.readdir('1/dira/dirb')).toStrictEqual([]);
+      // Asymmetric directory creation
+      // the first promise will create dira and dira/dirb
+      // the second promise will create dira/dirb/dirc
+      await Promise.all([
+        efs.mkdir('2/dira/dirb', { recursive: true }),
+        efs.mkdir('2/dira/dirb/dirc', { recursive: true }),
+      ]);
+      expect(await efs.readdir('2/dira/dirb')).toStrictEqual(['dirc']);
+      expect(await efs.readdir('2/dira/dirb/dirc')).toStrictEqual([]);
+    });
+    test('EncryptedFS.rename', async () => {
+      // Only the first rename works, the rest fail
+      await efs.mkdir('test');
+      const results = await Promise.allSettled([
         efs.rename('test', 'one'),
         efs.rename('test', 'two'),
         efs.rename('test', 'three'),
@@ -48,887 +3314,735 @@ describe('EncryptedFS Concurrency', () => {
         efs.rename('test', 'five'),
         efs.rename('test', 'six'),
       ]);
-    } catch (err) {
-      // Do nothing
-    }
-
-    // Right now only the first rename works. the rest fail. this is expected.
-    expect(await efs.readdir('.')).toContain('one');
-  });
-  test('Reading a directory while adding/removing entries in the directory', async () => {
-    await efs.mkdir('dir');
-    const file1 = path.join('dir', 'file1');
-
-    const results1 = await Promise.all([
-      efs.writeFile(file1, 'test1'),
-      efs.readdir('dir'),
-    ]);
-    // Readdir seems to return the directory before the changes happen.
-    expect(results1[1]).not.toContain('file1');
-    expect(await efs.readdir('dir')).toContain('file1');
-
-    const results2 = await Promise.all([efs.unlink(file1), efs.readdir('dir')]);
-    // Readdir seems to return the directory before the changes happen.
-    expect(results2[1]).toContain('file1');
-    expect(await efs.readdir('dir')).not.toContain('file1');
-  });
-  test('Reading a directory while removing the directory', async () => {
-    await efs.mkdir('dir');
-
-    const results1 = await Promise.all([efs.readdir('dir'), efs.rmdir('dir')]);
-    // Readdir seems to return the directory before the changes happen.
-    expect(results1[0]).toEqual([]);
-    await expectError(efs.readdir('dir'), errno.ENOENT);
-
-    // If after rmdir still completes after readdir
-    await efs.mkdir('dir');
-    const results2 = await Promise.all([efs.rmdir('dir'), efs.readdir('dir')]);
-    expect(results2[1]).toEqual([]);
-  });
-  test('Reading a directory while renaming entries', async () => {
-    await efs.mkdir('dir');
-    await efs.writeFile(path.join('dir', 'file1'));
-
-    const results1 = await Promise.all([
-      efs.readdir('dir'),
-      efs.rename(path.join('dir', 'file1'), path.join('dir', 'file2')),
-    ]);
-    // Readdir seems to return the directory before the changes happen.
-    expect(results1[0]).toContain('file1');
-    expect(await efs.readdir('dir')).toContain('file2');
-
-    const results2 = await Promise.all([
-      efs.rename(path.join('dir', 'file2'), path.join('dir', 'file1')),
-      efs.readdir('dir'),
-    ]);
-    // Readdir seems to return the directory before the changes happen.
-    expect(results2[1]).toContain('file2');
-    expect(await efs.readdir('dir')).toContain('file1');
-  });
-  describe('concurrent file writes', () => {
-    test('10 short writes with efs.writeFile.', async () => {
-      const contents = [
-        'one',
-        'two',
-        'three',
-        'four',
-        'five',
-        'six',
-        'seven',
-        'eight',
-        'nine',
-        'ten',
-      ];
-      // Here we want to write to a file at the same time and sus out the behaviour.
-      const promises: Array<any> = [];
-      for (const content of contents) {
-        promises.push(efs.writeFile('test', content));
-      }
-      await Promise.all(promises);
-    });
-    test('10 long writes with efs.writeFile.', async () => {
-      const blockSize = 4096;
-      const blocks = 100;
-      const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-      let divisor = 0;
-      const contents = letters.map((letter) => {
-        divisor++;
-        return letter.repeat((blockSize * blocks) / divisor);
-      });
-      const promises: Array<any> = [];
-      for (const content of contents) {
-        promises.push(efs.writeFile('test', content, {}));
-      }
-      await Promise.all(promises);
-    });
-    test('10 short writes with efs.write.', async () => {
-      const contents = [
-        'one',
-        'two',
-        'three',
-        'four',
-        'five',
-        'six',
-        'seven',
-        'eight',
-        'nine',
-        'ten',
-      ];
-      // Here we want to write to a file at the same time and sus out the behaviour.
-      const fds: Array<FdIndex> = [];
-      for (let i = 0; i < 10; i++) {
-        fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
-      }
-      const promises: Array<any> = [];
-      for (let i = 0; i < 10; i++) {
-        promises.push(efs.write(fds[i], contents[i]));
-      }
-      await Promise.all(promises);
-    });
-    test('10 long writes with efs.write.', async () => {
-      const blockSize = 4096;
-      const blocks = 100;
-      const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-      let divisor = 0;
-      const contents = letters.map((letter) => {
-        divisor++;
-        return letter.repeat((blockSize * blocks) / divisor);
-      });
-      let fds: Array<FdIndex> = [];
-      for (let i = 0; i < 10; i++) {
-        fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
-      }
-      let promises: Array<any> = [];
-      for (let i = 0; i < 10; i++) {
-        promises.push(efs.write(fds[i], contents[i]));
-      }
-      await Promise.all(promises);
-      const fileContent = (await efs.readFile('test')).toString();
-
-      for (const letter of letters) {
-        expect(fileContent).toContain(letter);
-      }
-
-      // Now reverse order.
-      await efs.unlink('test');
-      for (const fd of fds) {
-        await efs.close(fd);
-      }
-      fds = [];
-      for (let i = 9; i >= 0; i--) {
-        fds.push(await efs.open('test', flags.O_RDWR | flags.O_CREAT));
-      }
-      promises = [];
-      for (let i = 9; i >= 0; i--) {
-        promises.push(efs.write(fds[i], contents[i]));
-      }
-      await Promise.all(promises);
-      const fileContent2 = (await efs.readFile('test')).toString();
-
-      expect(fileContent2).toContain('A');
-    });
-  });
-  describe('Allocating/truncating a file while writing (stream or fd)', () => {
-    test('Allocating while writing to fd', async () => {
-      const fd = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
-
-      const content = 'A'.repeat(4096 * 2);
-
-      await Promise.all([
-        efs.write(fd, Buffer.from(content)),
-        efs.fallocate(fd, 0, 4096 * 3),
-      ]);
-
-      // Both operations complete, order makes no diference.
-      const fileContents = await efs.readFile('file');
-      expect(fileContents.length).toBeGreaterThan(4096 * 2);
-      expect(fileContents.toString()).toContain('A');
-      expect(fileContents).toContain(0x00);
-    });
-    test('Truncating while writing to fd', async () => {
-      const fd1 = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
-
-      const content = 'A'.repeat(4096 * 2);
-
-      await Promise.all([
-        efs.write(fd1, Buffer.from(content)),
-        efs.ftruncate(fd1, 4096),
-      ]);
-
-      // Both operations complete, order makes no difference. Truncate doesn't do anything?
-      const fileContents1 = await efs.readFile('file');
-      expect(fileContents1.length).toBe(4096 * 2);
-      expect(fileContents1.toString()).toContain('A');
-      expect(fileContents1).not.toContain(0x00);
-
-      await efs.unlink('file');
-
-      const fd2 = await efs.open('file', flags.O_WRONLY | flags.O_CREAT);
-
-      await Promise.all([
-        efs.ftruncate(fd2, 4096),
-        efs.write(fd2, Buffer.from(content)),
-      ]);
-
-      // Both operations complete, order makes no difference. Truncate doesn't do anything?
-      const fileContents2 = await efs.readFile('file');
-      expect(fileContents2.length).toBe(4096 * 2);
-      expect(fileContents2.toString()).toContain('A');
-      expect(fileContents2).not.toContain(0x00);
-    });
-    test('Allocating while writing to stream', async () => {
-      await efs.writeFile('file', '');
-      const writeStream = await efs.createWriteStream('file');
-      const content = 'A'.repeat(4096);
-      const fd = await efs.open('file', 'w');
-
-      await Promise.all([
-        new Promise((res) => {
-          writeStream.write(content, () => {
-            res(null);
-          });
+      const i = results.findIndex((result) => result.status === 'fulfilled');
+      results.splice(i, 1);
+      expect(
+        results.every((result: PromiseRejectedResult) => {
+          const status = result.status === 'rejected';
+          if (status) {
+            expect(result.reason).toBeInstanceOf(ErrorEncryptedFSError);
+            expect(result.reason).toHaveProperty('code', errno.ENOENT.code);
+            expect(result.reason).toHaveProperty('errno', errno.ENOENT.errno);
+            expect(result.reason).toHaveProperty(
+              'description',
+              errno.ENOENT.description,
+            );
+          }
+          return status;
         }),
-        efs.fallocate(fd, 0, 4096 * 2),
-      ]);
-      await new Promise((res) => {
-        writeStream.end(() => {
-          res(null);
-        });
-      });
-
-      // Both operations complete, order makes no difference.
-      const fileContents = await efs.readFile('file');
-      expect(fileContents.length).toEqual(4096 * 2);
-      expect(fileContents.toString()).toContain('A');
-      expect(fileContents).toContain(0x00);
+      ).toBe(true);
+      expect(await efs.readdir('.')).toContain('one');
     });
-    test('Truncating while writing to stream', async () => {
-      await efs.writeFile('file', '');
-      const writeStream = await efs.createWriteStream('file');
-      const content = 'A'.repeat(4096 * 2);
-      const promise1 = new Promise((res) => {
-        writeStream.write(content, () => {
-          res(null);
-        });
-      });
-
-      await Promise.all([promise1, efs.truncate('file', 4096)]);
-      await new Promise((res) => {
-        writeStream.end(() => {
-          res(null);
-        });
-      });
-
-      // Both operations complete, order makes no difference. Truncate doesn't do anything?
-      const fileContents = await efs.readFile('file');
-      expect(fileContents.length).toEqual(4096 * 2);
-      expect(fileContents.toString()).toContain('A');
-      expect(fileContents).not.toContain(0x00);
-    });
-  });
-  test('File metadata changes while reading/writing a file.', async () => {
-    const fd1 = await efs.promises.open('file', flags.O_WRONLY | flags.O_CREAT);
-    const content = 'A'.repeat(2);
-    await Promise.all([
-      efs.promises.writeFile(fd1, Buffer.from(content)),
-      efs.promises.utimes('file', 0, 0),
-    ]);
-    let stat = await efs.promises.stat('file');
-    expect(stat.atime.getMilliseconds()).toBe(0);
-    expect(stat.mtime.getMilliseconds()).toBe(0);
-    await efs.close(fd1);
-    await efs.unlink('file');
-
-    const fd2 = await efs.promises.open('file', flags.O_WRONLY | flags.O_CREAT);
-    await Promise.all([
-      efs.promises.utimes('file', 0, 0),
-      efs.promises.writeFile(fd2, Buffer.from(content)),
-    ]);
-    stat = await efs.promises.stat('file');
-    expect(stat.atime.getMilliseconds()).toBe(0);
-    expect(stat.mtime.getMilliseconds()).toBeGreaterThan(0);
-    await efs.close(fd2);
-  });
-  test('Dir metadata changes while reading/writing a file.', async () => {
-    const dir = 'directory';
-    const PUT = path.join(dir, 'file');
-    await efs.mkdir(dir);
-    const content = 'A'.repeat(2);
-    await Promise.all([
-      efs.promises.writeFile(PUT, Buffer.from(content)),
-      efs.promises.utimes(dir, 0, 0),
-    ]);
-    let stat = await efs.promises.stat(dir);
-    expect(stat.atime.getMilliseconds()).toBe(0);
-    await efs.unlink(PUT);
-    await efs.rmdir(dir);
-    await efs.mkdir(dir);
-    await Promise.all([
-      efs.promises.utimes(dir, 0, 0),
-      efs.promises.writeFile(PUT, Buffer.from(content)),
-    ]);
-    stat = await efs.promises.stat(dir);
-    expect(stat.atime.getMilliseconds()).toBe(0);
-  });
-  describe('Changing fd location in a file (lseek) while writing/reading (and updating) fd pos', () => {
-    let fd;
-    beforeEach(async () => {
-      fd = await efs.open('file', flags.O_RDWR | flags.O_CREAT);
-      await efs.fallocate(fd, 0, 200);
-    });
-
-    test('Seeking while writing to file.', async () => {
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking before.
-      await Promise.all([
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-        efs.write(fd, Buffer.from('A'.repeat(10))),
+    test('EncryptedFS.readdir and EncryptedFS.rmdir', async () => {
+      await efs.mkdir('dir');
+      // It is possible for only one to succeed or both can succeed
+      let results = await Promise.allSettled([
+        (async () => {
+          // Await sleep(10);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rmdir('dir');
+        })(),
       ]);
-      let pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos).toEqual(20);
-
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking after.
-      await Promise.all([
-        efs.write(fd, Buffer.from('A'.repeat(10))),
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-      ]);
-      pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos).toEqual(10);
-    });
-    test('Seeking while reading a file.', async () => {
-      await efs.write(fd, Buffer.from('AAAAAAAAAABBBBBBBBBBCCCCCCCCCC'));
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking before.
-      const buf = Buffer.alloc(10);
-      await Promise.all([
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-        efs.read(fd, buf, undefined, 10),
-      ]);
-      const pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos).toEqual(20);
-      expect(buf.toString()).toContain('B');
-
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking after.
-      const buf2 = Buffer.alloc(10);
-      await Promise.all([
-        efs.read(fd, buf2, undefined, 10),
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-      ]);
-      const pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos2).toEqual(20);
-      expect(buf2.toString()).toContain('B');
-    });
-    test('Seeking while updating fd pos.', async () => {
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking before.
-      await Promise.all([
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-        efs.lseek(fd, 20, flags.SEEK_SET),
-      ]);
-      const pos = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos).toEqual(20);
-
-      await efs.lseek(fd, 0, flags.SEEK_SET);
-      // Seeking after.
-      await Promise.all([
-        efs.lseek(fd, 20, flags.SEEK_SET),
-        efs.lseek(fd, 10, flags.SEEK_CUR),
-      ]);
-      const pos2 = await efs.lseek(fd, 0, flags.SEEK_CUR);
-      expect(pos2).toEqual(30);
-    });
-  });
-  describe('checking if nlinks gets clobbered.', () => {
-    test('when creating and removing the file.', async () => {
-      // Need a way to check if only one inode was created in the end.
-      // otherwise do we have dangling inodes that are not going to get collected?
-      await Promise.all([
-        efs.writeFile('file', ''),
-        efs.writeFile('file', ''),
-        efs.writeFile('file', ''),
-        efs.writeFile('file', ''),
-        efs.writeFile('file', ''),
-      ]);
-      const stat = await efs.stat('file');
-      expect(stat.nlink).toEqual(1);
-
-      const fd = await efs.open('file', 'r');
-      try {
-        await Promise.all([
-          efs.unlink('file'),
-          efs.unlink('file'),
-          efs.unlink('file'),
-          efs.unlink('file'),
-          efs.unlink('file'),
+      if (results.every((result) => result.status === 'fulfilled')) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
         ]);
-      } catch (err) {
-        // Do nothing
+      } else {
+        // Has to be readdir that fails if rmdir quickly
+        const result = results[0] as PromiseRejectedResult;
+        expect(result.status).toBe('rejected');
+        expect(result.reason).toBeInstanceOf(ErrorEncryptedFSError);
+        expect(result.reason).toHaveProperty('code', errno.ENOENT.code);
+        expect(result.reason).toHaveProperty('errno', errno.ENOENT.errno);
+        expect(result.reason).toHaveProperty(
+          'description',
+          errno.ENOENT.description,
+        );
       }
-      const stat2 = await efs.fstat(fd);
-      expect(stat2.nlink).toEqual(0);
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(0);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rmdir('dir');
+        })(),
+      ]);
+      if (results.every((result) => result.status === 'fulfilled')) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        // Has to be readdir that fails if rmdir quickly
+        const result = results[0] as PromiseRejectedResult;
+        expect(result.status).toBe('rejected');
+        expect(result.reason).toBeInstanceOf(ErrorEncryptedFSError);
+        expect(result.reason).toHaveProperty('code', errno.ENOENT.code);
+        expect(result.reason).toHaveProperty('errno', errno.ENOENT.errno);
+        expect(result.reason).toHaveProperty(
+          'description',
+          errno.ENOENT.description,
+        );
+      }
+    });
+    test('EncryptedFS.readdir and EncryptedFS.mkdir', async () => {
+      await efs.mkdir('dir');
+      const path1 = path.join('dir', 'file1');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.mkdir(path1);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.length === 0
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(0);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.mkdir(path1);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          return (
+            result.status === 'fulfilled' &&
+            (result.value === [] || result.value === undefined)
+          );
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+    });
+    test('EncryptedFS.readdir and EncryptedFS.writeFile', async () => {
+      await efs.mkdir('dir');
+      const path1 = path.join('dir', 'file1');
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.length === 0
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(0);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.writeFile(path1, 'test');
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.length === 0
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: [] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+    });
+    test('EncryptedFS.readdir and EncryptedFS.rename', async () => {
+      const PATH1 = path.join('dir', 'file1');
+      const PATH2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(PATH1, 'test');
+
+      // With files
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.includes('file1')
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file2'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(PATH1, 'test');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(10);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.includes('file1')
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file2'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+
+      // With directories
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.mkdir(PATH1);
+      results = await Promise.allSettled([
+        (async () => {
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.includes('file1')
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file2'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.mkdir(PATH1);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(10);
+          return await efs.readdir('dir');
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results.every((result) => {
+          if (
+            result.status === 'fulfilled' &&
+            typeof result.value === 'object' &&
+            result.value.includes('file1')
+          )
+            return true;
+          return result.status === 'fulfilled' && result.value === undefined;
+        })
+      ) {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file1'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      } else {
+        expect(results).toStrictEqual([
+          { status: 'fulfilled', value: ['file2'] },
+          { status: 'fulfilled', value: undefined },
+        ]);
+      }
+    });
+    test('EncryptedFS.rmdir and EncryptedFS.rename', async () => {
+      const PATH1 = path.join('dir', 'p1');
+      const PATH2 = path.join('dir', 'p2');
+      await efs.mkdir('dir');
+      await efs.mkdir(PATH1);
+
+      // Directories
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.rmdir(PATH1);
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results[0].status === 'fulfilled' &&
+        results[1].status === 'rejected'
+      ) {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.ENOENT);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.ENOENT);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.mkdir(PATH1);
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.rmdir(PATH1);
+        })(),
+        (async () => {
+          return await efs.rename(PATH1, PATH2);
+        })(),
+      ]);
+      if (
+        results[0].status === 'fulfilled' &&
+        results[1].status === 'rejected'
+      ) {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.ENOENT);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.ENOENT);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+  });
+  describe('concurrent symlinking', () => {
+    test('EncryptedFS.symlink and EncryptedFS.symlink', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    test('EncryptedFS.symlink and EncryptedFS.mknod', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.mknod(path2, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.mknod(path2, constants.S_IFREG, 0, 0);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    test('EncryptedFS.mkdir and EncryptedFS.symlink', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.mkdir(path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.symlink(path1, path2);
+        })(),
+        (async () => {
+          return await efs.mkdir(path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+      }
+    });
+    test('EncryptedFS.write and EncryptedFS.symlink', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      let fd = await efs.open(path1, 'r+');
+
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.write(fd, 'test');
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+      ]);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 4 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+
+      // Cleaning up
       await efs.close(fd);
-    });
-    test('when creating and removing links.', async () => {
-      await efs.writeFile('file', '');
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, '');
+      fd = await efs.open(path1, 'r+');
 
-      // One link to a file multiple times.
-      try {
-        await Promise.all([
-          efs.link('file', 'link'),
-          efs.link('file', 'link'),
-          efs.link('file', 'link'),
-          efs.link('file', 'link'),
-          efs.link('file', 'link'),
-        ]);
-      } catch (e) {
-        // Do nothing
-      }
-      const stat = await efs.stat('file');
-      expect(stat.nlink).toEqual(2);
-
-      // Removing one link multiple times.
-      try {
-        await Promise.all([
-          efs.unlink('link'),
-          efs.unlink('link'),
-          efs.unlink('link'),
-          efs.unlink('link'),
-          efs.unlink('link'),
-        ]);
-      } catch (e) {
-        // Do nothing
-      }
-      const stat2 = await efs.stat('file');
-      expect(stat2.nlink).toEqual(1);
-
-      // Multiple links to a file.
-      await Promise.all([
-        efs.link('file', 'link1'),
-        efs.link('file', 'link2'),
-        efs.link('file', 'link3'),
-        efs.link('file', 'link4'),
-        efs.link('file', 'link5'),
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.write(fd, 'test');
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
       ]);
-      const stat3 = await efs.stat('file');
-      expect(stat3.nlink).toEqual(6);
+      expect(results).toStrictEqual([
+        { status: 'fulfilled', value: 4 },
+        { status: 'fulfilled', value: undefined },
+      ]);
+    });
+  });
+  describe('concurrent inode linking and unlinking', () => {
+    test('EncryptedFS.link and EncryptedFS.link', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
 
-      // Removing one link multiple times.
-      try {
-        await Promise.all([
-          efs.unlink('link1'),
-          efs.unlink('link2'),
-          efs.unlink('link3'),
-          efs.unlink('link4'),
-          efs.unlink('link5'),
-        ]);
-      } catch (e) {
-        // Do nothing
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.link(path1, path2);
+        })(),
+        (async () => {
+          return await efs.link(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
+        });
       }
-      const stat4 = await efs.stat('file');
-      expect(stat4.nlink).toEqual(1);
-    });
-  });
-  test('Read stream and write stream to same file', async (done) => {
-    await efs.writeFile('file', '');
-    const readStream = await efs.createReadStream('file');
-    const writeStream = await efs.createWriteStream('file', { flags: 'w+' });
-    const contents = 'A'.repeat(4096);
 
-    // Write two blocks.
-    writeStream.write(Buffer.from(contents));
-    // WriteStream.end();
-    await sleep(1000);
-    let readString = '';
-    for await (const data of readStream) {
-      readString += data;
-    }
-    expect(readString.length).toEqual(4096);
-    writeStream.end(async () => {
-      await sleep(100);
-      done();
-    });
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
 
-    // WriteStream.write(Buffer.from(contents));
-    // await sleep(1000);
-    //
-    // for await (const data of readStream) {
-    //   readString += data;
-    // }
-    // expect(readString.length).toEqual(4096);
-  });
-  test('One write stream and one fd writing to the same file', async () => {
-    await efs.writeFile('file', '');
-    const fd = await efs.open('file', flags.O_RDWR);
-    const writeStream = await efs.createWriteStream('file');
-
-    await Promise.all([
-      new Promise((res) => {
-        writeStream.write(Buffer.from('A'.repeat(10)), () => {
-          res(null);
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.link(path1, path2);
+        })(),
+        (async () => {
+          return await efs.link(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-      efs.write(fd, Buffer.from('B'.repeat(10))),
-      new Promise((res) => {
-        writeStream.write(Buffer.from('C'.repeat(10)), () => {
-          res(null);
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-      new Promise((res) => {
-        writeStream.end();
-        writeStream.on('finish', () => {
-          res(null);
-        });
-      }),
-    ]);
-
-    // The writeStream overwrites the file. likely because it finishes last and writes everything at once.
-    const fileContents = (await efs.readFile('file')).toString();
-    expect(fileContents).toContain('A');
-    expect(fileContents).not.toContain('B');
-    expect(fileContents).toContain('C');
-  });
-  test('One read stream and one fd writing to the same file', async () => {
-    await efs.writeFile('file', '');
-    const fd = await efs.open('file', flags.O_RDWR);
-    const readStream = await efs.createReadStream('file');
-    let readData = '';
-
-    readStream.on('data', (data) => {
-      readData += data;
-    });
-    const streamEnd = new Promise((res) => {
-      readStream.on('end', () => {
-        res(null);
-      });
-    });
-
-    await Promise.all([
-      efs.write(fd, Buffer.from('A'.repeat(10))),
-      efs.write(fd, Buffer.from('B'.repeat(10))),
-      streamEnd,
-    ]);
-
-    await sleep(100);
-
-    // Only the last write data gets read.
-    expect(readData).not.toContain('A');
-    expect(readData).toContain('B');
-    expect(readData).not.toContain('C');
-  });
-  test('One write stream and one fd reading to the same file', async () => {
-    await efs.writeFile('file', '');
-    const fd = await efs.open('file', flags.O_RDWR);
-    const writeStream = await efs.createWriteStream('file');
-    const buf1 = Buffer.alloc(20);
-    const buf2 = Buffer.alloc(20);
-    const buf3 = Buffer.alloc(20);
-
-    await Promise.all([
-      new Promise((res) => {
-        writeStream.write(Buffer.from('A'.repeat(10)), () => {
-          res(null);
-        });
-      }),
-      efs.read(fd, buf1, 0, 20),
-      new Promise((res) => {
-        writeStream.write(Buffer.from('B'.repeat(10)), () => {
-          res(null);
-        });
-      }),
-      efs.read(fd, buf2, 0, 20),
-      new Promise((res) => {
-        writeStream.end();
-        writeStream.on('finish', () => {
-          res(null);
-        });
-      }),
-    ]);
-    await efs.read(fd, buf3, 0, 20);
-
-    // Efs.read only reads data after the write stream finishes.
-    expect(buf1.toString()).not.toContain('AB');
-    expect(buf2.toString()).not.toContain('AB');
-    expect(buf3.toString()).toContain('AB');
-  });
-  test('One read stream and one fd reading to the same file', async () => {
-    await efs.writeFile('file', 'AAAAAAAAAABBBBBBBBBB');
-    const fd = await efs.open('file', flags.O_RDONLY);
-    const readStream = await efs.createReadStream('file');
-    let readData = '';
-
-    readStream.on('data', (data) => {
-      readData += data;
-    });
-    const streamEnd = new Promise((res) => {
-      readStream.on('end', () => {
-        res(null);
-      });
-    });
-    const buf = Buffer.alloc(20);
-
-    await Promise.all([efs.read(fd, buf, 0, 20), streamEnd]);
-
-    await sleep(100);
-
-    // Ok, is efs.read() broken?
-    expect(readData).toContain('AB');
-    expect(buf.toString()).toContain('AB');
-  });
-  test('Two write streams to the same file', async () => {
-    const contentSize = 4096 * 3;
-    const contents = [
-      'A'.repeat(contentSize),
-      'B'.repeat(contentSize),
-      'C'.repeat(contentSize),
-    ];
-    let streams: Array<WriteStream> = [];
-
-    // Each stream sequentially.
-    for (let i = 0; i < contents.length; i++) {
-      streams.push(await efs.createWriteStream('file'));
-    }
-    for (let i = 0; i < streams.length; i++) {
-      streams[i].write(Buffer.from(contents[i]));
-    }
-    for (const stream of streams) {
-      stream.end();
-    }
-
-    await sleep(1000);
-    const fileContents = (await efs.readFile('file')).toString();
-    expect(fileContents).not.toContain('A');
-    expect(fileContents).not.toContain('B');
-    expect(fileContents).toContain('C');
-
-    await efs.unlink('file');
-
-    // Each stream interlaced.
-    const contents2 = ['A'.repeat(4096), 'B'.repeat(4096), 'C'.repeat(4096)];
-    streams = [];
-    for (let i = 0; i < contents2.length; i++) {
-      streams.push(await efs.createWriteStream('file'));
-    }
-    for (let j = 0; j < 3; j++) {
-      for (let i = 0; i < streams.length; i++) {
-        // Order we write to changes.
-        streams[(j + i) % 3].write(Buffer.from(contents2[(j + i) % 3]));
       }
-    }
-    for (const stream of streams) {
-      stream.end();
-    }
-    await sleep(1000);
-    const fileContents2 = (await efs.readFile('file')).toString();
-    expect(fileContents2).not.toContain('A');
-    expect(fileContents2).not.toContain('B');
-    expect(fileContents2).toContain('C');
-    // Conclusion. the last stream to close writes the whole contents of it's buffer to the file.
-  });
-  test('Writing a file and deleting the file at the same time using writeFile', async () => {
-    await efs.writeFile('file', '');
+    });
+    test('EncryptedFS.link and EncryptedFS.symlink', async () => {
+      const path1 = path.join('dir', 'file1');
+      const path2 = path.join('dir', 'file2');
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
 
-    // Odd error, needs fixing.
-    await Promise.all([efs.writeFile('file', 'CONTENT!'), efs.unlink('file')]);
-    await expectError(efs.readFile('file'), errno.ENOENT);
-  });
-  test('opening a file and deleting the file at the same time', async () => {
-    await efs.writeFile('file', '');
-
-    // Odd error, needs fixing.
-    const results = await Promise.all([
-      efs.open('file', flags.O_WRONLY),
-      efs.unlink('file'),
-    ]);
-    const fd = results[0];
-    await efs.write(fd, 'yooo');
-  });
-  test('Writing a file and deleting the file at the same time for fd', async () => {
-    await efs.writeFile('file', '');
-
-    const fd1 = await efs.open('file', flags.O_WRONLY);
-    await Promise.all([
-      efs.write(fd1, Buffer.from('TESTING WOOo')),
-      efs.unlink('file'),
-    ]);
-    await efs.close(fd1);
-    expect(await efs.readdir('.')).toEqual([]);
-
-    await efs.writeFile('file', '');
-    const fd2 = await efs.open('file', flags.O_WRONLY);
-    await Promise.all([
-      efs.unlink('file'),
-      efs.write(fd2, Buffer.from('TESTING TWOOo')),
-    ]);
-    await efs.close(fd2);
-    expect(await efs.readdir('.')).toEqual([]);
-  });
-  test('Writing a file and deleting the file at the same time for stream', async () => {
-    await efs.writeFile('file', '');
-
-    const writeStream1 = await efs.createWriteStream('file');
-    await Promise.all([
-      new Promise((res) => {
-        writeStream1.write(Buffer.from('AAAAAAAAAA'), () => {
-          writeStream1.end(() => {
-            res(null);
-          });
+      let results = await Promise.allSettled([
+        (async () => {
+          return await efs.link(path1, path2);
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-      efs.unlink('file'),
-    ]);
-    expect(await efs.readdir('.')).toEqual([]);
-
-    await efs.writeFile('file', '');
-    const writeStream2 = await efs.createWriteStream('file');
-    await Promise.all([
-      efs.unlink('file'),
-      new Promise((res) => {
-        writeStream2.write(Buffer.from('BBBBBBBBBB'), () => {
-          writeStream2.end(() => {
-            res(null);
-          });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-    ]);
-    expect(await efs.readdir('.')).toEqual([]);
-  });
-  test('Appending to a file that is being written to for fd ', async () => {
-    await efs.writeFile('file', '');
-    const fd1 = await efs.open('file', flags.O_WRONLY);
+      }
 
-    await Promise.all([
-      efs.write(fd1, Buffer.from('AAAAAAAAAA')),
-      efs.appendFile('file', 'BBBBBBBBBB'),
-    ]);
+      // Cleaning up
+      await efs.rmdir('dir', { recursive: true });
+      await efs.mkdir('dir');
+      await efs.writeFile(path1, 'test');
 
-    const fileContents = (await efs.readFile('file')).toString();
-    expect(fileContents).toContain('A');
-    expect(fileContents).toContain('B');
-    expect(fileContents).toContain('AB');
-    await efs.close(fd1);
-
-    await efs.writeFile('file', '');
-    const fd2 = await efs.open('file', flags.O_WRONLY);
-    await Promise.all([
-      efs.appendFile('file', 'BBBBBBBBBB'),
-      efs.write(fd2, Buffer.from('AAAAAAAAAA')),
-    ]);
-
-    // The append seems to happen after the write.
-    const fileContents2 = (await efs.readFile('file')).toString();
-    expect(fileContents2).toContain('A');
-    expect(fileContents2).toContain('B');
-    expect(fileContents2).toContain('AB');
-    await sleep(1000);
-    await efs.close(fd2);
-  });
-  test('Appending to a file that is being written for stream', async () => {
-    await efs.writeFile('file', '');
-    const writeStream = await efs.createWriteStream('file');
-    await Promise.all([
-      new Promise((res) => {
-        writeStream.write(Buffer.from('AAAAAAAAAA'), () => {
-          writeStream.end(() => {
-            res(null);
-          });
+      results = await Promise.allSettled([
+        (async () => {
+          await sleep(100);
+          return await efs.link(path1, path2);
+        })(),
+        (async () => {
+          return await efs.symlink(path1, path2);
+        })(),
+      ]);
+      if (results[0].status === 'fulfilled') {
+        expect(results[0]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-      efs.appendFile('file', 'BBBBBBBBBB'),
-    ]);
-
-    const fileContents = (await efs.readFile('file')).toString();
-    expect(fileContents).toContain('A');
-    expect(fileContents).toContain('B');
-    expect(fileContents).toContain('AB');
-
-    await efs.writeFile('file', '');
-    const writeStream2 = await efs.createWriteStream('file');
-    await Promise.all([
-      efs.appendFile('file', 'BBBBBBBBBB'),
-      new Promise((res) => {
-        writeStream2.write(Buffer.from('AAAAAAAAAA'), () => {
-          writeStream2.end(() => {
-            res(null);
-          });
+        expectReason(results[1], ErrorEncryptedFSError, errno.EEXIST);
+      } else {
+        expectReason(results[0], ErrorEncryptedFSError, errno.EEXIST);
+        expect(results[1]).toStrictEqual({
+          status: 'fulfilled',
+          value: undefined,
         });
-      }),
-    ]);
-
-    // Append seems to happen after stream.
-    const fileContents2 = (await efs.readFile('file')).toString();
-    expect(fileContents2).toContain('A');
-    expect(fileContents2).toContain('B');
-  });
-  test('Copying a file that is being written to for fd', async () => {
-    await efs.writeFile('file', 'AAAAAAAAAA');
-    const fd1 = await efs.open('file', flags.O_WRONLY);
-
-    await Promise.all([
-      efs.write(fd1, Buffer.from('BBBBBBBBBB')),
-      efs.copyFile('file', 'fileCopy'),
-    ]);
-
-    // Gets overwritten before copy.
-    const fileContents = (await efs.readFile('fileCopy')).toString();
-    expect(fileContents).not.toContain('A');
-    expect(fileContents).toContain('B');
-
-    await efs.close(fd1);
-    await efs.writeFile('file', 'AAAAAAAAAA');
-    const fd2 = await efs.open('file', flags.O_WRONLY);
-    await efs.unlink('fileCopy');
-
-    await Promise.all([
-      efs.copyFile('file', 'fileCopy'),
-      efs.write(fd2, Buffer.from('BBBBBBBBBB')),
-    ]);
-
-    // Also gets overwritten before copy.
-    const fileContents2 = (await efs.readFile('fileCopy')).toString();
-    expect(fileContents2).not.toContain('A');
-    expect(fileContents2).toContain('B');
-  });
-  test('Copying a file that is being written to for stream', async () => {
-    await efs.writeFile('file', 'AAAAAAAAAA');
-    const writeStream = await efs.createWriteStream('file');
-
-    await Promise.all([
-      new Promise((res) => {
-        writeStream.write(Buffer.from('BBBBBBBBBB'), () => {
-          writeStream.end(() => {
-            res(null);
-          });
-        });
-      }),
-      efs.copyFile('file', 'fileCopy'),
-    ]);
-
-    // Write happens first.
-    const fileContents = (await efs.readFile('fileCopy')).toString();
-    expect(fileContents).not.toContain('A');
-    expect(fileContents).toContain('B');
-
-    await efs.writeFile('file', 'AAAAAAAAAA');
-    await efs.unlink('fileCopy');
-    const writeStream2 = await efs.createWriteStream('file');
-
-    await Promise.all([
-      efs.copyFile('file', 'fileCopy'),
-      new Promise((res) => {
-        writeStream2.write(Buffer.from('BBBBBBBBBB'), () => {
-          writeStream2.end(() => {
-            res(null);
-          });
-        });
-      }),
-    ]);
-
-    // Copy happens after stream.
-    const fileContents2 = (await efs.readFile('fileCopy')).toString();
-    expect(fileContents2).not.toContain('A');
-    expect(fileContents2).toContain('B');
-    await sleep(100);
-  });
-  test('removing a dir while renaming it.', async () => {
-    // Create the directory
-    await efs.mkdir('dir');
-    // Removing and renaming.
-    await Promise.all([
-      efs.rmdir('dir'),
-      expectError(efs.rename('dir', 'renamedDir'), errno.ENOENT),
-    ]);
-    let list = await efs.readdir('.');
-    expect(list).toEqual([]);
-
-    // Reverse order.
-    await efs.mkdir('dir2');
-    await Promise.all([
-      expectError(efs.rename('dir2', 'renamedDir2'), errno.ENOENT),
-      efs.rmdir('dir2'),
-    ]);
-    list = await efs.readdir('.');
-    expect(list).toEqual([]);
+      }
+    });
   });
 });
