@@ -456,6 +456,11 @@ describe(`${EncryptedFS.name} Files`, () => {
       await efs.writeFile(`dir/hello-world`, buffer);
       await efs.copyFile('dir/hello-world', 'hello-universe');
       await expect(efs.readFile('hello-universe')).resolves.toEqual(buffer);
+      const statSrc = await efs.stat('dir/hello-world');
+      const statDst = await efs.stat('hello-universe');
+      expect(statDst.size).toEqual(statSrc.size);
+      expect(statDst.blocks).toEqual(statSrc.blocks);
+      expect(statDst.blksize).toEqual(statSrc.blksize);
     });
     test('using append moves with the fd position', async () => {
       const fd = await efs.open('/fdtest', 'w+');

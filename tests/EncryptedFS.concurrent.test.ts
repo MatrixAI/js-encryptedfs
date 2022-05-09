@@ -2782,7 +2782,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         expect(stat.size).toEqual(50);
       }
     });
-    // FIXME: copied file has 0 size but has content
     test('EncryptedFS.copyFile and EncryptedFS.writeFile', async () => {
       const path1 = path.join('dir', 'file1');
       const path2 = path.join('dir', 'file2');
@@ -2981,7 +2980,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         expect(stat.size).toEqual(10);
       }
     });
-    // FIXME: copied file has 0 size but has content
     test('EncryptedFS.copyFile and EncryptedFS.createWriteStream', async () => {
       const path1 = path.join('dir', 'file1');
       const path2 = path.join('dir', 'file2');
@@ -3720,7 +3718,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
 
       results = await Promise.allSettled([
         (async () => {
-          await sleep(10);
+          await sleep(100);
           return await efs.rmdir(PATH1);
         })(),
         (async () => {

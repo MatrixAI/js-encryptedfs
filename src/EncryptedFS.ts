@@ -742,6 +742,19 @@ class EncryptedFS {
               );
               blkCounter++;
             }
+            // Setting the size
+            const size = await this.iNodeMgr.statGetProp(
+              srcINode,
+              'size',
+              tran,
+            );
+            const blocks = await this.iNodeMgr.statGetProp(
+              srcINode,
+              'blocks',
+              tran,
+            );
+            await this.iNodeMgr.statSetProp(dstFd.ino, 'size', size, tran);
+            await this.iNodeMgr.statSetProp(dstFd.ino, 'blocks', blocks, tran);
           } else {
             throw new errors.ErrorEncryptedFSError({
               errno: errno.EINVAL,
