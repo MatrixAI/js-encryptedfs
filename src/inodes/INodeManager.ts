@@ -1106,7 +1106,7 @@ class INodeManager {
     ])) {
       // This is to account for the case where a some blocks are missing in a database
       // i.e. blocks 0 -> 3 have data and a write operation was performed on blocks 7 -> 8
-      while (inodesUtils.unbufferId(k as BufferId) !== blockCount) {
+      while (blockCount < inodesUtils.unbufferId(k as BufferId)) {
         yield Buffer.alloc(blockSize);
         blockCount++;
       }

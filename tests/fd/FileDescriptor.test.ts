@@ -411,10 +411,17 @@ describe('File Descriptor', () => {
   });
   test('append data to the file iNode', async () => {
     // Alocate the buffer that will be appended to exceed the block size
+    //  Test Buffer for File Descriptor
+    // |    |    |    |    |    |    |    |
+    //  Test Buffer for File Descriptor Tests
     const appendBufferOver = Buffer.from(' Tests');
     // Allocate the buffer that will be appended to not exceed the block size
+    //  Test Buffer for File Descriptor Tests
+    // |    |    |    |    |    |    |    |    |
+    //  Test Buffer for File Descriptor Testssss
     const appendBufferUnder = Buffer.from('sss');
-    // Allocate the size of the buffer to be read into
+    // Allocate the size of the buffer to be read into (length of existing data
+    // + length of data to be appended)
     let readBuffer = Buffer.alloc(origBuffer.length + appendBufferOver.length);
     const iNodeMgr = await INodeManager.createINodeManager({
       db,
@@ -444,6 +451,8 @@ describe('File Descriptor', () => {
     const fd = new FileDescriptor(iNodeMgr, fileIno, constants.O_APPEND);
 
     // Appending data to a non full block which will exceed the block size
+    // Fd is append mode so will write from the end (setting the position does
+    // nothing for append mode)
     bytesWritten = await fd.write(appendBufferOver, 0);
     expect(fd.pos).toBe(0);
     expect(bytesWritten).toBe(appendBufferOver.length);
@@ -486,6 +495,9 @@ describe('File Descriptor', () => {
       expect(stat['blocks']).toBe(8);
     });
     // Appending data to a full block which will exceed the block size
+    //  Test Buffer for File Descriptor Testssss
+    // |    |    |    |    |    |    |    |    |    |
+    //  Test Buffer for File Descriptor Testssss Tests
     bytesWritten = await fd.write(appendBufferOver);
     expect(fd.pos).toBe(
       origBuffer.length +
