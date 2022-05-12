@@ -1,4 +1,5 @@
 import type { POJO } from './types';
+import type { Class } from '@matrixai/errors';
 import { AbstractError } from '@matrixai/errors';
 
 class ErrorEncryptedFS<T> extends AbstractError<T> {
@@ -24,6 +25,46 @@ class ErrorEncryptedFSKey<T> extends ErrorEncryptedFS<T> {
 class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
   static description = 'EncryptedFS filesystem error';
 
+  public static fromJSON<T extends Class<any>>(
+    this: T,
+    json: any,
+  ): InstanceType<T> {
+    if (
+      typeof json !== 'object' ||
+      json.type !== this.name ||
+      typeof json.data !== 'object' ||
+      typeof json.data.message !== 'string' ||
+      isNaN(Date.parse(json.data.timestamp)) ||
+      typeof json.data.data !== 'object' ||
+      typeof json.data._errno != 'number' ||
+      typeof json.data._code != 'string' ||
+      typeof json.data._description != 'string' ||
+      !('cause' in json.data) ||
+      ('stack' in json.data && typeof json.data.stack !== 'string') ||
+      ('_syscall' in json.data && typeof json.data._syscall !== 'string')
+    ) {
+      throw new TypeError(`Cannot decode JSON to ${this.name}`);
+    }
+    const e = new this(
+      {
+        errno: {
+          errno: json.data._errno,
+          code: json.data._code,
+          description: json.data._description,
+        },
+        message: json.data.message,
+        syscall: json.data._syscall,
+      },
+      {
+        timestamp: new Date(json.data.timestamp),
+        data: json.data.data,
+        cause: json.data.cause,
+      },
+    );
+    e.stack = json.data.stack;
+    return e;
+  }
+
   protected _errno: number;
   protected _code: string;
   protected _description: string;
@@ -32,6 +73,7 @@ class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
   constructor(
     {
       errno,
+      message,
       path,
       dest,
       syscall,
@@ -41,6 +83,7 @@ class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
         code: string;
         description: string;
       };
+      message?: string;
       path?: string;
       dest?: string;
       syscall?: string;
@@ -51,10 +94,12 @@ class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
       cause?: T;
     } = {},
   ) {
-    let message = errno.code + ': ' + errno.description;
-    if (path != null) {
-      message += ', ' + path;
-      if (dest != null) message += ' -> ' + dest;
+    if (message == null) {
+      message = errno.code + ': ' + errno.description;
+      if (path != null) {
+        message += ', ' + path;
+        if (dest != null) message += ' -> ' + dest;
+      }
     }
     super(message, options);
     this._errno = errno.errno;
@@ -87,6 +132,15 @@ class ErrorEncryptedFSError<T> extends ErrorEncryptedFS<T> {
 
   get syscall(): string | undefined {
     return this._syscall;
+  }
+
+  public toJSON(): any {
+    const json = super.toJSON();
+    json.data._errno = this._errno;
+    json.data._code = this._code;
+    json.data._description = this._description;
+    json.data._syscall = this._syscall;
+    return json;
   }
 }
 

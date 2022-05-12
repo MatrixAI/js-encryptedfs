@@ -2985,13 +2985,13 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
         { status: 'fulfilled', value: undefined },
       ]);
-      if (contents[0] === 'A') {
-        expect(contents).toEqual(dataA.repeat(10));
-        expect(stat.size).toEqual(50);
-      } else {
-        expect(contents).toEqual('');
-        expect(stat.size).toEqual(0);
-      }
+      // All A, in multiples of 5
+      expect(contents).toMatch(RegExp('^[^A]*((AAAAA)+[^A]*)$'));
+      // Contents length between 0 and 10*5
+      expect(contents.length).toBeGreaterThanOrEqual(0);
+      expect(contents.length).toBeLessThanOrEqual(50);
+      expect(stat.size).toBeGreaterThanOrEqual(0);
+      expect(stat.size).toBeLessThanOrEqual(50);
 
       // Cleaning up
       await efs.rmdir('dir', { recursive: true });
@@ -3021,13 +3021,13 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
         { status: 'fulfilled', value: undefined },
       ]);
-      if (contents[0] === 'A') {
-        expect(contents).toEqual(dataA.repeat(10));
-        expect(stat.size).toEqual(50);
-      } else {
-        expect(contents).toEqual('');
-        expect(stat.size).toEqual(0);
-      }
+      // All A, in multiples of 5
+      expect(contents).toMatch(RegExp('^[^A]*((AAAAA)+[^A]*)$'));
+      // Contents length between 0 and 10*5
+      expect(contents.length).toBeGreaterThanOrEqual(0);
+      expect(contents.length).toBeLessThanOrEqual(50);
+      expect(stat.size).toBeGreaterThanOrEqual(0);
+      expect(stat.size).toBeLessThanOrEqual(50);
 
       // Cleaning up
       await efs.rmdir('dir', { recursive: true });
@@ -3058,13 +3058,13 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
         { status: 'fulfilled', value: undefined },
       ]);
-      if (contents[0] === 'A') {
-        expect(contents).toEqual(dataA.repeat(10));
-        expect(stat.size).toEqual(50);
-      } else {
-        expect(contents).toEqual('');
-        expect(stat.size).toEqual(0);
-      }
+      // All A, in multiples of 5
+      expect(contents).toMatch(RegExp('^[^A]*((AAAAA)+[^A]*)$'));
+      // Contents length between 0 and 10*5
+      expect(contents.length).toBeGreaterThanOrEqual(0);
+      expect(contents.length).toBeLessThanOrEqual(50);
+      expect(stat.size).toBeGreaterThanOrEqual(0);
+      expect(stat.size).toBeLessThanOrEqual(50);
     });
     test('EncryptedFS.readFile and EncryptedFS.writeFile', async () => {
       const path1 = path.join('dir', 'file1');
