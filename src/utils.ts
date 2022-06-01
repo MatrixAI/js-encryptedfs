@@ -122,7 +122,7 @@ async function decrypt(
   cipherText: ArrayBuffer,
 ): Promise<ArrayBuffer | undefined> {
   const cipherTextBuf = Buffer.from(cipherText);
-  if (cipherTextBuf.byteLength <= 32) {
+  if (cipherTextBuf.byteLength < 32) {
     return;
   }
   const iv = cipherTextBuf.subarray(0, ivSize);
