@@ -1,14 +1,14 @@
 import type { EFSWorkerManagerInterface, EFSWorkerModule } from '@/types';
 
-import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { spawn, Worker, Transfer } from 'threads';
 import * as utils from '@/utils';
 
 describe('EFS worker', () => {
-  const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
-    new StreamHandler(),
-  ]);
+  // EFS logger is incompatible with js-workers logger until we update here to 3.0.0
+  // const logger = new Logger('EFS Worker Test', LogLevel.WARN, [
+  //   new StreamHandler(),
+  // ]);
   let workerManager: EFSWorkerManagerInterface;
   let key: Buffer;
   beforeAll(async () => {
