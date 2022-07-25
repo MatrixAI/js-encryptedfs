@@ -81,10 +81,9 @@ class INodeManager {
       await this.db.clear(this.mgrDbPath);
     }
     // Populate the inode counter with pre-existing inodes
-    for await (const [kP] of this.db.iterator(
-      { values: false },
-      this.iNodesDbPath,
-    )) {
+    for await (const [kP] of this.db.iterator(this.iNodesDbPath, {
+      values: false,
+    })) {
       this.iNodeCounter.allocate(inodesUtils.uniNodeId(kP[0] as INodeId));
     }
     // Clean up all dangling inodes that could not be removed due to references
@@ -122,10 +121,9 @@ class INodeManager {
    */
   protected async gcAll(): Promise<void> {
     await withF([this.db.transaction()], async ([tran]) => {
-      for await (const [kP] of tran.iterator(
-        { values: false },
-        this.gcDbPath,
-      )) {
+      for await (const [kP] of tran.iterator(this.gcDbPath, {
+        values: false,
+      })) {
         const ino = inodesUtils.uniNodeId(kP[0] as INodeId);
         // Snapshot doesn't need to be used because `this.gcAll` is only executed at `this.stop`
         const type = (await tran.get<INodeType>([
@@ -518,7 +516,7 @@ class INodeManager {
     tran: DBTransaction,
   ): Promise<void> {
     const dataPath = [...this.dataDbPath, ino.toString()];
-    for await (const [kP] of tran.iterator({ values: false }, dataPath)) {
+    for await (const [kP] of tran.iterator(dataPath, { values: false })) {
       await tran.del(dataPath.concat(kP));
     }
     await this.iNodeDestroy(ino, tran);
@@ -548,7 +546,7 @@ class INodeManager {
     } else {
       await this.dirUnsetRoot(tran);
     }
-    for await (const [kP] of tran.iterator({ values: false }, dirPath)) {
+    for await (const [kP] of tran.iterator(dirPath, { values: false })) {
       await tran.del(dirPath.concat(kP));
     }
     await this.iNodeDestroy(ino, tran);
@@ -640,14 +638,13 @@ class INodeManager {
       return yield* this.withTransactionG((tran) => this.getAll(tran));
     }
     // Consistent iteration on iNodesDbPath and gcDbPath
-    const gcIterator = tran.iterator<null>(
-      { valueAsBuffer: false },
-      this.gcDbPath,
-    );
+    const gcIterator = tran.iterator<null>(this.gcDbPath, {
+      valueAsBuffer: false,
+    });
     try {
       for await (const [inoData, type] of tran.iterator<INodeType>(
-        { valueAsBuffer: false },
         this.iNodesDbPath,
+        { valueAsBuffer: false },
       )) {
         const ino = inodesUtils.uniNodeId(inoData[0] as INodeId);
         gcIterator.seek(inoData);
@@ -659,7 +656,7 @@ class INodeManager {
         };
       }
     } finally {
-      await gcIterator.end();
+      await gcIterator.destroy();
     }
   }
 
@@ -931,8 +928,8 @@ class INodeManager {
       );
     }
     for await (const [kP, v] of tran.iterator<INodeIndex>(
-      { keyAsBuffer: false, valueAsBuffer: false },
       [...this.dirsDbPath, ino.toString()],
+      { keyAsBuffer: false, valueAsBuffer: false },
     )) {
       yield [kP.toString(), v];
     }
@@ -1100,10 +1097,10 @@ class INodeManager {
         }
       : { gte: inodesUtils.bufferId(startIdx) };
     let blockCount = startIdx;
-    for await (const [kP, v] of tran.iterator(options, [
-      ...this.dataDbPath,
-      ino.toString(),
-    ])) {
+    for await (const [kP, v] of tran.iterator(
+      [...this.dataDbPath, ino.toString()],
+      options,
+    )) {
       // This is to account for the case where a some blocks are missing in a database
       // i.e. blocks 0 -> 3 have data and a write operation was performed on blocks 7 -> 8
       while (blockCount < inodesUtils.unbufferId(kP[0] as BufferId)) {
@@ -1131,10 +1128,10 @@ class INodeManager {
     }
     const options = { limit: 1, reverse: true };
     let key, value;
-    for await (const [kP, v] of tran.iterator(options, [
-      ...this.dataDbPath,
-      ino.toString(),
-    ])) {
+    for await (const [kP, v] of tran.iterator(
+      [...this.dataDbPath, ino.toString()],
+      options,
+    )) {
       key = inodesUtils.unbufferId(kP[0] as BufferId);
       value = v;
     }
