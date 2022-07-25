@@ -1,5 +1,4 @@
 import type { EFSWorkerModule } from '@/workers';
-
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
@@ -9,9 +8,9 @@ import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { DB } from '@matrixai/db';
 import * as utils from '@/utils';
-import packageJson from '../package.json';
+import { suiteCommon } from './utils';
 
-const logger = new Logger('Encrypted DB1MiB Bench', LogLevel.WARN, [
+const logger = new Logger('Encrypted DB1KiB Bench', LogLevel.WARN, [
   new StreamHandler(),
 ]);
 
@@ -22,7 +21,6 @@ async function main() {
     await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
       cores: 1,
-      logger,
     });
   const dataDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'encryptedfs-benches-'),
@@ -55,40 +53,43 @@ async function main() {
     logger,
   });
   db2.setWorkerManager(workerManager);
-  const data1MiB = utils.getRandomBytesSync(1024 * 1024);
+  const data0 = utils.getRandomBytesSync(0);
+  const data1KiB = utils.getRandomBytesSync(1024);
   const summary = await b.suite(
-    'Encrypted DB1MiB',
-    b.add('get 1 MiB of data', async () => {
-      await db1.put([], '1mib', data1MiB, true);
+    path.basename(__filename, path.extname(__filename)),
+    b.add('get 1 KiB of data', async () => {
+      await db1.put('1kib', data1KiB, true);
       return async () => {
-        await db1.get([], '1mib', true);
+        await db1.get('1kib', true);
       };
     }),
-    b.add('put 1 MiB of data', async () => {
-      await db1.put([], '1mib', data1MiB, true);
+    b.add('put 1 KiB of data', async () => {
+      await db1.put('1kib', data1KiB, true);
     }),
-    b.add('get 1 MiB of data with workers', async () => {
-      await db2.put([], '1mib', data1MiB, true);
+    b.add('put zero data', async () => {
+      await db1.put('0', data0, true);
+    }),
+    b.add('put zero data then del', async () => {
+      await db1.put('0', data0, true);
+      await db1.del('0');
+    }),
+    b.add('get 1 KiB of data with workers', async () => {
+      await db2.put('1kib', data1KiB, true);
       return async () => {
-        await db2.get([], '1mib', true);
+        await db2.get('1kib', true);
       };
     }),
-    b.add('put 1 MiB of data with workers', async () => {
-      await db2.put([], '1mib', data1MiB, true);
+    b.add('put 1 KiB of data with workers', async () => {
+      await db2.put('1kib', data1KiB, true);
     }),
-    b.cycle(),
-    b.complete(),
-    b.save({
-      file: 'Encrypted DB1MiB',
-      folder: 'benches/results',
-      version: packageJson.version,
-      details: true,
+    b.add('put zero data with workers', async () => {
+      await db2.put('0', data0, true);
     }),
-    b.save({
-      file: 'Encrypted DB1MiB',
-      folder: 'benches/results',
-      format: 'chart.html',
+    b.add('put zero data then del with workers', async () => {
+      await db2.put('0', data0, true);
+      await db2.del('0');
     }),
+    ...suiteCommon,
   );
   await db1.stop();
   await db2.stop();
@@ -101,9 +102,7 @@ async function main() {
 }
 
 if (require.main === module) {
-  (async () => {
-    await main();
-  })();
+  void main();
 }
 
 export default main;

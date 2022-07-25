@@ -50,6 +50,11 @@
         "ignoreConsecutiveComments": true
       }
     ],
+    "curly": [
+      "error",
+      "multi-line",
+      "consistent"
+    ],
     "import/order": [
       "error",
       {
@@ -136,6 +141,10 @@
         "selector": "typeLike",
         "format": ["PascalCase"],
         "trailingUnderscore": "allowSingleOrDouble"
+      },
+      {
+        "selector": "enumMember",
+        "format": ["PascalCase", "UPPER_CASE"]
       },
       {
         "selector": "objectLiteralProperty",

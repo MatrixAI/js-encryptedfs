@@ -1,44 +1,61 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
+import path from 'path';
 import si from 'systeminformation';
-import crypto1KiBBench from './crypto1KiB';
-import crypto10KiBBench from './crypto10KiB';
-import crypto16KiBBench from './crypto16KiB';
-import crypto24KiBBench from './crypto24KiB';
-import crypto32KiBBench from './crypto32KiB';
-import crypto100KiBBench from './crypto100KiB';
-import crypto1MiBBench from './crypto1MiB';
-import DB1KiBBench from './DB1KiB';
-import DB24KiBBench from './DB24KiB';
-import DB1MiBBench from './DB1MiB';
+import crypto1KiB from './crypto_1KiB';
+import crypto10KiB from './crypto_10KiB';
+import crypto16KiB from './crypto_16KiB';
+import crypto24KiB from './crypto_24KiB';
+import crypto32KiB from './crypto_32KiB';
+import crypto100KiB from './crypto_100KiB';
+import crypto1MiB from './crypto_1MiB';
+import DB1KiB from './db_1KiB';
+import DB24KiB from './db_24KiB';
+import DB1MiB from './db_1MiB';
 
 async function main(): Promise<void> {
-  await crypto1KiBBench();
-  await crypto10KiBBench();
-  await crypto16KiBBench();
-  await crypto24KiBBench();
-  await crypto32KiBBench();
-  await crypto100KiBBench();
-  await crypto1MiBBench();
-  await DB1KiBBench();
-  await DB24KiBBench();
-  await DB1MiBBench();
+  await fs.promises.mkdir(path.join(__dirname, 'results'), { recursive: true });
+  await crypto1KiB();
+  await crypto10KiB();
+  await crypto16KiB();
+  await crypto24KiB();
+  await crypto32KiB();
+  await crypto100KiB();
+  await crypto1MiB();
+  await DB1KiB();
+  await DB24KiB();
+  await DB1MiB();
+  const resultFilenames = await fs.promises.readdir(
+    path.join(__dirname, 'results'),
+  );
+  const metricsFile = await fs.promises.open(
+    path.join(__dirname, 'results', 'metrics.txt'),
+    'w',
+  );
+  let concatenating = false;
+  for (const resultFilename of resultFilenames) {
+    if (/.+_metrics\.txt$/.test(resultFilename)) {
+      const metricsData = await fs.promises.readFile(
+        path.join(__dirname, 'results', resultFilename),
+      );
+      if (concatenating) {
+        await metricsFile.write('\n');
+      }
+      await metricsFile.write(metricsData);
+      concatenating = true;
+    }
+  }
+  await metricsFile.close();
   const systemData = await si.get({
     cpu: '*',
     osInfo: 'platform, distro, release, kernel, arch',
     system: 'model, manufacturer',
   });
   await fs.promises.writeFile(
-    'benches/results/system.json',
+    path.join(__dirname, 'results', 'system.json'),
     JSON.stringify(systemData, null, 2),
   );
 }
 
-if (require.main === module) {
-  (async () => {
-    await main();
-  })();
-}
-
-export default main;
+void main();

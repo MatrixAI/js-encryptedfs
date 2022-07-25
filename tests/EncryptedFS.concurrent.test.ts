@@ -3407,8 +3407,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.length === 0
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3470,8 +3471,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.length === 0
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3503,8 +3505,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.length === 0
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3540,8 +3543,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.includes('file1')
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3574,8 +3578,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.includes('file1')
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3608,8 +3613,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.includes('file1')
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {
@@ -3642,8 +3648,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             result.status === 'fulfilled' &&
             typeof result.value === 'object' &&
             result.value.includes('file1')
-          )
+          ) {
             return true;
+          }
           return result.status === 'fulfilled' && result.value === undefined;
         })
       ) {

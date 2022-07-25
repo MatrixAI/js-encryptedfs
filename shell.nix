@@ -1,27 +1,33 @@
-{ pkgs ? import ./pkgs.nix {} }:
+{ pkgs ? import ./pkgs.nix {}, ci ? false }:
 
 with pkgs;
-pkgs.mkShell {
+mkShell {
   nativeBuildInputs = [
     nodejs
-    nodePackages.node2nix
+    shellcheck
+    gitAndTools.gh
   ];
   shellHook = ''
-    echo 'Entering js-encryptedfs'
+    echo "Entering $(npm pkg get name)"
     set -o allexport
     . ./.env
     set +o allexport
     set -v
-
+    ${
+      lib.optionalString ci
+      ''
+      set -o errexit
+      set -o nounset
+      set -o pipefail
+      shopt -s inherit_errexit
+      ''
+    }
     mkdir --parents "$(pwd)/tmp"
 
     # Built executables and NPM executables
     export PATH="$(pwd)/dist/bin:$(npm bin):$PATH"
 
-    # Enables npm link
-    export npm_config_prefix=~/.npm
-
-    npm install
+    npm install --ignore-scripts
 
     set +v
   '';

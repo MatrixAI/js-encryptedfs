@@ -1,14 +1,14 @@
 import type { EFSWorkerModule } from '@/workers';
-
 import os from 'os';
+import path from 'path';
 import b from 'benny';
 import { spawn, Worker, Transfer } from 'threads';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import * as utils from '@/utils';
-import packageJson from '../package.json';
+import { suiteCommon } from './utils';
 
-const logger = new Logger('crypto1MiB Bench', LogLevel.WARN, [
+const logger = new Logger('crypto32KiB Bench', LogLevel.WARN, [
   new StreamHandler(),
 ]);
 
@@ -19,22 +19,21 @@ async function main() {
     await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
       cores: 1,
-      logger,
     });
   const key = utils.generateKeySync(256);
-  const plain1MiB = utils.getRandomBytesSync(1024 * 1024);
-  const cipher1MiB = await utils.encrypt(key, plain1MiB);
+  const plain32KiB = utils.getRandomBytesSync(1024 * 32);
+  const cipher32KiB = await utils.encrypt(key, plain32KiB);
   const summary = await b.suite(
-    'crypto1MiB',
-    b.add('encrypt 1 MiB of data', async () => {
-      await utils.encrypt(key, plain1MiB);
+    path.basename(__filename, path.extname(__filename)),
+    b.add('encrypt 32 KiB of data', async () => {
+      await utils.encrypt(key, plain32KiB);
     }),
-    b.add('decrypt 1 MiB of data', async () => {
-      await utils.decrypt(key, cipher1MiB);
+    b.add('decrypt 32 KiB of data', async () => {
+      await utils.decrypt(key, cipher32KiB);
     }),
-    b.add('encrypt 1 MiB of data with workers', async () => {
+    b.add('encrypt 32 KiB of data with workers', async () => {
       const keyAB = utils.toArrayBuffer(key);
-      const plainTextAB = utils.toArrayBuffer(plain1MiB);
+      const plainTextAB = utils.toArrayBuffer(plain32KiB);
       const cipherTextAB = await workerManager.call(async (w) => {
         return await w.encrypt(
           Transfer(keyAB),
@@ -44,9 +43,9 @@ async function main() {
       });
       utils.fromArrayBuffer(cipherTextAB);
     }),
-    b.add('decrypt 1 MiB of data with workers', async () => {
+    b.add('decrypt 32 KiB of data with workers', async () => {
       const keyAB = utils.toArrayBuffer(key);
-      const cipherTextAB = cipher1MiB.slice(0);
+      const cipherTextAB = cipher32KiB.slice(0);
       const decrypted = await workerManager.call(async (w) => {
         return await w.decrypt(
           Transfer(keyAB),
@@ -58,28 +57,14 @@ async function main() {
         utils.fromArrayBuffer(decrypted);
       }
     }),
-    b.cycle(),
-    b.complete(),
-    b.save({
-      file: 'crypto1MiB',
-      folder: 'benches/results',
-      version: packageJson.version,
-      details: true,
-    }),
-    b.save({
-      file: 'crypto1MiB',
-      folder: 'benches/results',
-      format: 'chart.html',
-    }),
+    ...suiteCommon,
   );
   await workerManager.destroy();
   return summary;
 }
 
 if (require.main === module) {
-  (async () => {
-    await main();
-  })();
+  void main();
 }
 
 export default main;

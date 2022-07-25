@@ -1,6 +1,7 @@
 # js-encryptedfs
 
-[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master)
+staging:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-workers/badges/staging/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-workers/commits/staging)
+master:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-workers/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-workers/commits/master)
 
 Encrypted filesystem library for TypeScript/JavaScript applications
 
@@ -9,6 +10,7 @@ Encrypted filesystem library for TypeScript/JavaScript applications
 * Encrypted-At-Rest - all persistence is encrypted
 * Random Read & Write - encryption and decryption operates over fixed-block sizes
 * Streamable - files do not need to loaded fully in-memory
+* Comprehensive continuous benchmarks in CI/CD
 
 Development based on js-virtualfs: https://github.com/MatrixAI/js-virtualfs
 
@@ -136,6 +138,26 @@ npm run docs
 See the docs at: https://matrixai.github.io/js-encryptedfs/
 
 ### Publishing
+
+Publishing is handled automatically by the staging pipeline.
+
+Prerelease:
+
+```sh
+# npm login
+npm version prepatch --preid alpha # premajor/preminor/prepatch
+git push --follow-tags
+```
+
+Release:
+
+```sh
+# npm login
+npm version patch # major/minor/patch
+git push --follow-tags
+```
+
+Manually:
 
 ```sh
 # npm login

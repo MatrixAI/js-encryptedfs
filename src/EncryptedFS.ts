@@ -477,11 +477,12 @@ class EncryptedFS {
         let fd: FileDescriptor | undefined;
         if (typeof file === 'number') {
           fd = this.fdMgr.getFd(file);
-          if (!fd)
+          if (!fd) {
             throw new errors.ErrorEncryptedFSError({
               errno: errno.EBADF,
               syscall: 'appendFile',
             });
+          }
           if (!(fd.flags & (constants.O_WRONLY | constants.O_RDWR))) {
             throw new errors.ErrorEncryptedFSError({
               errno: errno.EBADF,

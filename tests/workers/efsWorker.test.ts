@@ -16,7 +16,6 @@ describe('EFS worker', () => {
     workerManager = await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../../src/workers/efsWorker')),
       cores: 1,
-      logger,
     });
   });
   afterAll(async () => {
