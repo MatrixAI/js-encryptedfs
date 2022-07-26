@@ -19,6 +19,7 @@ async function main() {
     await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
       cores,
+      logger,
     });
   const key = utils.generateKeySync(256);
   const plain1KiB = utils.getRandomBytesSync(1024);

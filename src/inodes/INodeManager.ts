@@ -46,7 +46,7 @@ class INodeManager {
     fresh?: boolean;
   }): Promise<INodeManager> {
     logger.info(`Creating ${this.name}`);
-    const iNodeMgr = new INodeManager({
+    const iNodeMgr = new this({
       db,
       logger,
     });

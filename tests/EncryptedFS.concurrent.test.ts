@@ -36,6 +36,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           decrypt: utils.decrypt,
         },
       },
+      // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
       logger: logger.getChild(DB.name),
     });
     iNodeMgr = await INodeManager.createINodeManager({

@@ -27,6 +27,7 @@ describe('INodeManager', () => {
           decrypt: utils.decrypt,
         },
       },
+      // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
       logger,
     });
   });
@@ -63,6 +64,7 @@ describe('INodeManager', () => {
           decrypt: utils.decrypt,
         },
       },
+      // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
       logger,
     });
     iNodeMgr = await INodeManager.createINodeManager({

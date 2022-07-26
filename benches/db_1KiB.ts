@@ -21,6 +21,7 @@ async function main() {
     await WorkerManager.createWorkerManager<EFSWorkerModule>({
       workerFactory: () => spawn(new Worker('../src/workers/efsWorker')),
       cores: 1,
+      logger,
     });
   const dataDir = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), 'encryptedfs-benches-'),
@@ -37,6 +38,7 @@ async function main() {
       },
     },
     dbPath: dbPath1,
+    // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
     logger,
   });
   // Db2 uses workers
@@ -50,6 +52,7 @@ async function main() {
       },
     },
     dbPath: dbPath2,
+    // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
     logger,
   });
   db2.setWorkerManager(workerManager);

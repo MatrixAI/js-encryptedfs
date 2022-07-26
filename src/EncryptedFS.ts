@@ -104,6 +104,7 @@ class EncryptedFS {
               decrypt: utils.decrypt,
             },
           },
+          // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
           logger: logger.getChild(DB.name),
           fresh,
         });
@@ -156,7 +157,7 @@ class EncryptedFS {
       },
     );
     fdMgr = fdMgr ?? new FileDescriptorManager(iNodeMgr);
-    const efs = new EncryptedFS({
+    const efs = new this({
       db,
       iNodeMgr,
       fdMgr,
