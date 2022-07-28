@@ -1906,6 +1906,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         (async () => {
           const writeStream = efs.createWriteStream(path1);
           for (let i = 0; i < 10; i++) {
+            await sleep(50);
             writeStream.write(dataA);
           }
           writeStream.end();
@@ -1919,17 +1920,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       stat = await efs.stat(path1);
-      contents = (await efs.readFile(path1)).toString();
-
-      if (contents[0] === 'A') {
-        expect(contents).toEqual(dataA.repeat(10));
-        expect(contents).toHaveLength(50);
-        expect(stat.size).toEqual(50);
-      } else {
-        expect(contents).toEqual(dataB + dataA.repeat(5));
-        expect(contents).toHaveLength(50);
-        expect(stat.size).toEqual(50);
-      }
+      contents = (await efs.readFile(path1, { encoding: 'utf-8' })) as string;
+      expect(stat.size).toEqual(50);
+      expect(contents).toHaveLength(50);
+      expect(contents).toMatch(/^(BBBBB){0,5}A+$/);
     });
     test('EncryptedFS.createReadStream and EncryptedFS.write', async () => {
       const path1 = utils.pathJoin('dir', 'file1');
