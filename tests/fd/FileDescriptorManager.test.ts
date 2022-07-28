@@ -1,5 +1,5 @@
 import os from 'os';
-import path from 'path';
+import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
@@ -21,7 +21,7 @@ describe('File Descriptor Manager', () => {
   const origBuffer = Buffer.from('Test Buffer for File Descriptor');
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
       dbPath: `${dataDir}/db`,

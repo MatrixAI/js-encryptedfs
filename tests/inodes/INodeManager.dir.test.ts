@@ -1,6 +1,6 @@
 import type { INodeIndex } from '@/inodes/types';
 import os from 'os';
-import path from 'path';
+import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
@@ -17,7 +17,7 @@ describe('INodeManager Directory', () => {
   const dbKey: Buffer = utils.generateKeySync(256);
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
       dbPath: `${dataDir}/db`,

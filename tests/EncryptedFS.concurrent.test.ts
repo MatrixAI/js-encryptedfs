@@ -2,7 +2,7 @@ import type { FdIndex } from '@/fd/types';
 import type { INodeData } from '@/inodes/types';
 import fs from 'fs';
 import os from 'os';
-import path from 'path';
+import pathNode from 'path';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import { DB } from '@matrixai/db';
@@ -25,7 +25,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
       dbPath: dataDir,

@@ -1,5 +1,5 @@
 import os from 'os';
-import path from 'path';
+import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import EncryptedFS from '@/EncryptedFS';
@@ -14,7 +14,7 @@ describe(EncryptedFS.name, () => {
   let dataDir: string;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
     );
   });
   afterEach(async () => {
