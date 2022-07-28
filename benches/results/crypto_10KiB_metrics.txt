@@ -1,0 +1,17 @@
+# TYPE crypto_10KiB_ops gauge
+crypto_10KiB_ops{name="encrypt 10 KiB of data"} 1224
+crypto_10KiB_ops{name="decrypt 10 KiB of data"} 1440
+crypto_10KiB_ops{name="encrypt 10 KiB of data with workers"} 451
+crypto_10KiB_ops{name="decrypt 10 KiB of data with workers"} 532
+
+# TYPE crypto_10KiB_margin gauge
+crypto_10KiB_margin{name="encrypt 10 KiB of data"} 1.34
+crypto_10KiB_margin{name="decrypt 10 KiB of data"} 1.02
+crypto_10KiB_margin{name="encrypt 10 KiB of data with workers"} 1.92
+crypto_10KiB_margin{name="decrypt 10 KiB of data with workers"} 0.74
+
+# TYPE crypto_10KiB_samples counter
+crypto_10KiB_samples{name="encrypt 10 KiB of data"} 89
+crypto_10KiB_samples{name="decrypt 10 KiB of data"} 89
+crypto_10KiB_samples{name="encrypt 10 KiB of data with workers"} 85
+crypto_10KiB_samples{name="decrypt 10 KiB of data with workers"} 85

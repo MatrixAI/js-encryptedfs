@@ -1,0 +1,29 @@
+# TYPE db_1KiB_ops gauge
+db_1KiB_ops{name="get 1 KiB of data"} 5962
+db_1KiB_ops{name="put 1 KiB of data"} 3005
+db_1KiB_ops{name="put zero data"} 3814
+db_1KiB_ops{name="put zero data then del"} 3500
+db_1KiB_ops{name="get 1 KiB of data with workers"} 733
+db_1KiB_ops{name="put 1 KiB of data with workers"} 644
+db_1KiB_ops{name="put zero data with workers"} 692
+db_1KiB_ops{name="put zero data then del with workers"} 686
+
+# TYPE db_1KiB_margin gauge
+db_1KiB_margin{name="get 1 KiB of data"} 1.01
+db_1KiB_margin{name="put 1 KiB of data"} 0.79
+db_1KiB_margin{name="put zero data"} 0.73
+db_1KiB_margin{name="put zero data then del"} 0.85
+db_1KiB_margin{name="get 1 KiB of data with workers"} 0.5
+db_1KiB_margin{name="put 1 KiB of data with workers"} 0.76
+db_1KiB_margin{name="put zero data with workers"} 0.75
+db_1KiB_margin{name="put zero data then del with workers"} 0.46
+
+# TYPE db_1KiB_samples counter
+db_1KiB_samples{name="get 1 KiB of data"} 82
+db_1KiB_samples{name="put 1 KiB of data"} 84
+db_1KiB_samples{name="put zero data"} 88
+db_1KiB_samples{name="put zero data then del"} 87
+db_1KiB_samples{name="get 1 KiB of data with workers"} 87
+db_1KiB_samples{name="put 1 KiB of data with workers"} 82
+db_1KiB_samples{name="put zero data with workers"} 87
+db_1KiB_samples{name="put zero data then del with workers"} 88

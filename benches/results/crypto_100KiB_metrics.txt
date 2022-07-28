@@ -1,0 +1,17 @@
+# TYPE crypto_100KiB_ops gauge
+crypto_100KiB_ops{name="encrypt 100 KiB of data"} 160
+crypto_100KiB_ops{name="decrypt 100 KiB of data"} 156
+crypto_100KiB_ops{name="encrypt 100 KiB of data with workers"} 121
+crypto_100KiB_ops{name="decrypt 100 KiB of data with workers"} 137
+
+# TYPE crypto_100KiB_margin gauge
+crypto_100KiB_margin{name="encrypt 100 KiB of data"} 0.4
+crypto_100KiB_margin{name="decrypt 100 KiB of data"} 0.37
+crypto_100KiB_margin{name="encrypt 100 KiB of data with workers"} 1.23
+crypto_100KiB_margin{name="decrypt 100 KiB of data with workers"} 0.78
+
+# TYPE crypto_100KiB_samples counter
+crypto_100KiB_samples{name="encrypt 100 KiB of data"} 83
+crypto_100KiB_samples{name="decrypt 100 KiB of data"} 82
+crypto_100KiB_samples{name="encrypt 100 KiB of data with workers"} 82
+crypto_100KiB_samples{name="decrypt 100 KiB of data with workers"} 81

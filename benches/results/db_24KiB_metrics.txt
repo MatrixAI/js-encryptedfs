@@ -1,0 +1,17 @@
+# TYPE db_24KiB_ops gauge
+db_24KiB_ops{name="get 24 KiB of data"} 599
+db_24KiB_ops{name="put 24 KiB of data"} 540
+db_24KiB_ops{name="get 24 KiB of data with workers"} 354
+db_24KiB_ops{name="put 24 KiB of data with workers"} 306
+
+# TYPE db_24KiB_margin gauge
+db_24KiB_margin{name="get 24 KiB of data"} 1.65
+db_24KiB_margin{name="put 24 KiB of data"} 1.56
+db_24KiB_margin{name="get 24 KiB of data with workers"} 1.19
+db_24KiB_margin{name="put 24 KiB of data with workers"} 0.74
+
+# TYPE db_24KiB_samples counter
+db_24KiB_samples{name="get 24 KiB of data"} 86
+db_24KiB_samples{name="put 24 KiB of data"} 86
+db_24KiB_samples{name="get 24 KiB of data with workers"} 84
+db_24KiB_samples{name="put 24 KiB of data with workers"} 84

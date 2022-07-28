@@ -1,0 +1,17 @@
+# TYPE db_1MiB_ops gauge
+db_1MiB_ops{name="get 1 MiB of data"} 10.5
+db_1MiB_ops{name="put 1 MiB of data"} 10.7
+db_1MiB_ops{name="get 1 MiB of data with workers"} 11.1
+db_1MiB_ops{name="put 1 MiB of data with workers"} 5.3
+
+# TYPE db_1MiB_margin gauge
+db_1MiB_margin{name="get 1 MiB of data"} 1.94
+db_1MiB_margin{name="put 1 MiB of data"} 0.98
+db_1MiB_margin{name="get 1 MiB of data with workers"} 1.27
+db_1MiB_margin{name="put 1 MiB of data with workers"} 1.56
+
+# TYPE db_1MiB_samples counter
+db_1MiB_samples{name="get 1 MiB of data"} 53
+db_1MiB_samples{name="put 1 MiB of data"} 54
+db_1MiB_samples{name="get 1 MiB of data with workers"} 56
+db_1MiB_samples{name="put 1 MiB of data with workers"} 30
