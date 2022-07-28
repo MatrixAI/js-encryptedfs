@@ -1,7 +1,7 @@
 # js-encryptedfs
 
-staging:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-workers/badges/staging/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-workers/commits/staging)
-master:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-workers/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-workers/commits/master)
+staging:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/staging/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/staging)
+master:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master)
 
 Encrypted filesystem library for TypeScript/JavaScript applications
 
