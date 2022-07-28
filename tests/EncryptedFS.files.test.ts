@@ -2,7 +2,6 @@ import type { FileTypes } from './utils';
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import path from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import EncryptedFS from '@/EncryptedFS';
@@ -199,7 +198,7 @@ describe(`${EncryptedFS.name} Files`, () => {
       await efs.close(fd);
     });
     test('truncates the file contents', async () => {
-      const path1 = path.join('dir', 'path1');
+      const path1 = utils.pathJoin('dir', 'path1');
       await efs.mkdir('dir');
       await efs.writeFile(path1, 'abcdef');
       expect(await efs.readFile(path1, { encoding: 'utf-8' })).toEqual(
@@ -502,7 +501,7 @@ describe(`${EncryptedFS.name} Files`, () => {
       await efs.close(fd);
     });
     test("updates parent directory ctime/mtime if file didn't exist", async () => {
-      const PUT = path.join(n1, n0);
+      const PUT = utils.pathJoin(n1, n0);
       await efs.mkdir(n1, { mode: dp });
       const time = (await efs.stat(n1)).ctime.getTime();
       await sleep(10);
@@ -519,7 +518,7 @@ describe(`${EncryptedFS.name} Files`, () => {
       expect(time).toBeLessThan(ctime2);
     });
     test("doesn't update parent directory ctime/mtime if file existed", async () => {
-      const PUT = path.join(n1, n0);
+      const PUT = utils.pathJoin(n1, n0);
       await efs.mkdir(n1, { mode: dp });
 
       await createFile(efs, 'regular', PUT);
@@ -541,7 +540,7 @@ describe(`${EncryptedFS.name} Files`, () => {
     test.each(['regular', 'block'])(
       'returns ENOTDIR if a component of the path prefix is a %s',
       async (type) => {
-        const PUT = path.join(n1, 'test');
+        const PUT = utils.pathJoin(n1, 'test');
         await createFile(efs, type as FileTypes, n1);
         await expectError(
           efs.open(PUT, 'r'),
@@ -558,12 +557,12 @@ describe(`${EncryptedFS.name} Files`, () => {
     test('returns ENOENT if a component of the path name that must exist does not exist or O_CREAT is not set and the named file does not exist', async () => {
       await efs.mkdir(n0, { mode: dp });
       await expectError(
-        efs.open(path.join(n0, n1, 'test'), constants.O_CREAT, 0o0644),
+        efs.open(utils.pathJoin(n0, n1, 'test'), constants.O_CREAT, 0o0644),
         ErrorEncryptedFSError,
         errno.ENOENT,
       );
       await expectError(
-        efs.open(path.join(n0, n1, 'test'), constants.O_RDONLY),
+        efs.open(utils.pathJoin(n0, n1, 'test'), constants.O_RDONLY),
         ErrorEncryptedFSError,
         errno.ENOENT,
       );
@@ -572,17 +571,17 @@ describe(`${EncryptedFS.name} Files`, () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n2));
-      let fd = await efs.open(path.join(n1, n2), constants.O_RDONLY);
+      await createFile(efs, 'regular', utils.pathJoin(n1, n2));
+      let fd = await efs.open(utils.pathJoin(n1, n2), constants.O_RDONLY);
       await efs.close(fd);
       await efs.chmod(n1, 0o0644);
       await expectError(
-        efs.open(path.join(n1, n2), constants.O_RDONLY),
+        efs.open(utils.pathJoin(n1, n2), constants.O_RDONLY),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0755);
-      fd = await efs.open(path.join(n1, n2), constants.O_RDONLY);
+      fd = await efs.open(utils.pathJoin(n1, n2), constants.O_RDONLY);
       await efs.close(fd);
     });
     test('returns EACCES when the required permissions are denied for a regular file', async () => {
@@ -854,12 +853,12 @@ describe(`${EncryptedFS.name} Files`, () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.open(path.join(n0, 'test'), constants.O_RDONLY),
+        efs.open(utils.pathJoin(n0, 'test'), constants.O_RDONLY),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.open(path.join(n1, 'test'), constants.O_RDONLY),
+        efs.open(utils.pathJoin(n1, 'test'), constants.O_RDONLY),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );

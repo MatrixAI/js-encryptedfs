@@ -2,7 +2,6 @@ import type { FileTypes } from './utils';
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import path from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import EncryptedFS from '@/EncryptedFS';
@@ -193,12 +192,12 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.rmdir(path.join(n0, 'test')),
+        efs.rmdir(utils.pathJoin(n0, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.rmdir(path.join(n1, 'test')),
+        efs.rmdir(utils.pathJoin(n1, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
@@ -209,7 +208,7 @@ describe(`${EncryptedFS.name} Directories`, () => {
       "returns ENOTEMPTY if the named directory contains files other than '.' and '..' in it for %s",
       async (type) => {
         await efs.mkdir(n0, 0o0755);
-        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await createFile(efs, type as FileTypes, utils.pathJoin(n0, n1));
         await expectError(
           efs.rmdir(n0),
           ErrorEncryptedFSError,
@@ -219,30 +218,30 @@ describe(`${EncryptedFS.name} Directories`, () => {
     );
     test('returns EACCES when search permission is denied for a component of the path prefix', async () => {
       await efs.mkdir(n0, 0o0755);
-      await efs.mkdir(path.join(n0, n1), 0o0755);
-      await efs.chown(path.join(n0, n1), 0o65534, 0o65534);
-      await efs.mkdir(path.join(n0, n1, n2), 0o0755);
-      await efs.chown(path.join(n0, n1, n2), 0o65534, 0o65534);
-      await efs.chmod(path.join(n0, n1), 0o0644);
+      await efs.mkdir(utils.pathJoin(n0, n1), 0o0755);
+      await efs.chown(utils.pathJoin(n0, n1), 0o65534, 0o65534);
+      await efs.mkdir(utils.pathJoin(n0, n1, n2), 0o0755);
+      await efs.chown(utils.pathJoin(n0, n1, n2), 0o65534, 0o65534);
+      await efs.chmod(utils.pathJoin(n0, n1), 0o0644);
       efs.gid = 0o65534;
       efs.uid = 0o65534;
       await expectError(
-        efs.rmdir(path.join(n0, n1, n2)),
+        efs.rmdir(utils.pathJoin(n0, n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
     });
     test('returns EACCES when write permission is denied on the directory containing the link to be removed', async () => {
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
-      await efs.chown(path.join(n0, n1), 0o65534, 0o65534);
-      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
-      await efs.chown(path.join(n0, n1, n2), 0o65534, 0o65534);
-      await efs.chmod(path.join(n0, n1), 0o0555);
+      await efs.mkdir(utils.pathJoin(n0, n1), { mode: 0o0755 });
+      await efs.chown(utils.pathJoin(n0, n1), 0o65534, 0o65534);
+      await efs.mkdir(utils.pathJoin(n0, n1, n2), { mode: 0o0755 });
+      await efs.chown(utils.pathJoin(n0, n1, n2), 0o65534, 0o65534);
+      await efs.chmod(utils.pathJoin(n0, n1), 0o0555);
       efs.gid = 0o65543;
       efs.uid = 0o65543;
       await expectError(
-        efs.rmdir(path.join(n0, n1, n2)),
+        efs.rmdir(utils.pathJoin(n0, n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -251,22 +250,22 @@ describe(`${EncryptedFS.name} Directories`, () => {
       'recursively deletes the directory if it contains %s',
       async (type) => {
         await efs.mkdir(n0, { mode: 0o0755 });
-        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await createFile(efs, type as FileTypes, utils.pathJoin(n0, n1));
         await efs.rmdir(n0, { recursive: true });
         await expect(efs.readdir('.')).resolves.toEqual([]);
       },
     );
     test('recursively deletes a deep directory', async () => {
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
-      await efs.writeFile(path.join(n0, n2), 'test');
-      await efs.writeFile(path.join(n0, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      await efs.mkdir(utils.pathJoin(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(utils.pathJoin(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(utils.pathJoin(n0, n2), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n2), 'test');
       await efs.rmdir(n0, { recursive: true });
       await expect(efs.readdir('.')).resolves.toEqual([]);
     });
@@ -278,15 +277,15 @@ describe(`${EncryptedFS.name} Directories`, () => {
       efs.uid = 1000;
       efs.gid = 1000;
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
-      await efs.writeFile(path.join(n0, n2), 'test');
-      await efs.writeFile(path.join(n0, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      await efs.mkdir(utils.pathJoin(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(utils.pathJoin(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(utils.pathJoin(n0, n2), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n2), 'test');
       // Removing write permissions from directory n0
       await efs.chmod(n0, MODE_RX);
       // Expectation is that direct n0, n0/n1 has no permissions
@@ -296,13 +295,13 @@ describe(`${EncryptedFS.name} Directories`, () => {
         errno.EACCES,
       );
       await expectError(
-        efs.rmdir(path.join(n0, n1), { recursive: true }),
+        efs.rmdir(utils.pathJoin(n0, n1), { recursive: true }),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       // But n0/n1/n2 and deeper still has permission to be removed
       await expect(
-        efs.rmdir(path.join(n0, n1, n2), { recursive: true }),
+        efs.rmdir(utils.pathJoin(n0, n1, n2), { recursive: true }),
       ).resolves.toBeUndefined();
     });
     test('to fail recursive delete when the parent directory lacks the search permission', async () => {
@@ -310,15 +309,15 @@ describe(`${EncryptedFS.name} Directories`, () => {
       efs.uid = 1000;
       efs.gid = 1000;
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1), { mode: 0o0755 });
-      await efs.mkdir(path.join(n0, n1, n2), { mode: 0o0755 });
-      await efs.writeFile(path.join(n0, n2), 'test');
-      await efs.writeFile(path.join(n0, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n0), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n1), 'test');
-      await efs.writeFile(path.join(n0, n1, n2, n2), 'test');
+      await efs.mkdir(utils.pathJoin(n0, n1), { mode: 0o0755 });
+      await efs.mkdir(utils.pathJoin(n0, n1, n2), { mode: 0o0755 });
+      await efs.writeFile(utils.pathJoin(n0, n2), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n1), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n1, n2, n2), 'test');
       // Removing search permissions from directory n0
       await efs.chmod(n0, MODE_RW);
       // Expectation is that direct n0, n0/n1 and n0/n1/n2 has no permissions
@@ -328,12 +327,12 @@ describe(`${EncryptedFS.name} Directories`, () => {
         errno.EACCES,
       );
       await expectError(
-        efs.rmdir(path.join(n0, n1), { recursive: true }),
+        efs.rmdir(utils.pathJoin(n0, n1), { recursive: true }),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await expectError(
-        efs.rmdir(path.join(n0, n1, n2), { recursive: true }),
+        efs.rmdir(utils.pathJoin(n0, n1, n2), { recursive: true }),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -353,8 +352,8 @@ describe(`${EncryptedFS.name} Directories`, () => {
       efs.uid = 1000;
       efs.gid = 1000;
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.writeFile(path.join(n0, n2), 'test');
-      await efs.writeFile(path.join(n0, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n2), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n0), 'test');
       // Removing write permissions from directory n0
       await efs.chmod(n0, MODE_RX);
       // Expectation is that directory n0 lacks permissions
@@ -379,8 +378,8 @@ describe(`${EncryptedFS.name} Directories`, () => {
       efs.uid = 1000;
       efs.gid = 1000;
       await efs.mkdir(n0, { mode: 0o0755 });
-      await efs.writeFile(path.join(n0, n2), 'test');
-      await efs.writeFile(path.join(n0, n0), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n2), 'test');
+      await efs.writeFile(utils.pathJoin(n0, n0), 'test');
       // Removing write permissions from directory n0
       await efs.chmod(n0, MODE_RW);
       // Expectation is that direct n0, n0/n1 has no permissions
@@ -438,16 +437,16 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
-      await efs.mkdir(path.join(n1, n2), { mode: dp });
-      await efs.rmdir(path.join(n1, n2));
+      await efs.mkdir(utils.pathJoin(n1, n2), { mode: dp });
+      await efs.rmdir(utils.pathJoin(n1, n2));
       await efs.chmod(n1, 0o0555);
       await expectError(
-        efs.mkdir(path.join(n1, n2)),
+        efs.mkdir(utils.pathJoin(n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, dp);
-      await efs.mkdir(path.join(n1, n2), { mode: dp });
+      await efs.mkdir(utils.pathJoin(n1, n2), { mode: dp });
     });
     test.each(supportedTypes)(
       'returns EEXIST if the named %s exists',
@@ -579,13 +578,13 @@ describe(`${EncryptedFS.name} Directories`, () => {
     test("returns ENOENT if a component of the 'from' path does not exist, or a path prefix of 'to' does not exist", async () => {
       await efs.mkdir(n0, { mode: dp });
       await expectError(
-        efs.rename(path.join(n0, n1, 'test'), n2),
+        efs.rename(utils.pathJoin(n0, n1, 'test'), n2),
         ErrorEncryptedFSError,
         errno.ENOENT,
       );
       await createFile(efs, 'regular', n2);
       await expectError(
-        efs.rename(n2, path.join(n0, n1, 'test')),
+        efs.rename(n2, utils.pathJoin(n0, n1, 'test')),
         ErrorEncryptedFSError,
         errno.ENOENT,
       );
@@ -596,19 +595,19 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n3));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n3));
 
-      await efs.rename(path.join(n1, n3), path.join(n2, n4));
-      await efs.rename(path.join(n2, n4), path.join(n1, n3));
+      await efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4));
+      await efs.rename(utils.pathJoin(n2, n4), utils.pathJoin(n1, n3));
 
       await efs.chmod(n1, 0o0644);
       await expectError(
-        efs.rename(path.join(n1, n3), path.join(n1, n4)),
+        efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n1, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await expectError(
-        efs.rename(path.join(n1, n3), path.join(n2, n4)),
+        efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -616,7 +615,7 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.chmod(n1, 0o0755);
       await efs.chmod(n2, 0o0644);
       await expectError(
-        efs.rename(path.join(n1, n3), path.join(n2, n4)),
+        efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -627,20 +626,20 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n3));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n3));
 
-      await efs.rename(path.join(n1, n3), path.join(n2, n4));
-      await efs.rename(path.join(n2, n4), path.join(n1, n3));
+      await efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4));
+      await efs.rename(utils.pathJoin(n2, n4), utils.pathJoin(n1, n3));
 
       await efs.chmod(n2, 0o0555);
       await expectError(
-        efs.rename(path.join(n1, n3), path.join(n2, n4)),
+        efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0555);
       await expectError(
-        efs.rename(path.join(n1, n3), path.join(n1, n4)),
+        efs.rename(utils.pathJoin(n1, n3), utils.pathJoin(n1, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -649,23 +648,23 @@ describe(`${EncryptedFS.name} Directories`, () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.rename(path.join(n0, 'test'), n2),
+        efs.rename(utils.pathJoin(n0, 'test'), n2),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.rename(path.join(n0, 'test'), n1),
+        efs.rename(utils.pathJoin(n0, 'test'), n1),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await createFile(efs, 'regular', n2);
       await expectError(
-        efs.rename(n2, path.join(n0, 'test')),
+        efs.rename(n2, utils.pathJoin(n0, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.rename(n2, path.join(n1, 'test')),
+        efs.rename(n2, utils.pathJoin(n1, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
@@ -675,15 +674,15 @@ describe(`${EncryptedFS.name} Directories`, () => {
       'returns ENOTDIR if a component of either path prefix is a %s',
       async (type) => {
         await efs.mkdir(n0, { mode: dp });
-        await createFile(efs, type as FileTypes, path.join(n0, n1));
+        await createFile(efs, type as FileTypes, utils.pathJoin(n0, n1));
         await expectError(
-          efs.rename(path.join(n0, n1, 'test'), path.join(n0, n2)),
+          efs.rename(utils.pathJoin(n0, n1, 'test'), utils.pathJoin(n0, n2)),
           ErrorEncryptedFSError,
           errno.ENOTDIR,
         );
-        await createFile(efs, type as FileTypes, path.join(n0, n2));
+        await createFile(efs, type as FileTypes, utils.pathJoin(n0, n2));
         await expectError(
-          efs.rename(path.join(n0, n2), path.join(n0, n1, 'test')),
+          efs.rename(utils.pathJoin(n0, n2), utils.pathJoin(n0, n1, 'test')),
           ErrorEncryptedFSError,
           errno.ENOTDIR,
         );
@@ -716,15 +715,15 @@ describe(`${EncryptedFS.name} Directories`, () => {
     );
     test("returns EINVAL when the 'from' argument is a parent directory of 'to'", async () => {
       await efs.mkdir(n0, { mode: dp });
-      await efs.mkdir(path.join(n0, n1), { mode: dp });
+      await efs.mkdir(utils.pathJoin(n0, n1), { mode: dp });
 
       await expectError(
-        efs.rename(n0, path.join(n0, n1)),
+        efs.rename(n0, utils.pathJoin(n0, n1)),
         ErrorEncryptedFSError,
         errno.EINVAL,
       );
       await expectError(
-        efs.rename(n0, path.join(n0, n1, n2)),
+        efs.rename(n0, utils.pathJoin(n0, n1, n2)),
         ErrorEncryptedFSError,
         errno.EINVAL,
       );
@@ -734,7 +733,7 @@ describe(`${EncryptedFS.name} Directories`, () => {
       async (type) => {
         await efs.mkdir(n0, { mode: dp });
         await efs.mkdir(n1, { mode: dp });
-        await createFile(efs, type, path.join(n1, n2));
+        await createFile(efs, type, utils.pathJoin(n1, n2));
         await expectError(
           efs.rename(n0, n1),
           ErrorEncryptedFSError,
