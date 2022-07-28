@@ -2020,10 +2020,9 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       const dataA = 'AAAAA';
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
-      let fd = await efs.open(path1, 'r+');
+      const fd = await efs.open(path1, 'r+');
       const buffer = Buffer.alloc(100);
-
-      let results = await Promise.allSettled([
+      const results = await Promise.allSettled([
         (async () => {
           return efs.read(fd, buffer, undefined, 100);
         })(),
@@ -2038,61 +2037,22 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           await endProm.p;
         })(),
       ]);
-      let contents = buffer.toString();
-
-      if (results[0].status === 'fulfilled' && results[0].value === 50) {
-        expect(results).toStrictEqual([
-          { status: 'fulfilled', value: 50 },
-          { status: 'fulfilled', value: undefined },
-        ]);
-        expect(contents).toEqual(dataA.repeat(10) + '\0'.repeat(50));
-      } else {
-        expect(results).toStrictEqual([
-          { status: 'fulfilled', value: 0 },
-          { status: 'fulfilled', value: undefined },
-        ]);
-        expect(contents).toEqual('\0'.repeat(100));
-      }
-
-      // Cleaning up
-      buffer.fill(0);
-      await efs.close(fd);
-      await efs.rmdir('dir', { recursive: true });
-      await efs.mkdir('dir');
-      await efs.writeFile(path1, '');
-      fd = await efs.open(path1, 'r+');
-
-      results = await Promise.allSettled([
-        (async () => {
-          await sleep(100);
-          return efs.read(fd, buffer, undefined, 100);
-        })(),
-        (async () => {
-          const writeStream = efs.createWriteStream(path1);
-          for (let i = 0; i < 10; i++) {
-            writeStream.write(dataA);
-          }
-          writeStream.end();
-          const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
-          await endProm.p;
-        })(),
+      const contents = buffer.toString();
+      // Each write is atomic, so reads will occur at multiples of each write
+      expect(results).toStrictEqual([
+        {
+          status: 'fulfilled',
+          value: expect.toSatisfy((v) => v % 5 === 0),
+        },
+        {
+          status: 'fulfilled',
+          value: undefined,
+        },
       ]);
-      contents = buffer.toString();
-
-      if (results[0].status === 'fulfilled' && results[0].value === 50) {
-        expect(results).toStrictEqual([
-          { status: 'fulfilled', value: 50 },
-          { status: 'fulfilled', value: undefined },
-        ]);
-        expect(contents).toEqual(dataA.repeat(10) + '\0'.repeat(50));
-      } else {
-        expect(results).toStrictEqual([
-          { status: 'fulfilled', value: 0 },
-          { status: 'fulfilled', value: undefined },
-        ]);
-        expect(contents).toEqual('\0'.repeat(100));
-      }
+      const bytesRead = (results[0] as PromiseFulfilledResult<number>).value;
+      expect(contents).toStrictEqual(
+        dataA.repeat(bytesRead / 5) + '\0'.repeat(100 - bytesRead),
+      );
     });
     test('EncryptedFS.createReadStream and EncryptedFS.read', async () => {
       const path1 = utils.pathJoin('dir', 'file1');
