@@ -383,9 +383,9 @@ describe(`${EncryptedFS.name} Files`, () => {
       );
       await efs.close(fd);
     });
-    test('can make 100 files', async () => {
+    test('can make 25 files', async () => {
       let content = '';
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 25; i++) {
         const name = 'secret';
         content += name + i.toString();
         await efs.writeFile(name, content);
