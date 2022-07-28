@@ -2,7 +2,6 @@ import type { FdIndex } from '@/fd/types';
 import type { INodeData } from '@/inodes/types';
 import fs from 'fs';
 import os from 'os';
-import path from 'path';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import { DB } from '@matrixai/db';
@@ -25,7 +24,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   let efs: EncryptedFS;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      utils.pathJoin(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
       dbPath: dataDir,
@@ -76,7 +75,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       ]);
     });
     test('EncryptedFS.mknod and EncryptedFS.mknod', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
 
       let results = await Promise.allSettled([
@@ -129,7 +128,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.mkdir and EncryptedFS.mknod', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
 
       let results = await Promise.allSettled([
@@ -182,7 +181,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.open and EncryptedFS.mkdir', async () => {
-      const path1 = path.join('dir', 'dir1');
+      const path1 = utils.pathJoin('dir', 'dir1');
       await efs.mkdir('dir');
 
       let results = await Promise.allSettled([
@@ -357,7 +356,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       );
     });
     test('EncryptedFS.fallocate and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -480,7 +479,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.fallocate and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -541,7 +540,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.fallocate and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -657,7 +656,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.truncate and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -792,7 +791,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.truncate and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -857,7 +856,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.truncate and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const phrase = 'The quick brown fox jumped over the lazy dog'.split(' ');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
@@ -966,7 +965,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.ftruncate and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1101,7 +1100,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.ftruncate and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1166,7 +1165,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.ftruncate and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const phrase = 'The quick brown fox jumped over the lazy dog'.split(' ');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
@@ -1275,7 +1274,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.utimes and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const nowTime = Date.now();
       await sleep(10);
       await efs.mkdir('dir');
@@ -1325,7 +1324,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.futimes and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const nowTime = Date.now();
       await sleep(10);
       await efs.mkdir('dir');
@@ -1377,8 +1376,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       await efs.close(fd);
     });
     test('EncryptedFS.utimes a directory and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'dir1');
-      const path2 = path.join(path1, 'file1');
+      const path1 = utils.pathJoin('dir', 'dir1');
+      const path2 = utils.pathJoin(path1, 'file1');
       const nowTime = Date.now();
       await sleep(10);
       await efs.mkdir('dir');
@@ -1429,7 +1428,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.lseek and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1475,7 +1474,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       expect(contents.length).toEqual(4);
     });
     test('EncryptedFS.lseek and EncryptedFS.writeFile with fd', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1521,7 +1520,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       expect(contents.length).toEqual(4);
     });
     test('EncryptedFS.lseek and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1586,7 +1585,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.lseek and EncryptedFS.readFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
       await efs.writeFile(path1, 'test');
@@ -1634,7 +1633,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       expect(contents.length).toEqual(4);
     });
     test('EncryptedFS.lseek and EncryptedFS.read', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       await efs.writeFile(
         path1,
@@ -1700,7 +1699,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.lseek and EncryptedFS.lseek setting position', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       let fd = await efs.open(path1, 'wx+');
 
@@ -1757,7 +1756,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.createReadStream and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB'.repeat(5);
       await efs.mkdir('dir');
@@ -1852,7 +1851,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.write and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB'.repeat(5);
       await efs.mkdir('dir');
@@ -1932,7 +1931,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.createReadStream and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB'.repeat(5);
       await efs.mkdir('dir');
@@ -2016,7 +2015,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.read and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
@@ -2095,7 +2094,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.createReadStream and EncryptedFS.read', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataB = 'BBBBB'.repeat(5);
       await efs.mkdir('dir');
       await efs.writeFile(path1, dataB);
@@ -2163,7 +2162,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       ]);
     });
     test('EncryptedFS.createWriteStream and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB';
       await efs.mkdir('dir');
@@ -2252,7 +2251,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.unlink and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
 
@@ -2301,7 +2300,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.unlink and EncryptedFS.open', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
 
@@ -2364,7 +2363,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.unlink and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
       let fd = await efs.open(path1, 'r+');
@@ -2407,7 +2406,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       expect(await efs.exists(path1)).toEqual(false);
     });
     test('EncryptedFS.unlink and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
@@ -2477,7 +2476,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.appendFIle and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2537,7 +2536,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.appendFIle and EncryptedFS.writeFile with fd', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2599,7 +2598,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.appendFIle and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2661,7 +2660,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.appendFIle and EncryptedFS.createReadStream', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBBBBBBBBBBBBBBBBB';
       await efs.mkdir('dir');
@@ -2773,8 +2772,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.copyFile and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2833,8 +2832,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.copyFile and EncryptedFS.writeFile with fd', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2896,8 +2895,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.copyFile and EncryptedFS.write', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       const dataA = 'A'.repeat(10);
       const dataB = 'B'.repeat(10);
       await efs.mkdir('dir');
@@ -2959,8 +2958,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.copyFile and EncryptedFS.createWriteStream', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       const dataA = 'AAAAA';
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
@@ -3068,7 +3067,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       expect(stat.size).toBeLessThanOrEqual(50);
     });
     test('EncryptedFS.readFile and EncryptedFS.writeFile', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       await efs.mkdir('dir');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB';
@@ -3123,7 +3122,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.read and EncryptedFS.write with different fd', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB';
       const buffer = Buffer.alloc(100);
@@ -3192,7 +3191,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.read and EncryptedFS.write with same fd', async () => {
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       const dataA = 'AAAAA';
       const dataB = 'BBBBB';
       const buffer = Buffer.alloc(100);
@@ -3392,7 +3391,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
     });
     test('EncryptedFS.readdir and EncryptedFS.mkdir', async () => {
       await efs.mkdir('dir');
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
 
       let results = await Promise.allSettled([
         (async () => {
@@ -3457,7 +3456,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
     });
     test('EncryptedFS.readdir and EncryptedFS.writeFile', async () => {
       await efs.mkdir('dir');
-      const path1 = path.join('dir', 'file1');
+      const path1 = utils.pathJoin('dir', 'file1');
       let results = await Promise.allSettled([
         (async () => {
           return await efs.readdir('dir');
@@ -3524,8 +3523,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.readdir and EncryptedFS.rename', async () => {
-      const PATH1 = path.join('dir', 'file1');
-      const PATH2 = path.join('dir', 'file2');
+      const PATH1 = utils.pathJoin('dir', 'file1');
+      const PATH2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(PATH1, 'test');
 
@@ -3667,8 +3666,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.rmdir and EncryptedFS.rename', async () => {
-      const PATH1 = path.join('dir', 'p1');
-      const PATH2 = path.join('dir', 'p2');
+      const PATH1 = utils.pathJoin('dir', 'p1');
+      const PATH2 = utils.pathJoin('dir', 'p2');
       await efs.mkdir('dir');
       await efs.mkdir(PATH1);
 
@@ -3730,8 +3729,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   });
   describe('concurrent symlinking', () => {
     test('EncryptedFS.symlink and EncryptedFS.symlink', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, 'test');
 
@@ -3786,8 +3785,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.symlink and EncryptedFS.mknod', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
 
@@ -3842,8 +3841,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.mkdir and EncryptedFS.symlink', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
 
@@ -3898,8 +3897,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.write and EncryptedFS.symlink', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, '');
       let fd = await efs.open(path1, 'r+');
@@ -3941,8 +3940,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   });
   describe('concurrent inode linking and unlinking', () => {
     test('EncryptedFS.link and EncryptedFS.link', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, 'test');
 
@@ -3997,8 +3996,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       }
     });
     test('EncryptedFS.link and EncryptedFS.symlink', async () => {
-      const path1 = path.join('dir', 'file1');
-      const path2 = path.join('dir', 'file2');
+      const path1 = utils.pathJoin('dir', 'file1');
+      const path2 = utils.pathJoin('dir', 'file2');
       await efs.mkdir('dir');
       await efs.writeFile(path1, 'test');
 

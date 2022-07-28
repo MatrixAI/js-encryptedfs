@@ -1,5 +1,4 @@
 import os from 'os';
-import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import EncryptedFS from '@/EncryptedFS';
@@ -14,7 +13,7 @@ describe(EncryptedFS.name, () => {
   let dataDir: string;
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      utils.pathJoin(os.tmpdir(), 'encryptedfs-test-'),
     );
   });
   afterEach(async () => {
@@ -119,13 +118,13 @@ describe(EncryptedFS.name, () => {
   });
   test('iNode allocation across restarts', async () => {
     const d1 = 'dir1';
-    const d1f1 = path.join(d1, 'file1');
-    const d1f2 = path.join(d1, 'file2');
-    const d1f3 = path.join(d1, 'file3');
+    const d1f1 = utils.pathJoin(d1, 'file1');
+    const d1f2 = utils.pathJoin(d1, 'file2');
+    const d1f3 = utils.pathJoin(d1, 'file3');
     const d2 = 'dir2';
-    const d2f1 = path.join(d2, 'file1');
-    const d2f2 = path.join(d2, 'file2');
-    const d2f3 = path.join(d2, 'file3');
+    const d2f1 = utils.pathJoin(d2, 'file1');
+    const d2f2 = utils.pathJoin(d2, 'file2');
+    const d2f3 = utils.pathJoin(d2, 'file3');
 
     let efs = await EncryptedFS.createEncryptedFS({
       dbPath: dataDir,
@@ -178,5 +177,6 @@ describe(EncryptedFS.name, () => {
     expect(await listNodes(efs)).toEqual([1, 3, 4, 5, 6, 7, 8, 9, 10]);
     // Note that 2 is skipped, this seems to be incremented
     // but not created when the RFS is created
+    await efs.stop();
   });
 });

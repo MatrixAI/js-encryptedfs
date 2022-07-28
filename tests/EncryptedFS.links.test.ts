@@ -2,7 +2,6 @@ import type { FileTypes } from './utils';
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
-import path from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import EncryptedFS from '@/EncryptedFS';
@@ -71,7 +70,7 @@ describe(`${EncryptedFS.name} Links`, () => {
       let stat2 = await efs.stat(n0);
       const time = stat2.birthtime.getTime();
       await sleep(100);
-      await efs.symlink('test', path.join(n0, n1));
+      await efs.symlink('test', utils.pathJoin(n0, n1));
       stat2 = await efs.stat(n0);
       const mtime = stat2.mtime.getTime();
       const ctime = stat2.ctime.getTime();
@@ -151,49 +150,49 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
 
-      await efs.symlink('test', path.join(n1, n2));
-      await efs.unlink(path.join(n1, n2));
+      await efs.symlink('test', utils.pathJoin(n1, n2));
+      await efs.unlink(utils.pathJoin(n1, n2));
 
       await efs.chmod(n1, 0o0644);
       setId(efs, tuid);
       await expectError(
-        efs.symlink('test', path.join(n1, n2)),
+        efs.symlink('test', utils.pathJoin(n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, dp);
-      await efs.symlink('test', path.join(n1, n2));
-      await efs.unlink(path.join(n1, n2));
+      await efs.symlink('test', utils.pathJoin(n1, n2));
+      await efs.unlink(utils.pathJoin(n1, n2));
     });
     test('returns EACCES if the parent directory of the file to be created denies write permission', async () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
 
       setId(efs, tuid);
-      await efs.symlink('test', path.join(n1, n2));
-      await efs.unlink(path.join(n1, n2));
+      await efs.symlink('test', utils.pathJoin(n1, n2));
+      await efs.unlink(utils.pathJoin(n1, n2));
 
       await efs.chmod(n1, 0o0555);
       setId(efs, tuid);
       await expectError(
-        efs.symlink('test', path.join(n1, n2)),
+        efs.symlink('test', utils.pathJoin(n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0755);
-      await efs.symlink('test', path.join(n1, n2));
-      await efs.unlink(path.join(n1, n2));
+      await efs.symlink('test', utils.pathJoin(n1, n2));
+      await efs.unlink(utils.pathJoin(n1, n2));
     });
     test('returns ELOOP if too many symbolic links were encountered in translating the name2 path name', async () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.symlink('test', path.join(n0, 'test')),
+        efs.symlink('test', utils.pathJoin(n0, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.symlink('test', path.join(n1, 'test')),
+        efs.symlink('test', utils.pathJoin(n1, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
@@ -254,9 +253,9 @@ describe(`${EncryptedFS.name} Links`, () => {
     });
     test('returns ENOTDIR if a component of the path prefix is not a directory', async () => {
       await efs.mkdir(n0, { mode: dp });
-      await createFile(efs, 'regular', path.join(n0, n1));
+      await createFile(efs, 'regular', utils.pathJoin(n0, n1));
       await expectError(
-        efs.unlink(path.join(n0, n1, 'test')),
+        efs.unlink(utils.pathJoin(n0, n1, 'test')),
         ErrorEncryptedFSError,
         errno.ENOTDIR,
       );
@@ -271,10 +270,10 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n2));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n2));
       await efs.chmod(n1, 0o0644);
       await expectError(
-        efs.unlink(path.join(n1, n2)),
+        efs.unlink(utils.pathJoin(n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -283,10 +282,10 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.mkdir(n1, { mode: dp });
       await efs.chown(n1, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n2));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n2));
       await efs.chmod(n1, 0o0555);
       await expectError(
-        efs.unlink(path.join(n1, n2)),
+        efs.unlink(utils.pathJoin(n1, n2)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -295,12 +294,12 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.unlink(path.join(n0, 'test')),
+        efs.unlink(utils.pathJoin(n0, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.unlink(path.join(n1, 'test')),
+        efs.unlink(utils.pathJoin(n1, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
@@ -451,15 +450,15 @@ describe(`${EncryptedFS.name} Links`, () => {
       async (type) => {
         if (type !== 'dir' && type !== 'symlink') {
           await efs.mkdir(n0, { mode: dp });
-          await createFile(efs, type as FileTypes, path.join(n0, n1));
+          await createFile(efs, type as FileTypes, utils.pathJoin(n0, n1));
           await expectError(
-            efs.link(path.join(n0, n1, 'test'), path.join(n0, n2)),
+            efs.link(utils.pathJoin(n0, n1, 'test'), utils.pathJoin(n0, n2)),
             ErrorEncryptedFSError,
             errno.ENOTDIR,
           );
-          await createFile(efs, type as FileTypes, path.join(n0, n2));
+          await createFile(efs, type as FileTypes, utils.pathJoin(n0, n2));
           await expectError(
-            efs.link(path.join(n0, n2), path.join(n0, n1, 'test')),
+            efs.link(utils.pathJoin(n0, n2), utils.pathJoin(n0, n1, 'test')),
             ErrorEncryptedFSError,
             errno.ENOTDIR,
           );
@@ -472,24 +471,24 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n3));
-      await efs.link(path.join(n1, n3), path.join(n2, n4));
-      await efs.unlink(path.join(n2, n4));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n3));
+      await efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4));
+      await efs.unlink(utils.pathJoin(n2, n4));
       await efs.chmod(n1, 0o0644);
       await expectError(
-        efs.link(path.join(n1, n3), path.join(n1, n4)),
+        efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n1, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await expectError(
-        efs.link(path.join(n1, n3), path.join(n2, n4)),
+        efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0755);
       await efs.chmod(n2, 0o0644);
       await expectError(
-        efs.link(path.join(n1, n3), path.join(n2, n4)),
+        efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -500,20 +499,20 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.mkdir(n2, { mode: dp });
       await efs.chown(n2, tuid, tuid);
       setId(efs, tuid);
-      await createFile(efs, 'regular', path.join(n1, n3));
+      await createFile(efs, 'regular', utils.pathJoin(n1, n3));
 
-      await efs.link(path.join(n1, n3), path.join(n2, n4));
-      await efs.unlink(path.join(n2, n4));
+      await efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4));
+      await efs.unlink(utils.pathJoin(n2, n4));
 
       await efs.chmod(n2, 0o0555);
       await expectError(
-        efs.link(path.join(n1, n3), path.join(n2, n4)),
+        efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n2, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
       await efs.chmod(n1, 0o0555);
       await expectError(
-        efs.link(path.join(n1, n3), path.join(n1, n4)),
+        efs.link(utils.pathJoin(n1, n3), utils.pathJoin(n1, n4)),
         ErrorEncryptedFSError,
         errno.EACCES,
       );
@@ -522,23 +521,23 @@ describe(`${EncryptedFS.name} Links`, () => {
       await efs.symlink(n0, n1);
       await efs.symlink(n1, n0);
       await expectError(
-        efs.link(path.join(n0, 'test'), n2),
+        efs.link(utils.pathJoin(n0, 'test'), n2),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.link(path.join(n1, 'test'), n2),
+        efs.link(utils.pathJoin(n1, 'test'), n2),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await createFile(efs, 'regular', n2);
       await expectError(
-        efs.link(n2, path.join(n0, 'test')),
+        efs.link(n2, utils.pathJoin(n0, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );
       await expectError(
-        efs.link(n2, path.join(n1, 'test')),
+        efs.link(n2, utils.pathJoin(n1, 'test')),
         ErrorEncryptedFSError,
         errno.ELOOP,
       );

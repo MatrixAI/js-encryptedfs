@@ -1,5 +1,4 @@
 import os from 'os';
-import path from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
@@ -15,7 +14,7 @@ describe('INodeManager Symlink', () => {
   const dbKey: Buffer = utils.generateKeySync(256);
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
-      path.join(os.tmpdir(), 'encryptedfs-test-'),
+      utils.pathJoin(os.tmpdir(), 'encryptedfs-test-'),
     );
     db = await DB.createDB({
       dbPath: `${dataDir}/db`,
