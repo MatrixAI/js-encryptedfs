@@ -1,4 +1,5 @@
 import path from 'path';
+import 'jest-extended'; // Import jest-extended types
 
 declare global {
   namespace NodeJS {
