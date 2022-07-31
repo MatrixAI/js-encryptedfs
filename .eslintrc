@@ -39,7 +39,8 @@
         },
         "block": {
           "exceptions": ["*"]
-        }
+        },
+        "markers": ["/"]
       }
     ],
     "capitalized-comments": [
