@@ -2941,7 +2941,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       // All A, in multiples of 5
-      expect(contents).toMatch(RegExp('^[^A]*((AAAAA)+[^A]*)$'));
+      expect(contents).toMatch(RegExp('^(AAAAA)*$'));
       // Contents length between 0 and 10*5
       expect(contents.length).toBeGreaterThanOrEqual(0);
       expect(contents.length).toBeLessThanOrEqual(50);
@@ -2977,7 +2977,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         { status: 'fulfilled', value: undefined },
       ]);
       // All A, in multiples of 5
-      expect(contents).toMatch(RegExp('^[^A]*((AAAAA)+[^A]*)$'));
+      expect(contents).toMatch(RegExp('^(AAAAA)*$'));
       // Contents length between 0 and 10*5
       expect(contents.length).toBeGreaterThanOrEqual(0);
       expect(contents.length).toBeLessThanOrEqual(50);
