@@ -14,7 +14,6 @@ import {
   CreateDestroyStartStop,
   ready,
 } from '@matrixai/async-init/dist/CreateDestroyStartStop';
-import { Lock, LockBox } from '@matrixai/async-locks';
 import { withF, withG } from '@matrixai/resources';
 import Counter from 'resource-counter';
 import * as inodesUtils from './utils';
@@ -68,7 +67,6 @@ class INodeManager {
   protected iNodeCounter: Counter = new Counter(1);
   protected iNodeAllocations: Map<string, Ref<INodeIndex>> = new Map();
   protected refs: Map<INodeIndex, number> = new Map();
-  protected locks: LockBox<Lock> = new LockBox();
 
   constructor({ db, logger }: { db: DB; logger: Logger }) {
     this.logger = logger;
@@ -208,25 +206,9 @@ class INodeManager {
     ...inos: Array<INodeIndex>
   ): ResourceAcquire<DBTransaction> {
     return async () => {
-      const locksAcquire = this.locks.lock(
-        ...inos.map<[INodeIndex, typeof Lock]>((ino) => [ino, Lock]),
-      );
-      const transactionAcquire = this.db.transaction();
-      const [locksRelease] = await locksAcquire();
-      let transactionRelease, tran;
-      try {
-        [transactionRelease, tran] = await transactionAcquire();
-      } catch (e) {
-        await locksRelease();
-        throw e;
-      }
-      return [
-        async () => {
-          await transactionRelease();
-          await locksRelease();
-        },
-        tran,
-      ];
+      const [transactionRelease, tran] = await this.db.transaction()();
+      await tran!.lock(...inos);
+      return [transactionRelease, tran];
     };
   }
 
@@ -238,13 +220,10 @@ class INodeManager {
     ]
   ): Promise<T> {
     const f = params.pop() as (tran: DBTransaction) => Promise<T>;
-    const lockRequests = (params as Array<INodeIndex>).map<
-      [INodeIndex, typeof Lock]
-    >((ino) => [ino, Lock]);
-    return withF(
-      [this.db.transaction(), this.locks.lock(...lockRequests)],
-      ([tran]) => f(tran),
-    );
+    return await this.db.withTransactionF(async (tran) => {
+      await tran.lock(...(params as Array<INodeIndex>));
+      return f(tran);
+    });
   }
 
   @ready(new inodesErrors.ErrorINodeManagerNotRunning())
@@ -257,13 +236,10 @@ class INodeManager {
     const g = params.pop() as (
       tran: DBTransaction,
     ) => AsyncGenerator<T, TReturn, TNext>;
-    const lockRequests = (params as Array<INodeIndex>).map<
-      [INodeIndex, typeof Lock]
-    >((ino) => [ino, Lock]);
-    return withG(
-      [this.db.transaction(), this.locks.lock(...lockRequests)],
-      ([tran]) => g(tran),
-    );
+    return this.db.withTransactionG(async function* (tran) {
+      await tran.lock(...(params as Array<INodeIndex>));
+      return yield* g(tran);
+    });
   }
 
   @ready(new inodesErrors.ErrorINodeManagerNotRunning())
@@ -287,17 +263,12 @@ class INodeManager {
     if (typeof params[0] !== 'number') {
       navigated = params.shift() as Readonly<{ dir: INodeIndex; name: string }>;
     }
-    const lockRequests = (params as Array<INodeIndex>).map<
-      [INodeIndex, typeof Lock]
-    >((ino) => [ino, Lock]);
     return withF(
-      [
-        this.inoAllocation(navigated),
-        ([ino]: [INodeIndex]) =>
-          this.locks.lock([ino, Lock], ...lockRequests)(),
-        this.db.transaction(),
-      ],
-      ([ino, _, tran]) => f(ino, tran),
+      [this.inoAllocation(navigated), this.db.transaction()],
+      async ([ino, tran]) => {
+        await tran.lock(ino, ...(params as Array<INodeIndex>));
+        return f(ino, tran);
+      },
     );
   }
 
@@ -328,17 +299,12 @@ class INodeManager {
     if (typeof params[0] !== 'number') {
       navigated = params.shift() as Readonly<{ dir: INodeIndex; name: string }>;
     }
-    const lockRequests = (params as Array<INodeIndex>).map<
-      [INodeIndex, typeof Lock]
-    >((ino) => [ino, Lock]);
     return withG(
-      [
-        this.inoAllocation(navigated),
-        ([ino]: [INodeIndex]) =>
-          this.locks.lock([ino, Lock], ...lockRequests)(),
-        this.db.transaction(),
-      ],
-      ([ino, _, tran]) => g(ino, tran),
+      [this.inoAllocation(navigated), this.db.transaction()],
+      async function* ([ino, tran]) {
+        await tran.lock(ino, ...(params as Array<INodeIndex>));
+        return yield* g(ino, tran);
+      },
     );
   }
 
