@@ -723,6 +723,7 @@ class EncryptedFS {
             dstPath,
             dstFlags,
             srcINodeStat.mode,
+            tran,
           );
           const dstINode = dstFd.ino;
           const dstINodeType = (await this.iNodeMgr.get(dstINode, tran))?.type;
@@ -1893,6 +1894,7 @@ class EncryptedFS {
     path: Path,
     flags: string | number,
     mode: number = permissions.DEFAULT_FILE_PERM,
+    tran?: DBTransaction,
   ): Promise<[FileDescriptor, FdIndex]> {
     path = this.getPath(path);
     if (typeof flags === 'string') {
@@ -1992,22 +1994,22 @@ class EncryptedFS {
     // It must continue the loop, by restarting the loop with an inherited transaction context
     // This ensures that handling the existing inode is consistent
     let raced = false;
-    let tran: DBTransaction | null = null;
-    let tranRelease: ResourceRelease | null = null;
+    let _tran: DBTransaction | undefined = tran;
+    let _tranRelease: ResourceRelease | undefined = undefined;
     // Loop necessary due to following symlinks and optional `O_CREAT` file creation
     while (true) {
       if (navigated.target != null) {
         // Handle existing target
-        if (tran == null || tranRelease == null) {
+        if (_tran == null && _tranRelease == null) {
           const tranAcquire = this.iNodeMgr.transaction(navigated.target);
-          [tranRelease, tran] = (await tranAcquire()) as [
+          [_tranRelease, _tran] = (await tranAcquire()) as [
             ResourceRelease,
             DBTransaction,
           ];
         }
         let e: Error | undefined;
         try {
-          const target = await this.iNodeMgr.get(navigated.target, tran);
+          const target = await this.iNodeMgr.get(navigated.target, _tran);
           if (target == null) {
             // Try to find the target again
             navigated = await this.navigate(path, false);
@@ -2033,7 +2035,7 @@ class EncryptedFS {
               path,
               // Only preserve the transaction context if it was inherited
               // from a coalesced call, as it would already have be for `navigated.dir`
-              raced ? tran : undefined,
+              raced ? _tran : undefined,
             );
             // Restart the opening procedure with the new target
             continue;
@@ -2073,26 +2075,28 @@ class EncryptedFS {
               flags & constants.O_TRUNC &&
               flags & (constants.O_WRONLY | constants.O_RDWR)
             ) {
-              await this.iNodeMgr.fileClearData(navigated.target, tran);
+              await this.iNodeMgr.fileClearData(navigated.target, _tran);
               await this.iNodeMgr.fileSetBlocks(
                 navigated.target,
                 Buffer.alloc(0),
                 this.blockSize,
                 undefined,
-                tran,
+                _tran,
               );
             }
             // Terminates loop, creates file descriptor
-            return await createFd(flags, navigated.target, tran!);
+            return await createFd(flags, navigated.target, _tran!);
           }
         } catch (e_) {
           e = e_;
           throw e_;
         } finally {
-          await tranRelease(e);
-          // Clear the transaction variables
-          tran = null;
-          tranRelease = null;
+          if (_tranRelease != null) {
+            await _tranRelease(e);
+            // Clear the transaction variables
+            _tran = undefined;
+            _tranRelease = undefined;
+          }
         }
       } else {
         // Handle non-existing target
@@ -2109,15 +2113,17 @@ class EncryptedFS {
           ResourceRelease,
           INodeIndex,
         ];
-        const tranAcquire = this.iNodeMgr.transaction(ino, navigated.dir);
-        [tranRelease, tran] = (await tranAcquire()) as [
-          ResourceRelease,
-          DBTransaction,
-        ];
+        if (_tran == null && _tranRelease == null) {
+          const tranAcquire = this.iNodeMgr.transaction(ino, navigated.dir);
+          [_tranRelease, _tran] = (await tranAcquire()) as [
+            ResourceRelease,
+            DBTransaction,
+          ];
+        }
         // INode may be created while waiting for lock
         // Transaction is maintained and not released
         // This is to ensure that the already created locks are held
-        if ((await this.iNodeMgr.get(ino, tran)) != null) {
+        if ((await this.iNodeMgr.get(ino, _tran)) != null) {
           navigated.target = ino;
           await inoRelease();
           raced = true;
@@ -2127,7 +2133,7 @@ class EncryptedFS {
         try {
           const navigatedDirStat = await this.iNodeMgr.statGet(
             navigated.dir,
-            tran,
+            _tran,
           );
           // Cannot create if the current directory has been unlinked from its parent directory
           if (navigatedDirStat.nlink < 2) {
@@ -2153,25 +2159,27 @@ class EncryptedFS {
             },
             this.blockSize,
             undefined,
-            tran,
+            _tran,
           );
           await this.iNodeMgr.dirSetEntry(
             navigated.dir,
             navigated.name,
             ino!,
-            tran,
+            _tran,
           );
           // Terminates loop, creates file descriptor
-          return await createFd(flags, ino!, tran!);
+          return await createFd(flags, ino!, _tran!);
         } catch (e_) {
           e = e_;
           throw e_;
         } finally {
-          await tranRelease(e);
           await inoRelease(e);
-          // Clear the transaction variables
-          tran = null;
-          tranRelease = null;
+          if (_tranRelease != null) {
+            await _tranRelease(e);
+            // Clear the transaction variables
+            _tran = undefined;
+            _tranRelease = undefined;
+          }
         }
       }
     }
