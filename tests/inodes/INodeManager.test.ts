@@ -2,7 +2,7 @@ import os from 'os';
 import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import { DB } from '@matrixai/db';
+import { DB, errors as dbErrors } from '@matrixai/db';
 import INodeManager from '@/inodes/INodeManager';
 import * as utils from '@/utils';
 import * as permissions from '@/permissions';
@@ -27,7 +27,6 @@ describe('INodeManager', () => {
           decrypt: utils.decrypt,
         },
       },
-      // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
       logger,
     });
   });
@@ -64,7 +63,6 @@ describe('INodeManager', () => {
           decrypt: utils.decrypt,
         },
       },
-      // @ts-ignore - version of js-logger is incompatible (remove when js-db updates to 5.* here)
       logger,
     });
     iNodeMgr = await INodeManager.createINodeManager({
@@ -89,16 +87,24 @@ describe('INodeManager', () => {
     await iNodeMgr.withTransactionF(async (tran) => {
       await tran.put([...iNodeMgr.mgrDbPath, 'test'], 0);
     });
-    await Promise.all([
-      iNodeMgr.withTransactionF(async (tran) => {
-        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
-        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
-      }),
-      iNodeMgr.withTransactionF(async (tran) => {
-        const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
-        await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
-      }),
-    ]);
+    await expect(
+      Promise.all([
+        iNodeMgr.withTransactionF(async (tran) => {
+          const num = (await tran.get<number>([
+            ...iNodeMgr.mgrDbPath,
+            'test',
+          ]))!;
+          await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
+        }),
+        iNodeMgr.withTransactionF(async (tran) => {
+          const num = (await tran.get<number>([
+            ...iNodeMgr.mgrDbPath,
+            'test',
+          ]))!;
+          await tran.put([...iNodeMgr.mgrDbPath, 'test'], num + 1);
+        }),
+      ]),
+    ).rejects.toThrow(dbErrors.ErrorDBTransactionConflict);
     await iNodeMgr.withTransactionF(async (tran) => {
       const num = (await tran.get<number>([...iNodeMgr.mgrDbPath, 'test']))!;
       // Race condition clobbers the counter
