@@ -121,6 +121,7 @@ class ReadStream extends Readable {
     if (this._fd) {
       this._fs.close(this._fd, (err_) => {
         this._error(err_ || err);
+        callback(err_);
       });
     } else {
       callback(err);
