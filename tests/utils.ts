@@ -1,4 +1,5 @@
 import type EncryptedFS from '@/EncryptedFS';
+import type * as fc from 'fast-check';
 import * as constants from '@/constants';
 
 /**
@@ -101,6 +102,20 @@ function setId(efs: EncryptedFS, uid: number, gid?: number) {
   efs.gid = gid ?? uid;
 }
 
-export { expectError, expectReason, createFile, supportedTypes, sleep, setId };
+const scheduleCall = <T>(
+  s: fc.Scheduler,
+  f: () => Promise<T>,
+  label: string = 'scheduled call',
+) => s.schedule(Promise.resolve(label)).then(() => f());
+
+export {
+  expectError,
+  expectReason,
+  createFile,
+  supportedTypes,
+  sleep,
+  setId,
+  scheduleCall,
+};
 
 export type { FileTypes };

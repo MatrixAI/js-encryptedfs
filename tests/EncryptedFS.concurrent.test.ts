@@ -13,24 +13,17 @@ import * as utils from '@/utils';
 import * as constants from '@/constants';
 import INodeManager from '@/inodes/INodeManager';
 import { promise } from '@/utils';
-import { expectError, expectReason, sleep } from './utils';
+import { expectError, expectReason, sleep, scheduleCall } from './utils';
 
 describe(`${EncryptedFS.name} Concurrency`, () => {
   const logger = new Logger(`${EncryptedFS.name} Concurrency`, LogLevel.WARN, [
     new StreamHandler(),
   ]);
   const dbKey: Buffer = utils.generateKeySync(256);
-  const interruptAfterTimeLimit = globalThis.defaultTimeout - 2000;
   let dataDir: string;
   let db: DB;
   let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
-
-  const scheduleCall = <T>(
-    s: fc.Scheduler,
-    f: () => Promise<T>,
-    label: string = 'scheduled call',
-  ) => s.schedule(Promise.resolve(label)).then(() => f());
 
   const totalINodes = async (iNodeMgr: INodeManager) => {
     let counter = 0;
@@ -121,7 +114,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.open', async () => {
@@ -335,7 +328,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             await efs.close(fd);
           }
         }),
-        { numRuns: 50, interruptAfterTimeLimit },
+        {
+          numRuns: 50,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.write on the same file descriptor', async () => {
@@ -356,7 +352,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           );
           await efs.close(fd);
         }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.writeFile', async () => {
@@ -379,7 +378,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           );
           expect(await totalINodes(iNodeMgr)).toEqual(2);
         }),
-        { numRuns: 50, interruptAfterTimeLimit },
+        {
+          numRuns: 50,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.appendFile', async () => {
@@ -408,7 +410,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             await efs.readFile('test', { encoding: 'utf-8' }),
           );
         }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.fallocate, EncryptedFS.writeFile, EncryptedFS.write and EncryptedFS.createWriteStream ', async () => {
@@ -451,7 +456,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.fallocate and EncryptedFS.writeFile', async () => {
@@ -795,7 +800,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.truncate and EncryptedFS.writeFile', async () => {
@@ -1148,7 +1153,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.ftruncate and EncryptedFS.writeFile', async () => {
@@ -1484,7 +1489,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.utimes and EncryptedFS.writeFile', async () => {
@@ -1694,7 +1699,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.lseek and EncryptedFS.writeFile', async () => {
@@ -2126,7 +2131,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.createReadStream and EncryptedFS.createWriteStream', async () => {
@@ -2632,7 +2637,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.unlink and EncryptedFS.writeFile', async () => {
@@ -2914,7 +2919,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.appendFIle and EncryptedFS.writeFile', async () => {
@@ -3264,7 +3269,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.copyFile and EncryptedFS.writeFile', async () => {
@@ -3604,7 +3609,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.read and EncryptedFS.write', async () => {
@@ -3645,7 +3653,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.read and EncryptedFS.write with different fd', async () => {
@@ -3819,7 +3830,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.mkdir', async () => {
@@ -3921,7 +3932,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.readdir and EncryptedFS.rmdir', async () => {
@@ -4294,7 +4305,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
   });
@@ -4331,7 +4345,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { interruptAfterTimeLimit },
+        { interruptAfterTimeLimit: globalThis.defaultTimeout - 2000 },
       );
     });
     test('EncryptedFS.symlink and EncryptedFS.symlink', async () => {
@@ -4568,7 +4582,10 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             // Cleaning up
             await efs.rmdir('dir', { recursive: true });
           }),
-        { numRuns: 20, interruptAfterTimeLimit },
+        {
+          numRuns: 20,
+          interruptAfterTimeLimit: globalThis.defaultTimeout - 2000,
+        },
       );
     });
     test('EncryptedFS.link and EncryptedFS.link', async () => {
