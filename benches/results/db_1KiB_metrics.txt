@@ -1,29 +1,29 @@
 # TYPE db_1KiB_ops gauge
-db_1KiB_ops{name="get 1 KiB of data"} 5962
-db_1KiB_ops{name="put 1 KiB of data"} 3005
-db_1KiB_ops{name="put zero data"} 3814
-db_1KiB_ops{name="put zero data then del"} 3500
-db_1KiB_ops{name="get 1 KiB of data with workers"} 733
-db_1KiB_ops{name="put 1 KiB of data with workers"} 644
-db_1KiB_ops{name="put zero data with workers"} 692
-db_1KiB_ops{name="put zero data then del with workers"} 686
+db_1KiB_ops{name="get 1 KiB of data"} 6300
+db_1KiB_ops{name="put 1 KiB of data"} 3018
+db_1KiB_ops{name="put zero data"} 3884
+db_1KiB_ops{name="put zero data then del"} 3031
+db_1KiB_ops{name="get 1 KiB of data with workers"} 684
+db_1KiB_ops{name="put 1 KiB of data with workers"} 585
+db_1KiB_ops{name="put zero data with workers"} 618
+db_1KiB_ops{name="put zero data then del with workers"} 639
 
 # TYPE db_1KiB_margin gauge
-db_1KiB_margin{name="get 1 KiB of data"} 1.01
-db_1KiB_margin{name="put 1 KiB of data"} 0.79
-db_1KiB_margin{name="put zero data"} 0.73
-db_1KiB_margin{name="put zero data then del"} 0.85
-db_1KiB_margin{name="get 1 KiB of data with workers"} 0.5
-db_1KiB_margin{name="put 1 KiB of data with workers"} 0.76
-db_1KiB_margin{name="put zero data with workers"} 0.75
-db_1KiB_margin{name="put zero data then del with workers"} 0.46
+db_1KiB_margin{name="get 1 KiB of data"} 2.96
+db_1KiB_margin{name="put 1 KiB of data"} 1.23
+db_1KiB_margin{name="put zero data"} 1.11
+db_1KiB_margin{name="put zero data then del"} 3.87
+db_1KiB_margin{name="get 1 KiB of data with workers"} 2.89
+db_1KiB_margin{name="put 1 KiB of data with workers"} 1.91
+db_1KiB_margin{name="put zero data with workers"} 1.93
+db_1KiB_margin{name="put zero data then del with workers"} 1.8
 
 # TYPE db_1KiB_samples counter
-db_1KiB_samples{name="get 1 KiB of data"} 82
-db_1KiB_samples{name="put 1 KiB of data"} 84
-db_1KiB_samples{name="put zero data"} 88
-db_1KiB_samples{name="put zero data then del"} 87
-db_1KiB_samples{name="get 1 KiB of data with workers"} 87
-db_1KiB_samples{name="put 1 KiB of data with workers"} 82
-db_1KiB_samples{name="put zero data with workers"} 87
-db_1KiB_samples{name="put zero data then del with workers"} 88
+db_1KiB_samples{name="get 1 KiB of data"} 80
+db_1KiB_samples{name="put 1 KiB of data"} 80
+db_1KiB_samples{name="put zero data"} 82
+db_1KiB_samples{name="put zero data then del"} 71
+db_1KiB_samples{name="get 1 KiB of data with workers"} 81
+db_1KiB_samples{name="put 1 KiB of data with workers"} 81
+db_1KiB_samples{name="put zero data with workers"} 80
+db_1KiB_samples{name="put zero data then del with workers"} 81

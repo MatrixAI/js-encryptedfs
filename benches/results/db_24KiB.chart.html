@@ -28,7 +28,7 @@
   </head>
   <body>
     <div class="container">
-      <canvas id="chart1658988391621" width="16" height="9"></canvas>
+      <canvas id="chart1660891930691" width="16" height="9"></canvas>
     </div>
     <script>
       const format = (num) => {
@@ -51,18 +51,18 @@
           chunked.map((chunk) => chunk.join('')).join(' ') + fractionStr
         )
       }
-      const ctx1658988391621 = document
-        .getElementById('chart1658988391621')
+      const ctx1660891930691 = document
+        .getElementById('chart1660891930691')
         .getContext('2d')
-      const chart1658988391621 = new Chart(ctx1658988391621, {
+      const chart1660891930691 = new Chart(ctx1660891930691, {
         type: 'bar',
         data: {
           labels: ["get 24 KiB of data","put 24 KiB of data","get 24 KiB of data with workers","put 24 KiB of data with workers"],
           datasets: [
             {
-              data: [599,540,354,306],
-              backgroundColor: ["hsl(120, 85%, 55%)","hsl(108.18, 85%, 55%)","hsl(70.92, 85%, 55%)","hsl(61.308, 85%, 55%)"],
-              borderColor: ["hsl(120, 85%, 55%)","hsl(108.18, 85%, 55%)","hsl(70.92, 85%, 55%)","hsl(61.308, 85%, 55%)"],
+              data: [637,570,357,314],
+              backgroundColor: ["hsl(120, 85%, 55%)","hsl(107.376, 85%, 55%)","hsl(67.248, 85%, 55%)","hsl(59.148, 85%, 55%)"],
+              borderColor: ["hsl(120, 85%, 55%)","hsl(107.376, 85%, 55%)","hsl(67.248, 85%, 55%)","hsl(59.148, 85%, 55%)"],
               borderWidth: 2,
             },
           ],
