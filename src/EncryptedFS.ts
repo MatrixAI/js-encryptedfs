@@ -3486,7 +3486,7 @@ class EncryptedFS {
         DBTransaction,
       ];
     }
-    const curDirData = this.iNodeMgr.get(curdir, tran);
+    const curDirData = await this.iNodeMgr.get(curdir, tran);
     if (curDirData == null) {
       throw new errors.ErrorEncryptedFSError({
         errno: errno.ENOENT,
