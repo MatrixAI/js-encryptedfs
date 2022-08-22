@@ -3258,11 +3258,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             await s.waitAll();
             // Expecting no transaction errors
             await prom;
-            const stat = await efs.stat(path1);
-            expect(stat.size).toEqual(100);
-            const contents = await efs.readFile(path1);
-            expect(contents.length).toBeGreaterThanOrEqual(10);
-            expect(contents.length).toBeLessThanOrEqual(100);
 
             await efs.close(fd);
           })
