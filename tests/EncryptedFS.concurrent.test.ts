@@ -437,7 +437,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream',
@@ -660,7 +660,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -698,7 +698,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -739,7 +739,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -782,7 +782,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream',
@@ -1021,7 +1021,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -1057,7 +1057,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -1094,7 +1094,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -1135,7 +1135,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream',
@@ -1374,7 +1374,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -1410,7 +1410,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -1447,7 +1447,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2052,7 +2052,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                     readStream.on('data', (data) => {
                       readData += data.toString();
                     });
-                    readStream.on('end', () => {
+                    readStream.on('close', () => {
                       resolve(readData);
                     });
                     readStream.on('error', (e) => {
@@ -2072,7 +2072,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                     readStream.on('data', (data) => {
                       readData += data.toString();
                     });
-                    readStream.on('end', () => {
+                    readStream.on('close', () => {
                       resolve(readData);
                     });
                     readStream.on('error', (e) => {
@@ -2092,7 +2092,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream 1',
@@ -2106,7 +2106,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream 2',
@@ -2149,7 +2149,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2165,7 +2165,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2196,7 +2196,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2212,7 +2212,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2248,7 +2248,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2289,7 +2289,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2319,7 +2319,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2361,7 +2361,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2405,7 +2405,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2442,7 +2442,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2476,7 +2476,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
             readStream.on('data', (data) => {
               readData += data.toString();
             });
-            readStream.on('end', () => {
+            readStream.on('close', () => {
               resolve(readData);
             });
             readStream.on('error', (e) => {
@@ -2509,7 +2509,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
         (async () => {
@@ -2519,7 +2519,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2553,7 +2553,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
         (async () => {
@@ -2563,7 +2563,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2621,7 +2621,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream',
@@ -2812,7 +2812,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2847,7 +2847,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -2899,7 +2899,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'readStream',
@@ -3124,7 +3124,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -3160,7 +3160,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -3197,7 +3197,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -3249,7 +3249,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
                   }
                   writeStream.end();
                   const endProm = promise<void>();
-                  writeStream.on('finish', () => endProm.resolveP());
+                  writeStream.on('close', () => endProm.resolveP());
                   await endProm.p;
                 },
                 'writeStream',
@@ -3476,7 +3476,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -3511,7 +3511,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
@@ -3548,7 +3548,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
           }
           writeStream.end();
           const endProm = promise<void>();
-          writeStream.on('finish', () => endProm.resolveP());
+          writeStream.on('close', () => endProm.resolveP());
           await endProm.p;
         })(),
       ]);
