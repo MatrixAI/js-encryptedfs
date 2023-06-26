@@ -207,7 +207,7 @@ class INodeManager {
   ): ResourceAcquire<DBTransaction> {
     return async () => {
       const [transactionRelease, tran] = await this.db.transaction()();
-      await tran!.lock(...inos);
+      await tran!.lock(...inos.map((i) => i.toString()));
       return [transactionRelease, tran];
     };
   }
@@ -221,7 +221,9 @@ class INodeManager {
   ): Promise<T> {
     const f = params.pop() as (tran: DBTransaction) => Promise<T>;
     return await this.db.withTransactionF(async (tran) => {
-      await tran.lock(...(params as Array<INodeIndex>));
+      await tran.lock(
+        ...(params as Array<INodeIndex>).map((i) => i.toString()),
+      );
       return f(tran);
     });
   }
@@ -237,7 +239,9 @@ class INodeManager {
       tran: DBTransaction,
     ) => AsyncGenerator<T, TReturn, TNext>;
     return this.db.withTransactionG(async function* (tran) {
-      await tran.lock(...(params as Array<INodeIndex>));
+      await tran.lock(
+        ...(params as Array<INodeIndex>).map((i) => i.toString()),
+      );
       return yield* g(tran);
     });
   }
@@ -266,7 +270,10 @@ class INodeManager {
     return withF(
       [this.inoAllocation(navigated), this.db.transaction()],
       async ([ino, tran]) => {
-        await tran.lock(ino, ...(params as Array<INodeIndex>));
+        await tran.lock(
+          ino.toString(),
+          ...(params as Array<INodeIndex>).map((i) => i.toString()),
+        );
         return f(ino, tran);
       },
     );
@@ -302,7 +309,10 @@ class INodeManager {
     return withG(
       [this.inoAllocation(navigated), this.db.transaction()],
       async function* ([ino, tran]) {
-        await tran.lock(ino, ...(params as Array<INodeIndex>));
+        await tran.lock(
+          ino.toString(),
+          ...(params as Array<INodeIndex>).map((i) => i.toString()),
+        );
         return yield* g(ino, tran);
       },
     );

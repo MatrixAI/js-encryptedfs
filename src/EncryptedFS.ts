@@ -1,4 +1,4 @@
-import type { DBTransaction } from '@matrixai/db';
+import type { Crypto, DBTransaction } from '@matrixai/db';
 import type {
   Navigated,
   ParsedPath,
@@ -93,17 +93,24 @@ class EncryptedFS {
     logger?: Logger;
     fresh?: boolean;
   }): Promise<EncryptedFS> {
+    let crypto:
+      | {
+          key: Buffer;
+          ops: Crypto;
+        }
+      | undefined;
     if (db == null) {
+      crypto = {
+        key: dbKey!,
+        ops: {
+          encrypt: utils.encrypt,
+          decrypt: utils.decrypt,
+        },
+      };
       try {
         db = await DB.createDB({
           dbPath: dbPath!,
-          crypto: {
-            key: dbKey!,
-            ops: {
-              encrypt: utils.encrypt,
-              decrypt: utils.decrypt,
-            },
-          },
+          crypto,
           logger: logger.getChild(DB.name),
           fresh,
         });
@@ -158,6 +165,7 @@ class EncryptedFS {
     fdMgr = fdMgr ?? new FileDescriptorManager(iNodeMgr);
     const efs = new this({
       db,
+      crypto,
       iNodeMgr,
       fdMgr,
       rootIno,
@@ -175,6 +183,14 @@ class EncryptedFS {
   public readonly blockSize: number;
 
   protected db: DB;
+  /**
+   * If crypto is created and passed in.
+   * This means the DB object was created by ourselves.
+   * This means EFS will manage the lifecycle of the encapsulated DB.
+   * However if the DB was passed in from the outside.
+   * Then EFS will not manage the lifecycle of the DB.
+   */
+  protected crypto?: { key: Buffer; ops: Crypto };
   protected iNodeMgr: INodeManager;
   protected fdMgr: FileDescriptorManager;
   protected logger: Logger;
@@ -186,6 +202,7 @@ class EncryptedFS {
 
   constructor({
     db,
+    crypto,
     iNodeMgr,
     fdMgr,
     rootIno,
@@ -196,6 +213,10 @@ class EncryptedFS {
     chrootParent,
   }: {
     db: DB;
+    crypto?: {
+      key: Buffer;
+      ops: Crypto;
+    };
     iNodeMgr: INodeManager;
     fdMgr: FileDescriptorManager;
     rootIno: INodeIndex;
@@ -207,6 +228,7 @@ class EncryptedFS {
   }) {
     this.logger = logger;
     this.db = db;
+    this.crypto = crypto;
     this.iNodeMgr = iNodeMgr;
     this.fdMgr = fdMgr;
     this.rootIno = rootIno;
@@ -236,7 +258,9 @@ class EncryptedFS {
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     if (this.chrootParent == null) {
-      await this.db.start({ fresh });
+      if (this.crypto != null) {
+        await this.db.start({ crypto: this.crypto, fresh });
+      }
       await this.iNodeMgr.start({ fresh });
     } else {
       // If chrooted instance, add itself to the chroots set
@@ -252,7 +276,9 @@ class EncryptedFS {
         await efsChrooted.stop();
       }
       await this.iNodeMgr.stop();
-      await this.db.stop();
+      if (this.crypto != null) {
+        await this.db.stop();
+      }
     } else {
       // If chrooted instance, delete itself from the chroots set
       this.chroots.delete(this);
@@ -263,10 +289,13 @@ class EncryptedFS {
   public async destroy(): Promise<void> {
     this.logger.info(`Destroying ${this.constructor.name}`);
     if (this.chrootParent == null) {
-      // No need to destroy with `this.iNodeMgr.destroy()`
-      // It would require restarting the DB
-      // It is sufficient to only destroy the database
-      await this.db.destroy();
+      if (this.crypto != null) {
+        await this.db.destroy();
+      } else {
+        // If it is not an encapsulated DB instance,
+        // then we only clear the inodes
+        await this.iNodeMgr.destroy();
+      }
     }
     // No destruction procedures for chrooted instances
     this.logger.info(`Destroyed ${this.constructor.name}`);
@@ -320,7 +349,9 @@ class EncryptedFS {
       });
       // Chrooted EFS shares all of the dependencies
       // This means the dependencies are already in running state
-      const efsChrooted = new EncryptedFS({
+      const efsChrooted = new (this.constructor as new (
+        ...params: ConstructorParameters<typeof EncryptedFS>
+      ) => this)({
         db: this.db,
         iNodeMgr: this.iNodeMgr,
         fdMgr: this.fdMgr,

@@ -1,6 +1,5 @@
 import type { INodeIndex } from '../inodes/types';
 import type { FdIndex } from './types';
-
 import type { INodeManager } from '../inodes';
 import Counter from 'resource-counter';
 import FileDescriptor from './FileDescriptor';
