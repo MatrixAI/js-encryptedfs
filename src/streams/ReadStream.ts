@@ -3,9 +3,7 @@ import type { OptionsStream } from './types';
 import type { Callback } from '../types';
 import type { FdIndex } from '../fd/types';
 import type { EncryptedFS } from '../';
-
 import { Readable } from 'readable-stream';
-
 import * as permissions from '../permissions';
 
 class ReadStream extends Readable {

@@ -1,5 +1,4 @@
 import type { EFSWorkerManagerInterface, EFSWorkerModule } from '@/types';
-
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { WorkerManager } from '@matrixai/workers';
 import { spawn, Worker, Transfer } from 'threads';

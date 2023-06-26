@@ -1,17 +1,17 @@
 # TYPE crypto_24KiB_ops gauge
-crypto_24KiB_ops{name="encrypt 24 KiB of data"} 576
-crypto_24KiB_ops{name="decrypt 24 KiB of data"} 300
-crypto_24KiB_ops{name="encrypt 24 KiB of data with workers"} 218
-crypto_24KiB_ops{name="decrypt 24 KiB of data with workers"} 219
+crypto_24KiB_ops{name="encrypt 24 KiB of data"} 646
+crypto_24KiB_ops{name="decrypt 24 KiB of data"} 711
+crypto_24KiB_ops{name="encrypt 24 KiB of data with workers"} 337
+crypto_24KiB_ops{name="decrypt 24 KiB of data with workers"} 386
 
 # TYPE crypto_24KiB_margin gauge
-crypto_24KiB_margin{name="encrypt 24 KiB of data"} 2.09
-crypto_24KiB_margin{name="decrypt 24 KiB of data"} 12.31
-crypto_24KiB_margin{name="encrypt 24 KiB of data with workers"} 4.85
-crypto_24KiB_margin{name="decrypt 24 KiB of data with workers"} 6.59
+crypto_24KiB_margin{name="encrypt 24 KiB of data"} 1.15
+crypto_24KiB_margin{name="decrypt 24 KiB of data"} 0.38
+crypto_24KiB_margin{name="encrypt 24 KiB of data with workers"} 0.77
+crypto_24KiB_margin{name="decrypt 24 KiB of data with workers"} 1.47
 
 # TYPE crypto_24KiB_samples counter
-crypto_24KiB_samples{name="encrypt 24 KiB of data"} 81
-crypto_24KiB_samples{name="decrypt 24 KiB of data"} 47
-crypto_24KiB_samples{name="encrypt 24 KiB of data with workers"} 73
-crypto_24KiB_samples{name="decrypt 24 KiB of data with workers"} 71
+crypto_24KiB_samples{name="encrypt 24 KiB of data"} 85
+crypto_24KiB_samples{name="decrypt 24 KiB of data"} 89
+crypto_24KiB_samples{name="encrypt 24 KiB of data with workers"} 87
+crypto_24KiB_samples{name="decrypt 24 KiB of data with workers"} 85

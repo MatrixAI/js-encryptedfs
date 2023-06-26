@@ -25,7 +25,7 @@ mkShell {
     mkdir --parents "$(pwd)/tmp"
 
     # Built executables and NPM executables
-    export PATH="$(pwd)/dist/bin:$(npm bin):$PATH"
+    export PATH="$(pwd)/dist/bin:$(npm root)/.bin:$PATH"
 
     npm install --ignore-scripts
 

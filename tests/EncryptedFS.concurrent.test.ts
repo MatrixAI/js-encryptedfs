@@ -4037,7 +4037,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
         results.every((result) => {
           return (
             result.status === 'fulfilled' &&
-            (result.value === [] || result.value === undefined)
+            ((Array.isArray(result.value) && result.value.length === 0) ||
+              result.value === undefined)
           );
         })
       ) {
