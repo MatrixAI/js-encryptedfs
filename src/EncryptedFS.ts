@@ -99,6 +99,7 @@ class EncryptedFS {
           ops: Crypto;
         }
       | undefined;
+    let dbOwned = false;
     if (db == null) {
       crypto = {
         key: dbKey!,
@@ -122,14 +123,17 @@ class EncryptedFS {
         }
         throw e;
       }
+      dbOwned = true;
     }
-    iNodeMgr =
-      iNodeMgr ??
-      (await INodeManager.createINodeManager({
+    let iNodeMgrOwned = false;
+    if (iNodeMgr == null) {
+      iNodeMgr = await INodeManager.createINodeManager({
         db,
         logger: logger.getChild(INodeManager.name),
         fresh,
-      }));
+      });
+      iNodeMgrOwned = true;
+    }
     const rootIno = await iNodeMgr.withNewINodeTransactionF(
       async (rootIno, tran) => {
         try {
@@ -165,8 +169,10 @@ class EncryptedFS {
     fdMgr = fdMgr ?? new FileDescriptorManager(iNodeMgr);
     const efs = new this({
       db,
+      dbOwned,
       crypto,
       iNodeMgr,
+      iNodeMgrOwned,
       fdMgr,
       rootIno,
       blockSize,
@@ -183,15 +189,10 @@ class EncryptedFS {
   public readonly blockSize: number;
 
   protected db: DB;
-  /**
-   * If crypto is created and passed in.
-   * This means the DB object was created by ourselves.
-   * This means EFS will manage the lifecycle of the encapsulated DB.
-   * However if the DB was passed in from the outside.
-   * Then EFS will not manage the lifecycle of the DB.
-   */
+  protected dbOwned: boolean;
   protected crypto?: { key: Buffer; ops: Crypto };
   protected iNodeMgr: INodeManager;
+  protected iNodeMgrOwned: boolean;
   protected fdMgr: FileDescriptorManager;
   protected logger: Logger;
   protected rootIno: INodeIndex;
@@ -201,9 +202,11 @@ class EncryptedFS {
   protected chrootParent?: EncryptedFS;
 
   constructor({
-    db,
     crypto,
+    db,
+    dbOwned,
     iNodeMgr,
+    iNodeMgrOwned,
     fdMgr,
     rootIno,
     blockSize,
@@ -212,12 +215,14 @@ class EncryptedFS {
     chroots = new Set(),
     chrootParent,
   }: {
-    db: DB;
     crypto?: {
       key: Buffer;
       ops: Crypto;
     };
+    db: DB;
+    dbOwned: boolean;
     iNodeMgr: INodeManager;
+    iNodeMgrOwned: boolean;
     fdMgr: FileDescriptorManager;
     rootIno: INodeIndex;
     blockSize: number;
@@ -227,9 +232,11 @@ class EncryptedFS {
     chrootParent?: EncryptedFS;
   }) {
     this.logger = logger;
-    this.db = db;
     this.crypto = crypto;
+    this.db = db;
+    this.dbOwned = dbOwned;
     this.iNodeMgr = iNodeMgr;
+    this.iNodeMgrOwned = iNodeMgrOwned;
     this.fdMgr = fdMgr;
     this.rootIno = rootIno;
     this.blockSize = blockSize;
@@ -258,10 +265,12 @@ class EncryptedFS {
   } = {}): Promise<void> {
     this.logger.info(`Starting ${this.constructor.name}`);
     if (this.chrootParent == null) {
-      if (this.crypto != null) {
+      if (this.dbOwned) {
         await this.db.start({ crypto: this.crypto, fresh });
       }
-      await this.iNodeMgr.start({ fresh });
+      if (this.iNodeMgrOwned) {
+        await this.iNodeMgr.start({ fresh });
+      }
     } else {
       // If chrooted instance, add itself to the chroots set
       this.chroots.add(this);
@@ -275,8 +284,10 @@ class EncryptedFS {
       for (const efsChrooted of this.chroots) {
         await efsChrooted.stop();
       }
-      await this.iNodeMgr.stop();
-      if (this.crypto != null) {
+      if (this.iNodeMgrOwned) {
+        await this.iNodeMgr.stop();
+      }
+      if (this.dbOwned) {
         await this.db.stop();
       }
     } else {
@@ -289,12 +300,12 @@ class EncryptedFS {
   public async destroy(): Promise<void> {
     this.logger.info(`Destroying ${this.constructor.name}`);
     if (this.chrootParent == null) {
-      if (this.crypto != null) {
+      if (this.dbOwned) {
         await this.db.destroy();
       } else {
-        // If it is not an encapsulated DB instance,
-        // then we only clear the inodes
-        await this.iNodeMgr.destroy();
+        if (this.iNodeMgrOwned) {
+          await this.iNodeMgr.destroy();
+        }
       }
     }
     // No destruction procedures for chrooted instances
@@ -352,8 +363,11 @@ class EncryptedFS {
       const efsChrooted = new (this.constructor as new (
         ...params: ConstructorParameters<typeof EncryptedFS>
       ) => this)({
+        crypto: this.crypto,
         db: this.db,
+        dbOwned: this.dbOwned,
         iNodeMgr: this.iNodeMgr,
+        iNodeMgrOwned: this.iNodeMgrOwned,
         fdMgr: this.fdMgr,
         rootIno: target,
         blockSize: this.blockSize,

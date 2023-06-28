@@ -24,7 +24,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   let db: DB;
   let iNodeMgr: INodeManager;
   let efs: EncryptedFS;
-
   const totalINodes = async (iNodeMgr: INodeManager) => {
     let counter = 0;
     for await (const _ of iNodeMgr.getAll()) {
@@ -32,7 +31,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
     }
     return counter;
   };
-
   beforeEach(async () => {
     dataDir = await fs.promises.mkdtemp(
       pathNode.join(os.tmpdir(), 'encryptedfs-test-'),
@@ -60,6 +58,8 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   });
   afterEach(async () => {
     await efs.stop();
+    await iNodeMgr.stop();
+    await db.stop();
     await fs.promises.rm(dataDir, {
       force: true,
       recursive: true,
@@ -68,7 +68,6 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
   describe('concurrent inode creation', () => {
     test('EncryptedFS.open, EncryptedFS.mknod and EncryptedFS.mkdir', async () => {
       const path1 = utils.pathJoin('dir', 'file1');
-
       await fc.assert(
         fc
           .asyncProperty(fc.scheduler(), async (s) => {
