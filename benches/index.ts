@@ -10,6 +10,8 @@ import crypto24KiB from './crypto_24KiB';
 import crypto32KiB from './crypto_32KiB';
 import crypto100KiB from './crypto_100KiB';
 import crypto1MiB from './crypto_1MiB';
+import write1KiB from './write_1KiB';
+import read1KiB from './read_1KiB';
 
 async function main(): Promise<void> {
   await fs.promises.mkdir(path.join(__dirname, 'results'), { recursive: true });
@@ -20,6 +22,8 @@ async function main(): Promise<void> {
   await crypto32KiB();
   await crypto100KiB();
   await crypto1MiB();
+  await write1KiB();
+  await read1KiB();
   const resultFilenames = await fs.promises.readdir(
     path.join(__dirname, 'results'),
   );
