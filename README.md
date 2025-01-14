@@ -1,8 +1,5 @@
 # js-encryptedfs
 
-staging:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/staging/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/staging)
-master:[![pipeline status](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/badges/master/pipeline.svg)](https://gitlab.com/MatrixAI/open-source/js-encryptedfs/commits/master)
-
 Encrypted filesystem library for TypeScript/JavaScript applications
 
 * Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems
@@ -104,7 +101,7 @@ There are some differences between EFS and Node FS:
 
 ## Development
 
-Run `nix-shell`, and once you're inside, you can use:
+Run `nix develop`, and once you're inside, you can use:
 
 ```sh
 # install (or reinstall packages from package.json)

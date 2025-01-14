@@ -1,0 +1,20 @@
+name: "CI / Feature"
+
+on:
+  push:
+    branches:
+      - feature*
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  use-library-js-feature:
+    permissions:
+      packages: read
+      contents: read
+      actions: write
+      checks: write
+    uses: MatrixAI/.github/.github/workflows/library-js-feature.yml@feature-actions
