@@ -1,0 +1,15 @@
+name: "CI / Tag"
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  use-library-js-tag:
+    permissions:
+      packages: read
+      contents: read
+      actions: write
+    uses: MatrixAI/.github/.github/workflows/library-js-tag.yml@feature-actions
