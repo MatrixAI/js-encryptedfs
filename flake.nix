@@ -1,21 +1,20 @@
 {
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs";
+    nixpkgs-matrix = {
+      type = "indirect";
+      id = "nixpkgs-matrix";
+    };
     flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { nixpkgs, flake-utils, ... }:
+  outputs = { nixpkgs-matrix, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
+        pkgs = nixpkgs-matrix.legacyPackages.${system};
         shell = { ci ? false }:
           with pkgs;
           pkgs.mkShell {
-            nativeBuildInputs = [
-              nodejs_20
-              shellcheck
-              gitAndTools.gh
-            ];
+            nativeBuildInputs = [ nodejs_20 shellcheck gitAndTools.gh ];
             PKG_IGNORE_TAG = 1;
             shellHook = ''
               echo "Entering $(npm pkg get name)"

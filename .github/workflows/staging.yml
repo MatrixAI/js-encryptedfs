@@ -13,12 +13,11 @@ concurrency:
 jobs:
   use-library-js-staging:
     permissions:
-      packages: read
       contents: write
       actions: write
       checks: write
       pull-requests: write
-    uses: MatrixAI/.github/.github/workflows/library-js-staging.yml@feature-actions
+    uses: MatrixAI/.github/.github/workflows/library-js-staging.yml@master
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
       GIT_AUTHOR_EMAIL: ${{ secrets.GIT_AUTHOR_EMAIL }}

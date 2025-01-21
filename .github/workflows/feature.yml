@@ -13,8 +13,7 @@ concurrency:
 jobs:
   use-library-js-feature:
     permissions:
-      packages: read
       contents: read
       actions: write
       checks: write
-    uses: MatrixAI/.github/.github/workflows/library-js-feature.yml@feature-actions
+    uses: MatrixAI/.github/.github/workflows/library-js-feature.yml@master

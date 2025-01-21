@@ -20,23 +20,41 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1736816544,
-        "narHash": "sha256-cN6lqyW6CedmrwOQD7DqytPoCePSwlk81pYtKVx+eVo=",
-        "owner": "nixos",
+        "lastModified": 1736139540,
+        "narHash": "sha256-39Iclrd+9tPLmvuFVyoG63WnHZJ9kCOC6eRytRYLAWw=",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "a24d1afc3500c21dc5799d2689bfdf499f31d1a2",
+        "rev": "8ab83a21276434aaf44969b8dd0bc0e65b97a240",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
+        "owner": "NixOS",
         "repo": "nixpkgs",
+        "rev": "8ab83a21276434aaf44969b8dd0bc0e65b97a240",
         "type": "github"
+      }
+    },
+    "nixpkgs-matrix": {
+      "inputs": {
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "lastModified": 1736140072,
+        "narHash": "sha256-MgtcAA+xPldS0WlV16TjJ0qgFzGvKuGM9p+nPUxpUoA=",
+        "owner": "MatrixAI",
+        "repo": "nixpkgs-matrix",
+        "rev": "029084026bc4a35bce81bac898aa695f41993e18",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs-matrix",
+        "type": "indirect"
       }
     },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs-matrix": "nixpkgs-matrix"
       }
     },
     "systems": {
