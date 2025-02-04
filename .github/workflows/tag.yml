@@ -12,3 +12,5 @@ jobs:
       contents: read
       actions: write
     uses: MatrixAI/.github/.github/workflows/library-js-tag.yml@master
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

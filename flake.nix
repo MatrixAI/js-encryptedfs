@@ -19,7 +19,7 @@
             shellHook = ''
               echo "Entering $(npm pkg get name)"
               set -o allexport
-              . <(polykey secrets env js-timer)
+              . <(polykey secrets env js-encryptedfs)
               set +o allexport
               set -v
               ${lib.optionalString ci ''
