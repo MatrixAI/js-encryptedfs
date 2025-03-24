@@ -1,14 +1,20 @@
-import type { FileTypes } from './utils';
+import type { FileTypes } from './utils.js';
 import os from 'os';
 import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
-import EncryptedFS from '@/EncryptedFS';
-import { ErrorEncryptedFSError } from '@/errors';
-import * as utils from '@/utils';
-import * as constants from '@/constants';
-import { createFile, expectError, setId, sleep, supportedTypes } from './utils';
+import {
+  createFile,
+  expectError,
+  setId,
+  sleep,
+  supportedTypes,
+} from './utils.js';
+import EncryptedFS from '#EncryptedFS.js';
+import { ErrorEncryptedFSError } from '#errors.js';
+import * as utils from '#utils.js';
+import * as constants from '#constants.js';
 
 describe(`${EncryptedFS.name} Files`, () => {
   const logger = new Logger(`${EncryptedFS.name} Files`, LogLevel.WARN, [

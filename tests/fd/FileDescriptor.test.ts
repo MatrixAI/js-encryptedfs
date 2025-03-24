@@ -3,11 +3,12 @@ import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import INodeManager from '@/inodes/INodeManager';
-import FileDescriptor from '@/fd/FileDescriptor';
-import * as utils from '@/utils';
-import * as constants from '@/constants';
-import * as permissions from '@/permissions';
+import INodeManager from '#inodes/INodeManager.js';
+import FileDescriptor from '#fd/FileDescriptor.js';
+import * as utils from '#utils.js';
+import * as constants from '#constants.js';
+import * as permissions from '#permissions.js';
+import efsWorker from '#efsWorker.js';
 
 describe('File Descriptor', () => {
   const logger = new Logger('File Descriptor', LogLevel.WARN, [
@@ -28,10 +29,7 @@ describe('File Descriptor', () => {
       dbPath: `${dataDir}/db`,
       crypto: {
         key: dbKey,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       },
       logger,
     });

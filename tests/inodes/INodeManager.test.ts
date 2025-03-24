@@ -3,9 +3,10 @@ import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB, errors as dbErrors } from '@matrixai/db';
-import INodeManager from '@/inodes/INodeManager';
-import * as utils from '@/utils';
-import * as permissions from '@/permissions';
+import INodeManager from '#inodes/INodeManager.js';
+import * as utils from '#utils.js';
+import * as permissions from '#permissions.js';
+import efsWorker from '#efsWorker.js';
 
 describe('INodeManager', () => {
   const logger = new Logger('INodeManager Test', LogLevel.WARN, [
@@ -22,10 +23,7 @@ describe('INodeManager', () => {
       dbPath: `${dataDir}/db`,
       crypto: {
         key: dbKey,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       },
       logger,
     });
@@ -58,10 +56,7 @@ describe('INodeManager', () => {
       dbPath: `${dataDir}/db`,
       crypto: {
         key: dbKey,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       },
       logger,
     });

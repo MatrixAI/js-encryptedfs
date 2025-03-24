@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import type { OptionsStream } from './types';
-import type { Callback } from '../types';
-import type { FdIndex } from '../fd/types';
-import type { EncryptedFS } from '../';
+import type { OptionsStream } from './types.js';
+import type { Callback } from '../types.js';
+import type { FdIndex } from '../fd/types.js';
+import type { EncryptedFS } from '../index.js';
 import { Readable } from 'readable-stream';
-import * as permissions from '../permissions';
+import * as permissions from '../permissions.js';
 
 class ReadStream extends Readable {
   protected _bytesRead: number;

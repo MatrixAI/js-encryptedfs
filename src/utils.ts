@@ -1,9 +1,9 @@
-import type { Callback } from './types';
-import type Stat from './Stat';
+import type { Callback } from './types.js';
+import type Stat from './Stat.js';
 import pathNode from 'path';
-import { md, random, pkcs5, cipher, util as forgeUtil } from 'node-forge';
+import nodeForge from 'node-forge';
 import callbackify from 'util-callbackify';
-import * as constants from './constants';
+import * as constants from './constants.js';
 
 const ivSize = 16;
 const authTagSize = 16;
@@ -31,7 +31,7 @@ function fromArrayBuffer(
 
 async function getRandomBytes(size: number): Promise<Buffer> {
   const p = new Promise<string>((resolve, reject) => {
-    random.getBytes(size, (e, bytes) => {
+    nodeForge.random.getBytes(size, (e, bytes) => {
       if (e != null) {
         reject(e);
       } else {
@@ -43,7 +43,7 @@ async function getRandomBytes(size: number): Promise<Buffer> {
 }
 
 function getRandomBytesSync(size: number): Buffer {
-  return Buffer.from(random.getBytesSync(size), 'binary');
+  return Buffer.from(nodeForge.random.getBytesSync(size), 'binary');
 }
 
 async function generateKey(bits: 128 | 192 | 256 = 256): Promise<Buffer> {
@@ -76,12 +76,12 @@ async function generateKeyFromPass(
     salt = (await getRandomBytes(16)).toString('binary');
   }
   const keyLen = Math.floor(bits / 8);
-  const key = await promisify<string>(pkcs5.pbkdf2)(
+  const key = await promisify<string>(nodeForge.pkcs5.pbkdf2)(
     password,
     salt,
     2048,
     keyLen,
-    md.sha512.create(),
+    nodeForge.md.sha512.create(),
   );
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
@@ -98,7 +98,13 @@ function generateKeyFromPassSync(
     salt = getRandomBytesSync(16).toString('binary');
   }
   const keyLen = Math.floor(bits / 8);
-  const key = pkcs5.pbkdf2(password, salt, 2048, keyLen, md.sha512.create());
+  const key = nodeForge.pkcs5.pbkdf2(
+    password,
+    salt,
+    2048,
+    keyLen,
+    nodeForge.md.sha512.create(),
+  );
   return [Buffer.from(key, 'binary'), Buffer.from(salt, 'binary')];
 }
 
@@ -107,9 +113,12 @@ async function encrypt(
   plainText: ArrayBuffer,
 ): Promise<ArrayBuffer> {
   const iv = getRandomBytesSync(ivSize);
-  const c = cipher.createCipher('AES-GCM', Buffer.from(key).toString('binary'));
+  const c = nodeForge.cipher.createCipher(
+    'AES-GCM',
+    Buffer.from(key).toString('binary'),
+  );
   c.start({ iv: iv.toString('binary'), tagLength: authTagSize * 8 });
-  c.update(forgeUtil.createBuffer(plainText));
+  c.update(nodeForge.util.createBuffer(plainText));
   c.finish();
   const cipherText = Buffer.from(c.output.getBytes(), 'binary');
   const authTag = Buffer.from(c.mode.tag.getBytes(), 'binary');
@@ -128,16 +137,16 @@ async function decrypt(
   const iv = cipherTextBuf.subarray(0, ivSize);
   const authTag = cipherTextBuf.subarray(ivSize, ivSize + authTagSize);
   const cipherText_ = cipherTextBuf.subarray(ivSize + authTagSize);
-  const d = cipher.createDecipher(
+  const d = nodeForge.cipher.createDecipher(
     'AES-GCM',
     Buffer.from(key).toString('binary'),
   );
   d.start({
     iv: iv.toString('binary'),
     tagLength: authTagSize * 8,
-    tag: forgeUtil.createBuffer(authTag),
+    tag: nodeForge.util.createBuffer(authTag),
   });
-  d.update(forgeUtil.createBuffer(cipherText_));
+  d.update(nodeForge.util.createBuffer(cipherText_));
   if (!d.finish()) {
     return;
   }

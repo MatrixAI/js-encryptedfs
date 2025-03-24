@@ -1,4 +1,4 @@
-import type { FdIndex } from '../fd/types';
+import type { FdIndex } from '../fd/types.js';
 
 type OptionsStream = {
   highWaterMark?: number;

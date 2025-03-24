@@ -4,11 +4,11 @@ import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { running } from '@matrixai/async-init';
 import { code as errno } from 'errno';
-import EncryptedFS from '@/EncryptedFS';
-import * as constants from '@/constants';
-import * as utils from '@/utils';
-import { ErrorEncryptedFSError } from '@/errors';
-import { expectError } from './utils';
+import { expectError } from './utils.js';
+import EncryptedFS from '#EncryptedFS.js';
+import * as constants from '#constants.js';
+import * as utils from '#utils.js';
+import { ErrorEncryptedFSError } from '#errors.js';
 
 describe('EncryptedFS Navigation', () => {
   const logger = new Logger('EncryptedFS Navigation', LogLevel.WARN, [

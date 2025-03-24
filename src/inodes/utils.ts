@@ -1,4 +1,4 @@
-import type { INodeIndex, INodeId, BufferIndex, BufferId } from './types';
+import type { INodeIndex, INodeId, BufferIndex, BufferId } from './types.js';
 import lexi from 'lexicographic-integer';
 
 function iNodeId(index: INodeIndex): INodeId {

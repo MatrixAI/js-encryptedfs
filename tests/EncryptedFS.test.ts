@@ -2,9 +2,9 @@ import os from 'os';
 import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
-import EncryptedFS from '@/EncryptedFS';
-import * as utils from '@/utils';
-import * as errors from '@/errors';
+import EncryptedFS from '#EncryptedFS.js';
+import * as utils from '#utils.js';
+import * as errors from '#errors.js';
 
 describe(EncryptedFS.name, () => {
   const logger = new Logger(`${EncryptedFS.name} Test`, LogLevel.WARN, [

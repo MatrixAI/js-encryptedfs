@@ -3,12 +3,12 @@ import fs from 'fs';
 import pathNode from 'path';
 import Logger, { StreamHandler, LogLevel } from '@matrixai/logger';
 import { code as errno } from 'errno';
-import EncryptedFS from '@/EncryptedFS';
-import { ErrorEncryptedFSError } from '@/errors';
-import * as constants from '@/constants';
-import * as permissions from '@/permissions';
-import * as utils from '@/utils';
-import { expectError } from './utils';
+import { expectError } from './utils.js';
+import EncryptedFS from '#EncryptedFS.js';
+import { ErrorEncryptedFSError } from '#errors.js';
+import * as constants from '#constants.js';
+import * as permissions from '#permissions.js';
+import * as utils from '#utils.js';
 
 describe('EncryptedFS Permissions', () => {
   const logger = new Logger('EncryptedFS Permissions', LogLevel.WARN, [

@@ -1,6 +1,6 @@
-import type EncryptedFS from '@/EncryptedFS';
+import type EncryptedFS from '#EncryptedFS.js';
 import type * as fc from 'fast-check';
-import * as constants from '@/constants';
+import * as constants from '#constants.js';
 
 /**
  * Checks if asynchronous operation throws an exception

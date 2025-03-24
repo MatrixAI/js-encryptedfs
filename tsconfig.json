@@ -12,14 +12,15 @@
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node",
-    "module": "CommonJS",
+    "isolatedModules": true,
+    "moduleResolution": "NodeNext",
+    "module": "ESNext",
     "target": "ES2022",
     "baseUrl": "./src",
     "paths": {
-      "@": ["index"],
-      "@/*": ["*"]
+      "#*": ["*"]
     },
+    "skipLibCheck": true,
     "noEmit": true
   },
   "include": [
@@ -30,7 +31,7 @@
     "./benches/**/*"
   ],
   "ts-node": {
-    "require": ["tsconfig-paths/register"],
+    "esm": true,
     "transpileOnly": true,
     "swc": true
   }

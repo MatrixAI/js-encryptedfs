@@ -1,8 +1,8 @@
-import type { INodeIndex } from '../inodes/types';
-import type { FdIndex } from './types';
-import type { INodeManager } from '../inodes';
+import type { INodeIndex } from '../inodes/types.js';
+import type { FdIndex } from './types.js';
+import type { INodeManager } from '../inodes/index.js';
 import Counter from 'resource-counter';
-import FileDescriptor from './FileDescriptor';
+import FileDescriptor from './FileDescriptor.js';
 
 /**
  * Class that manages all FileDescriptors
@@ -18,7 +18,8 @@ class FileDescriptorManager {
    * Make sure not get real fd numbers confused with these fd numbers.
    */
   constructor(iNodeMgr: INodeManager) {
-    this._counter = new Counter(0);
+    // Using Counter.default since Counter isn't exported properly for ESM
+    this._counter = new Counter.default(0);
     this._fds = new Map();
     this._iNodeMgr = iNodeMgr;
   }

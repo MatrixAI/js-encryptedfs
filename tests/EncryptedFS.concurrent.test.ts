@@ -1,5 +1,5 @@
-import type { FdIndex } from '@/fd/types';
-import type { INodeData } from '@/inodes/types';
+import type { FdIndex } from '#fd/types.js';
+import type { INodeData } from '#inodes/types.js';
 import fs from 'fs';
 import os from 'os';
 import pathNode from 'path';
@@ -7,13 +7,14 @@ import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { code as errno } from 'errno';
 import { DB } from '@matrixai/db';
 import * as fc from 'fast-check';
-import EncryptedFS from '@/EncryptedFS';
-import { ErrorEncryptedFSError } from '@/errors';
-import * as utils from '@/utils';
-import * as constants from '@/constants';
-import INodeManager from '@/inodes/INodeManager';
-import { promise } from '@/utils';
-import { expectError, expectReason, sleep, scheduleCall } from './utils';
+import { expectError, expectReason, sleep, scheduleCall } from './utils.js';
+import EncryptedFS from '#EncryptedFS.js';
+import { ErrorEncryptedFSError } from '#errors.js';
+import * as utils from '#utils.js';
+import * as constants from '#constants.js';
+import INodeManager from '#inodes/INodeManager.js';
+import { promise } from '#utils.js';
+import efsWorker from '#efsWorker.js';
 
 describe(`${EncryptedFS.name} Concurrency`, () => {
   const logger = new Logger(`${EncryptedFS.name} Concurrency`, LogLevel.WARN, [
@@ -39,10 +40,7 @@ describe(`${EncryptedFS.name} Concurrency`, () => {
       dbPath: dataDir,
       crypto: {
         key: dbKey!,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       },
       logger: logger.getChild(DB.name),
     });
