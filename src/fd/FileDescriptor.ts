@@ -1,11 +1,11 @@
-import type { INodeType, INodeIndex } from '../inodes/types';
+import type { INodeType, INodeIndex } from '../inodes/types.js';
 import type { DBTransaction } from '@matrixai/db';
-import type { INodeManager } from '../inodes';
+import type { INodeManager } from '../inodes/index.js';
 import { Lock } from '@matrixai/async-locks';
-import * as errorsFd from './errors';
-import * as constants from '../constants';
-import * as utils from '../utils';
-import * as inodesUtils from '../inodes/utils';
+import * as errorsFd from './errors.js';
+import * as constants from '../constants.js';
+import * as utils from '../utils.js';
+import * as inodesUtils from '../inodes/utils.js';
 
 class FileDescriptor {
   protected _iNodeMgr: INodeManager;

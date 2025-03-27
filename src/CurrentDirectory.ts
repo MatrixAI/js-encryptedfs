@@ -1,5 +1,5 @@
-import type { INodeManager } from './inodes';
-import type { INodeIndex } from './inodes/types';
+import type { INodeManager } from './inodes/index.js';
+import type { INodeIndex } from './inodes/types.js';
 
 class CurrentDirectory {
   protected _ino: INodeIndex;

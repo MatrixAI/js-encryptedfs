@@ -3,8 +3,9 @@ import pathNode from 'path';
 import fs from 'fs';
 import Logger, { LogLevel, StreamHandler } from '@matrixai/logger';
 import { DB } from '@matrixai/db';
-import INodeManager from '@/inodes/INodeManager';
-import * as utils from '@/utils';
+import INodeManager from '#inodes/INodeManager.js';
+import * as utils from '#utils.js';
+import efsWorker from '#efsWorker.js';
 
 describe('INodeManager Symlink', () => {
   const logger = new Logger('INodeManager Symlink Test', LogLevel.WARN, [
@@ -21,10 +22,7 @@ describe('INodeManager Symlink', () => {
       dbPath: `${dataDir}/db`,
       crypto: {
         key: dbKey,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       },
       logger,
     });

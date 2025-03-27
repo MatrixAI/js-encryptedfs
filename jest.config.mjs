@@ -1,18 +1,16 @@
-const path = require('path');
-const { pathsToModuleNameMapper } = require('ts-jest');
-const { compilerOptions } = require('./tsconfig');
+import path from 'node:path';
+import url from 'node:url';
+import tsconfigJSON from './tsconfig.json' assert { type: "json" };
 
-const moduleNameMapper = pathsToModuleNameMapper(compilerOptions.paths, {
-  prefix: '<rootDir>/src/',
-});
+const projectPath = path.dirname(url.fileURLToPath(import.meta.url));
 
 // Global variables that are shared across the jest worker pool
 // These variables must be static and serializable
 const globals = {
   // Absolute directory to the project root
-  projectDir: __dirname,
+  projectDir: projectPath,
   // Absolute directory to the test root
-  testDir: path.join(__dirname, 'tests'),
+  testDir: path.join(projectPath, 'tests'),
   // Default asynchronous test timeout
   defaultTimeout: 20000,
   // Timeouts rely on setTimeout which takes 32 bit numbers
@@ -24,7 +22,7 @@ const globals = {
 // They can however receive the process environment
 // Use `process.env` to set variables
 
-module.exports = {
+const config = {
   testEnvironment: 'node',
   verbose: true,
   collectCoverage: false,
@@ -40,10 +38,10 @@ module.exports = {
           parser: {
             syntax: "typescript",
             tsx: true,
-            decorators: compilerOptions.experimentalDecorators,
+            decorators: tsconfigJSON.compilerOptions.experimentalDecorators,
             dynamicImport: true,
           },
-          target: compilerOptions.target.toLowerCase(),
+          target: tsconfigJSON.compilerOptions.target.toLowerCase(),
           keepClassNames: true,
         },
       }
@@ -77,5 +75,10 @@ module.exports = {
     'jest-extended/all',
     '<rootDir>/tests/setupAfterEnv.ts'
   ],
-  moduleNameMapper: moduleNameMapper,
+  moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
+  extensionsToTreatAsEsm: ['.ts', '.tsx', '.mts'],
 };
+
+export default config;

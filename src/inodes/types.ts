@@ -1,5 +1,5 @@
-import type { StatProps } from '../Stat';
-import type { Opaque } from '../types';
+import type { StatProps } from '../Stat.js';
+import type { Opaque } from '../types.js';
 
 type INodeIndex = Opaque<'INodeIndex', number>;
 

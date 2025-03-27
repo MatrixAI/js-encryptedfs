@@ -1,4 +1,4 @@
-name: "CI / Tag"
+npname: "CI / Tag"
 
 on:
   push:

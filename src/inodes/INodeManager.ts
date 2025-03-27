@@ -6,30 +6,27 @@ import type {
   INodeType,
   INodeData,
   BufferId,
-} from './types';
-import type { Ref } from '../types';
-import type { StatProps } from '../Stat';
+} from './types.js';
+import type { Ref } from '../types.js';
+import type { StatProps } from '../Stat.js';
 import Logger from '@matrixai/logger';
-import {
-  CreateDestroyStartStop,
-  ready,
-} from '@matrixai/async-init/dist/CreateDestroyStartStop';
+import { createDestroyStartStop } from '@matrixai/async-init';
 import { withF, withG } from '@matrixai/resources';
 import Counter from 'resource-counter';
-import * as inodesUtils from './utils';
-import * as inodesErrors from './errors';
-import Stat from '../Stat';
-import * as constants from '../constants';
-import * as permissions from '../permissions';
-import * as utils from '../utils';
+import * as inodesUtils from './utils.js';
+import * as inodesErrors from './errors.js';
+import Stat from '../Stat.js';
+import * as constants from '../constants.js';
+import * as permissions from '../permissions.js';
+import * as utils from '../utils.js';
 
 type INodeParams = Partial<StatProps> & Pick<StatProps, 'ino' | 'mode'>;
 type FileParams = Partial<Omit<INodeParams, 'ino'>>;
 type DirectoryParams = Partial<Omit<INodeParams, 'ino'>>;
 type SymlinkParams = Partial<Omit<INodeParams, 'ino'>>;
 
-interface INodeManager extends CreateDestroyStartStop {}
-@CreateDestroyStartStop(
+interface INodeManager extends createDestroyStartStop.CreateDestroyStartStop {}
+@createDestroyStartStop.CreateDestroyStartStop(
   new inodesErrors.ErrorINodeManagerRunning(),
   new inodesErrors.ErrorINodeManagerDestroyed(),
 )
@@ -64,7 +61,8 @@ class INodeManager {
 
   protected logger: Logger;
   protected db: DB;
-  protected iNodeCounter: Counter = new Counter(1);
+  // Using Counter.default since Counter isn't exported properly for ESM
+  protected iNodeCounter: Counter = new Counter.default(1);
   protected iNodeAllocations: Map<string, Ref<INodeIndex>> = new Map();
   protected refs: Map<INodeIndex, number> = new Map();
 
@@ -99,7 +97,8 @@ class INodeManager {
     // Clean up all dangling inodes that could not be removed due to references
     await this.gcAll();
     // Reset the inode counter, it will be repopulated on start
-    this.iNodeCounter = new Counter(1);
+    // Using Counter.default since Counter isn't exported properly for ESM
+    this.iNodeCounter = new Counter.default(1);
     // Reset the references
     this.refs.clear();
     this.logger.info(`Stopped ${this.constructor.name}`);
@@ -164,7 +163,7 @@ class INodeManager {
    * Concurrent call with same navigated parameter will result in the same INodeIndex result
    * This is essential to enable mutual-exclusion
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public inoAllocation(
     navigated?: Readonly<{ dir: INodeIndex; name: string }>,
   ): ResourceAcquire<INodeIndex> {
@@ -201,7 +200,7 @@ class INodeManager {
     };
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public transaction(
     ...inos: Array<INodeIndex>
   ): ResourceAcquire<DBTransaction> {
@@ -212,7 +211,7 @@ class INodeManager {
     };
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async withTransactionF<T>(
     ...params: [
       ...inos: Array<INodeIndex>,
@@ -228,7 +227,7 @@ class INodeManager {
     });
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public withTransactionG<T, TReturn, TNext>(
     ...params: [
       ...inos: Array<INodeIndex>,
@@ -246,7 +245,7 @@ class INodeManager {
     });
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async withNewINodeTransactionF<T>(
     ...params:
       | [
@@ -279,7 +278,7 @@ class INodeManager {
     );
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public withNewINodeTransactionG<T, TReturn, TNext>(
     ...params:
       | [
@@ -318,7 +317,7 @@ class INodeManager {
     );
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileCreate(
     ino: INodeIndex,
     params: FileParams,
@@ -350,7 +349,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirCreate(
     ino: INodeIndex,
     params: DirectoryParams,
@@ -402,7 +401,7 @@ class INodeManager {
     await tran.put([...dirPath, '..'], parent);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async symlinkCreate(
     ino: INodeIndex,
     params: SymlinkParams,
@@ -474,7 +473,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileDestroy(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -498,7 +497,7 @@ class INodeManager {
     await this.iNodeDestroy(ino, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirDestroy(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -528,7 +527,7 @@ class INodeManager {
     await this.iNodeDestroy(ino, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async symlinkDestroy(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -582,7 +581,7 @@ class INodeManager {
    * Use this to test if an ino number exists
    * You can use the returned ino for subsequent operations
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async get(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -608,7 +607,7 @@ class INodeManager {
     };
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async *getAll(tran?: DBTransaction): AsyncGenerator<INodeData> {
     if (tran == null) {
       return yield* this.withTransactionG((tran) => this.getAll(tran));
@@ -636,7 +635,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async link(ino: INodeIndex, tran?: DBTransaction): Promise<void> {
     if (tran == null) {
       return this.withTransactionF(ino, async (tran) => this.link(ino, tran));
@@ -645,7 +644,7 @@ class INodeManager {
     await this.statSetProp(ino, 'nlink', nlink + 1, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async unlink(ino: INodeIndex, tran?: DBTransaction): Promise<void> {
     if (tran == null) {
       return this.withTransactionF(ino, async (tran) => this.unlink(ino, tran));
@@ -659,13 +658,13 @@ class INodeManager {
     await this.gc(ino, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public ref(ino: INodeIndex) {
     const refCount = this.refs.get(ino) ?? 0;
     this.refs.set(ino, refCount + 1);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async unref(ino: INodeIndex, tran?: DBTransaction) {
     if (tran == null) {
       return this.withTransactionF(ino, async (tran) => this.unref(ino, tran));
@@ -713,7 +712,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async statGet(ino: INodeIndex, tran?: DBTransaction): Promise<Stat> {
     if (tran == null) {
       return this.withTransactionF(ino, async (tran) =>
@@ -769,7 +768,7 @@ class INodeManager {
     });
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async statGetProp<Key extends keyof StatProps>(
     ino: INodeIndex,
     key: Key,
@@ -813,7 +812,7 @@ class INodeManager {
     return value;
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async statSetProp<Key extends keyof StatProps>(
     ino: INodeIndex,
     key: Key,
@@ -857,7 +856,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async statUnsetProp<Key extends keyof StatProps>(
     ino: INodeIndex,
     key: Key,
@@ -872,7 +871,7 @@ class INodeManager {
     await tran.del([...statPath, key]);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirGetRoot(
     tran?: DBTransaction,
   ): Promise<INodeIndex | undefined> {
@@ -893,7 +892,7 @@ class INodeManager {
     await tran.del([...this.mgrDbPath, 'root']);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async *dirGet(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -911,7 +910,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirGetEntry(
     ino: INodeIndex,
     name: string,
@@ -926,7 +925,7 @@ class INodeManager {
     return tran.get<INodeIndex>([...dirPath, name]);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirSetEntry(
     ino: INodeIndex,
     name: string,
@@ -958,7 +957,7 @@ class INodeManager {
     }
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirUnsetEntry(
     ino: INodeIndex,
     name: string,
@@ -981,7 +980,7 @@ class INodeManager {
     await this.unlink(existingValue, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async dirResetEntry(
     ino: INodeIndex,
     nameOld: string,
@@ -1014,7 +1013,7 @@ class INodeManager {
     await this.dirUnsetEntry(ino, nameOld, tran);
   }
 
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async symlinkGetLink(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -1035,7 +1034,7 @@ class INodeManager {
    * Modified and Change Time are both updated here as this is
    * exposed to the EFS functions to be used
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileClearData(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -1053,7 +1052,7 @@ class INodeManager {
    * Access time not updated here, handled at higher level as this is only
    * accessed by fds and and other INodeMgr functions
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async *fileGetBlocks(
     ino: INodeIndex,
     blockSize: number,
@@ -1092,7 +1091,7 @@ class INodeManager {
    * Access time not updated here, handled at higher level as this is only
    * accessed by fds and and other INodeMgr functions
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileGetLastBlock(
     ino: INodeIndex,
     tran?: DBTransaction,
@@ -1139,7 +1138,7 @@ class INodeManager {
    * Modified and Change time not updated here, handled at higher level as this
    * is only accessed by fds and and other INodeMgr functions
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileSetBlocks(
     ino: INodeIndex,
     data: Buffer,
@@ -1164,7 +1163,7 @@ class INodeManager {
    * Modified and Change time not updated here, handled at higher level as this
    * is only accessed by fds and other INodeMgr functions
    */
-  @ready(new inodesErrors.ErrorINodeManagerNotRunning())
+  @createDestroyStartStop.ready(new inodesErrors.ErrorINodeManagerNotRunning())
   public async fileWriteBlock(
     ino: INodeIndex,
     data: Buffer,

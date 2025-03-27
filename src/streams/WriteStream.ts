@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-floating-promises */
-import type { OptionsStream } from './types';
-import type { FdIndex } from '../fd/types';
-import type { EncryptedFS } from '../';
-import type { Callback } from '../types';
+import type { OptionsStream } from './types.js';
+import type { FdIndex } from '../fd/types.js';
+import type { EncryptedFS } from '../index.js';
+import type { Callback } from '../types.js';
 import { Writable } from 'readable-stream';
-import * as permissions from '../permissions';
+import * as permissions from '../permissions.js';
 
 class WriteStream extends Writable {
   protected _bytesWritten: number;

@@ -1,4 +1,8 @@
-import type { Crypto, DBTransaction } from '@matrixai/db';
+import type {
+  Crypto,
+  DBTransaction,
+  DBWorkerManagerInterface,
+} from '@matrixai/db';
 import type {
   Navigated,
   ParsedPath,
@@ -7,31 +11,28 @@ import type {
   Options,
   Data,
   File,
-  EFSWorkerManagerInterface,
-} from './types';
-import type { INodeIndex, INodeType } from './inodes';
-import type { FdIndex, FileDescriptor } from './fd';
-import type { OptionsStream } from './streams';
+} from './types.js';
+import type { INodeIndex, INodeType } from './inodes/types.js';
+import type { FdIndex, FileDescriptor } from './fd/index.js';
+import type { OptionsStream } from './streams/types.js';
 import type { ResourceRelease } from '@matrixai/resources';
 import { code as errno } from 'errno';
 import Logger from '@matrixai/logger';
 import { DB, errors as dbErrors } from '@matrixai/db';
-import {
-  CreateDestroyStartStop,
-  ready,
-} from '@matrixai/async-init/dist/CreateDestroyStartStop';
-import CurrentDirectory from './CurrentDirectory';
-import Stat from './Stat';
-import { INodeManager, errors as inodesErrors } from './inodes';
-import { FileDescriptorManager } from './fd';
-import { ReadStream, WriteStream } from './streams';
-import * as constants from './constants';
-import * as permissions from './permissions';
-import * as utils from './utils';
-import * as errors from './errors';
+import { createDestroyStartStop } from '@matrixai/async-init';
+import CurrentDirectory from './CurrentDirectory.js';
+import Stat from './Stat.js';
+import { INodeManager, errors as inodesErrors } from './inodes/index.js';
+import { FileDescriptorManager } from './fd/index.js';
+import { ReadStream, WriteStream } from './streams/index.js';
+import * as constants from './constants.js';
+import * as permissions from './permissions.js';
+import * as utils from './utils.js';
+import * as errors from './errors.js';
+import efsWorker from './efsWorker.js';
 
-interface EncryptedFS extends CreateDestroyStartStop {}
-@CreateDestroyStartStop(
+interface EncryptedFS extends createDestroyStartStop.CreateDestroyStartStop {}
+@createDestroyStartStop.CreateDestroyStartStop(
   new errors.ErrorEncryptedFSRunning(),
   new errors.ErrorEncryptedFSDestroyed(),
 )
@@ -103,10 +104,7 @@ class EncryptedFS {
     if (db == null) {
       crypto = {
         key: dbKey!,
-        ops: {
-          encrypt: utils.encrypt,
-          decrypt: utils.decrypt,
-        },
+        ops: efsWorker,
       };
       try {
         db = await DB.createDB({
@@ -312,7 +310,7 @@ class EncryptedFS {
     this.logger.info(`Destroyed ${this.constructor.name}`);
   }
 
-  public setWorkerManager(workerManager: EFSWorkerManagerInterface) {
+  public setWorkerManager(workerManager: DBWorkerManagerInterface) {
     this.db.setWorkerManager(workerManager);
   }
 
@@ -325,7 +323,7 @@ class EncryptedFS {
     path: string,
     callback: Callback<[EncryptedFS]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning(), true)
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning(), true)
   public async chroot(
     path: string,
     callback?: Callback<[EncryptedFS]>,
@@ -383,7 +381,7 @@ class EncryptedFS {
 
   public async chdir(path: string): Promise<void>;
   public async chdir(path: string, callback: Callback): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async chdir(path: string, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
       path = this.getPath(path);
@@ -430,7 +428,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async access(
     path: Path,
     modeOrCallback: number | Callback = constants.F_OK,
@@ -489,7 +487,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async appendFile(
     file: Path | FdIndex,
     data: Data = 'undefined',
@@ -566,7 +564,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async chmod(
     path: Path,
     mode: number,
@@ -612,7 +610,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async chown(
     path: Path,
     uid: number,
@@ -664,7 +662,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async chownr(
     path: Path,
     uid: number,
@@ -691,7 +689,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async close(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
       if (!this.fdMgr.getFd(fdIndex)) {
@@ -720,7 +718,7 @@ class EncryptedFS {
     flags: number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async copyFile(
     srcPath: Path,
     dstPath: Path,
@@ -818,7 +816,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public createReadStream(path: Path, options?: OptionsStream): ReadStream {
     const defaultOps: OptionsStream = {
       flags: 'r',
@@ -838,7 +836,7 @@ class EncryptedFS {
     return new ReadStream(path, options_, this);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public createWriteStream(path: Path, options?: OptionsStream): WriteStream {
     const defaultOps: OptionsStream = {
       flags: 'w',
@@ -857,7 +855,7 @@ class EncryptedFS {
     return new WriteStream(path, options_, this);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async exists(
     path: Path,
     callback?: Callback<[boolean]>,
@@ -872,7 +870,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fallocate(
     fdIndex: FdIndex,
     offset: number,
@@ -951,7 +949,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fchmod(
     fdIndex: FdIndex,
     mode: number,
@@ -993,7 +991,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fchown(
     fdIndex: FdIndex,
     uid: number,
@@ -1040,7 +1038,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fdatasync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
       if (!this.fdMgr.getFd(fdIndex)) {
@@ -1057,7 +1055,7 @@ class EncryptedFS {
     fdIndex: FdIndex,
     callback: Callback<[Stat]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fstat(
     fdIndex: FdIndex,
     callback?: Callback<[Stat]>,
@@ -1087,7 +1085,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async fsync(fdIndex: FdIndex, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
       if (!this.fdMgr.getFd(fdIndex)) {
@@ -1106,7 +1104,7 @@ class EncryptedFS {
     len: number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async ftruncate(
     fdIndex: FdIndex,
     lenOrCallback: number | Callback = 0,
@@ -1206,7 +1204,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async futimes(
     fdIndex: FdIndex,
     atime: number | string | Date,
@@ -1252,7 +1250,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async lchmod(
     path: Path,
     mode: number,
@@ -1298,7 +1296,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async lchown(
     path: Path,
     uid: number,
@@ -1350,7 +1348,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async link(
     existingPath: Path,
     newPath: Path,
@@ -1459,7 +1457,7 @@ class EncryptedFS {
     seekFlags: number,
     callback: Callback<[number]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async lseek(
     fdIndex: FdIndex,
     position: number,
@@ -1508,7 +1506,7 @@ class EncryptedFS {
 
   public async lstat(path: Path): Promise<Stat>;
   public async lstat(path: Path, callback: Callback<[Stat]>): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async lstat(
     path: Path,
     callback?: Callback<[Stat]>,
@@ -1553,7 +1551,7 @@ class EncryptedFS {
     options: Options | number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async mkdir(
     path: Path,
     optionsOrCallback: Options | number | Callback = {},
@@ -1737,7 +1735,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async mkdtemp(
     pathSPrefix: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -1810,7 +1808,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async mknod(
     path: Path,
     type: number,
@@ -1912,7 +1910,7 @@ class EncryptedFS {
     mode: number,
     callback: Callback<[FdIndex]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async open(
     path: Path,
     flags: string | number,
@@ -2266,7 +2264,7 @@ class EncryptedFS {
     position: number,
     callback: Callback<[number]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async read(
     fdIndex: FdIndex,
     buffer: Data,
@@ -2285,10 +2283,10 @@ class EncryptedFS {
       typeof offsetOrCallback === 'function'
         ? offsetOrCallback
         : typeof lengthOrCallback === 'function'
-        ? lengthOrCallback
-        : typeof positionOrCallback === 'function'
-        ? positionOrCallback
-        : callback;
+          ? lengthOrCallback
+          : typeof positionOrCallback === 'function'
+            ? positionOrCallback
+            : callback;
     return utils.maybeCallback(async () => {
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
@@ -2360,7 +2358,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[Array<string | Buffer>]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async readdir(
     path: Path,
     optionsOrCallback?: Options | Callback<[Array<string | Buffer>]>,
@@ -2416,8 +2414,12 @@ class EncryptedFS {
         .filter(([name]) => name !== '.' && name !== '..')
         .map(([name]) => {
           if (options.encoding === 'binary') {
+            if (typeof name === 'string') return Buffer.from(name);
             return Buffer.from(name);
           } else {
+            if (typeof name === 'string') {
+              return Buffer.from(name).toString(options.encoding);
+            }
             return Buffer.from(name).toString(options.encoding);
           }
         });
@@ -2437,7 +2439,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async readFile(
     file: File,
     optionsOrCallback?: Options | Callback<[string | Buffer]>,
@@ -2489,7 +2491,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async readlink(
     path: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -2556,7 +2558,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback<[string | Buffer]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async realpath(
     path: Path,
     optionsOrCallback: Options | Callback<[string | Buffer]> = {
@@ -2590,7 +2592,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async rename(
     oldPath: Path,
     newPath: Path,
@@ -2838,7 +2840,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async rmdir(
     path: Path,
     optionsOrCallback: Options | Callback = {},
@@ -2978,7 +2980,7 @@ class EncryptedFS {
 
   public async stat(path: Path): Promise<Stat>;
   public async stat(path: Path, callback: Callback<[Stat]>): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async stat(
     path: Path,
     callback?: Callback<[Stat]>,
@@ -3032,7 +3034,7 @@ class EncryptedFS {
     type: string,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async symlink(
     dstPath: Path,
     srcPath: Path,
@@ -3118,7 +3120,7 @@ class EncryptedFS {
     len: number,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async truncate(
     file: File,
     lenOrCallback: number | Callback = 0,
@@ -3148,7 +3150,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async unlink(path: Path, callback?: Callback): Promise<void> {
     return utils.maybeCallback(async () => {
       path = this.getPath(path);
@@ -3202,7 +3204,7 @@ class EncryptedFS {
     }, callback);
   }
 
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async utimes(
     path: Path,
     atime: number | string | Date,
@@ -3284,7 +3286,7 @@ class EncryptedFS {
     position: number,
     callback: Callback<[number]>,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async write(
     fdIndex: FdIndex,
     data: Data,
@@ -3307,10 +3309,10 @@ class EncryptedFS {
       typeof offsetOrPosOrCallback === 'function'
         ? offsetOrPosOrCallback
         : typeof lengthOrEncodingOrCallback === 'function'
-        ? lengthOrEncodingOrCallback
-        : typeof positionOrCallback === 'function'
-        ? positionOrCallback
-        : callback;
+          ? lengthOrEncodingOrCallback
+          : typeof positionOrCallback === 'function'
+            ? positionOrCallback
+            : callback;
     return utils.maybeCallback(async () => {
       const fd = this.fdMgr.getFd(fdIndex);
       if (!fd) {
@@ -3389,7 +3391,7 @@ class EncryptedFS {
     options: Options,
     callback: Callback,
   ): Promise<void>;
-  @ready(new errors.ErrorEncryptedFSNotRunning())
+  @createDestroyStartStop.ready(new errors.ErrorEncryptedFSNotRunning())
   public async writeFile(
     file: File,
     data: Data = 'undefined',

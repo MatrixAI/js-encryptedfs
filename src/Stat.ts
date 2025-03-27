@@ -1,5 +1,5 @@
-import type { NonFunctionProperties } from './types';
-import * as constants from './constants';
+import type { NonFunctionProperties } from './types.js';
+import * as constants from './constants.js';
 
 /**
  * Parameters to construct a Stat object

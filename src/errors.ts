@@ -1,4 +1,4 @@
-import type { POJO } from './types';
+import type { POJO } from './types.js';
 import type { Class } from '@matrixai/errors';
 import { AbstractError } from '@matrixai/errors';
 

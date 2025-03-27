@@ -1,6 +1,6 @@
-import type { Callback } from '@/types';
-import * as utils from '@/utils';
-import { maybeCallback } from '@/utils';
+import type { Callback } from '#types.js';
+import * as utils from '#utils.js';
+import { maybeCallback } from '#utils.js';
 
 describe('utils', () => {
   let key: Buffer;
