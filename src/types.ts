@@ -100,4 +100,6 @@ export type {
   Options,
   Data,
   File,
+  FdIndex,
+  INodeIndex,
 };
