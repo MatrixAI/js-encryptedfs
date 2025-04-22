@@ -2,12 +2,12 @@
 
 Encrypted filesystem library for TypeScript/JavaScript applications
 
-* Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems
-* Orthogonally Persistent - all writes automatically persisted
-* Encrypted-At-Rest - all persistence is encrypted
-* Random Read & Write - encryption and decryption operates over fixed-block sizes
-* Streamable - files do not need to loaded fully in-memory
-* Comprehensive continuous benchmarks in CI/CD
+- Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems
+- Orthogonally Persistent - all writes automatically persisted
+- Encrypted-At-Rest - all persistence is encrypted
+- Random Read & Write - encryption and decryption operates over fixed-block sizes
+- Streamable - files do not need to loaded fully in-memory
+- Comprehensive continuous benchmarks in CI/CD
 
 Development based on js-virtualfs: https://github.com/MatrixAI/js-virtualfs
 
@@ -34,7 +34,7 @@ const efs = await EncryptedFS.createEncryptedFS({
 
 // optionally set up the worker manager for multi-threaded encryption/decryption
 const workerManager = await WorkerManager.createWorkerManager<EFSWorkerModule>({
-  workerFactory: () => spawn(new Worker('./src/workers/efsWorker'))
+  workerFactory: () => spawn(new Worker('./src/workers/efsWorker')),
 });
 
 efs.setWorkerManager(workerManager);
@@ -64,10 +64,10 @@ Internally we use the AES-GCM symmetric encryption using a master `dbKey` that c
 
 The `dbKey` can be generated from several methods:
 
-* `generateKey` - random asynchronous
-* `generateKeySync` - random synchronous
-* `generateKeyFromPass` - derived from user-provided "password" asynchronous
-* `generateKeyFromPassSync` - derived from user-provided "password" synchronous
+- `generateKey` - random asynchronous
+- `generateKeySync` - random synchronous
+- `generateKeyFromPass` - derived from user-provided "password" asynchronous
+- `generateKeyFromPassSync` - derived from user-provided "password" synchronous
 
 For example:
 
@@ -95,9 +95,9 @@ The ciphertext data length is equal to the plaintext block length.
 
 There are some differences between EFS and Node FS:
 
-* User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.
-* Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.
-* Character Devices: Node FS contains Character Devices which can be written to and read from. However, in EFS Character Devices are not supported yet.
+- User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.
+- Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.
+- Character Devices: Node FS contains Character Devices which can be written to and read from. However, in EFS Character Devices are not supported yet.
 
 ## Development
 
