@@ -864,7 +864,7 @@ class EncryptedFS {
       path = this.getPath(path);
       try {
         return !!(await this.navigate(path, true)).target;
-      } catch (e) {
+      } catch {
         return false;
       }
     }, callback);
