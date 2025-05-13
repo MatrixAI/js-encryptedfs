@@ -6,4 +6,4 @@ export * as inodes from './inodes/index.js';
 export * as constants from './constants.js';
 export * as permissions from './permissions.js';
 export * as utils from './utils.js';
-export * from './types.js';
+export type * from './types.js';
