@@ -2,10 +2,12 @@
 
 Encrypted filesystem library for TypeScript/JavaScript applications
 
-- Virtualised - files, directories, permissions are all virtual constructs, they do not correspond to real filesystems
+- Virtualised - files, directories, permissions are all virtual constructs, they
+  do not correspond to real filesystems
 - Orthogonally Persistent - all writes automatically persisted
 - Encrypted-At-Rest - all persistence is encrypted
-- Random Read & Write - encryption and decryption operates over fixed-block sizes
+- Random Read & Write - encryption and decryption operates over fixed-block
+  sizes
 - Streamable - files do not need to loaded fully in-memory
 - Comprehensive continuous benchmarks in CI/CD
 
@@ -58,9 +60,11 @@ await efs.destroy();
 
 ### Encryption & Decryption Protocol
 
-Encryption & Decryption implemented using the `node-forge` library. However it is possible to plug in your own `encrypt` and `decrypt` functions.
+Encryption & Decryption implemented using the `node-forge` library. However it
+is possible to plug in your own `encrypt` and `decrypt` functions.
 
-Internally we use the AES-GCM symmetric encryption using a master `dbKey` that can be 128, 192 or 256 bits long.
+Internally we use the AES-GCM symmetric encryption using a master `dbKey` that
+can be 128, 192 or 256 bits long.
 
 The `dbKey` can be generated from several methods:
 
@@ -75,15 +79,20 @@ For example:
 const [key, salt] = await generateKeyFromPass('secure password');
 ```
 
-This uses PBKDF2 to derive a symmetric key. The default key length will be 256 bits. For deterministic key generation, make sure to specify the `salt` parameter.
+This uses PBKDF2 to derive a symmetric key. The default key length will be 256
+bits. For deterministic key generation, make sure to specify the `salt`
+parameter.
 
 ```ts
 const [key, salt] = await generateKeyFromPass('secure password', 'salt');
 ```
 
-Construction of `EncryptedFS` relies on an optional `blockSize` parameter. This is by default set to 4 KiB. All files are broken up into 4 KiB plaintext blocks. When encrypted, they are persisted as ciphertext blocks.
+Construction of `EncryptedFS` relies on an optional `blockSize` parameter. This
+is by default set to 4 KiB. All files are broken up into 4 KiB plaintext blocks.
+When encrypted, they are persisted as ciphertext blocks.
 
-The ciphertext blocks contain an initialization vector plus an authorisation tag. Here is an example of the structure:
+The ciphertext blocks contain an initialization vector plus an authorisation
+tag. Here is an example of the structure:
 
 ```
 | iv (16 bytes) | authTag (16 bytes) | ciphertext data (x bytes) |
@@ -95,9 +104,16 @@ The ciphertext data length is equal to the plaintext block length.
 
 There are some differences between EFS and Node FS:
 
-- User, Group and Other permissions: In EFS User, Group and Other permissions are strictly confined to their permission class. For example, a User in EFS does not have the permissions that a Group or Other has while in Node FS a User also has permissions that Group and Other have.
-- Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a file or a directory that lets only the owner of the file/directory or the root user to delete or rename the file. EFS does not support the use of sticky bits.
-- Character Devices: Node FS contains Character Devices which can be written to and read from. However, in EFS Character Devices are not supported yet.
+- User, Group and Other permissions: In EFS User, Group and Other permissions
+  are strictly confined to their permission class. For example, a User in EFS
+  does not have the permissions that a Group or Other has while in Node FS a
+  User also has permissions that Group and Other have.
+- Sticky Files: In Node FS, a sticky bit is a permission bit that is set on a
+  file or a directory that lets only the owner of the file/directory or the root
+  user to delete or rename the file. EFS does not support the use of sticky
+  bits.
+- Character Devices: Node FS contains Character Devices which can be written to
+  and read from. However, in EFS Character Devices are not supported yet.
 
 ## Development
 
@@ -124,7 +140,9 @@ npm run lintfix
 npm run bench
 ```
 
-View benchmarks here: https://github.com/MatrixAI/js-encryptedfs/blob/master/benches/results with https://raw.githack.com/
+View benchmarks here:
+https://github.com/MatrixAI/js-encryptedfs/blob/master/benches/results with
+https://raw.githack.com/
 
 ### Docs Generation
 
